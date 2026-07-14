@@ -20,30 +20,36 @@ import streamlit.components.v1 as _components
 _CSS = r"""
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 :root {
-  --ink: #0f1419;
-  --ink-soft: #3d4a5c;
-  --paper: #f3f4f6;
-  --panel: #ffffff;
-  --sidebar: #12181f;
+  --ink: #ecf1f7;
+  --ink-soft: #9aa7b7;
+  --paper: #11161d;
+  --panel: #1b232d;
+  --panel-2: #151c25;
+  --sidebar: #0d1218;
   --sidebar-text: #c5ced9;
-  --accent: #0d9488;
-  --accent-hover: #0f766e;
-  --line: #d1d5db;
-  --ok: #047857;
+  --accent: #6fd4be;
+  --accent-hover: #4fc4ab;
+  --accent-warm: #ff9b6a;
+  --line: #334355;
+  --ok: #6fd4be;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
 }
 html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-  background: var(--paper) !important;
+  background: radial-gradient(circle at top right, #1f2c3b 0%, var(--paper) 48%) !important;
   color: var(--ink) !important;
   font-family: var(--sans) !important;
 }
-.main, [data-testid="stMain"] { background: var(--paper) !important; }
+.main, [data-testid="stMain"] {
+  background: transparent !important;
+}
 [data-testid="stMain"] .block-container {
   padding-top: 1.75rem !important;
   padding-bottom: 3rem !important;
-  max-width: 1120px !important;
+  max-width: 1180px !important;
 }
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stToolbar"] { color: var(--ink-soft) !important; }
 [data-testid="stSidebar"], [data-testid="stSidebarContent"],
 section[data-testid="stSidebar"] > div {
   background: var(--sidebar) !important;
@@ -85,14 +91,15 @@ h2 { font-size: 1.15rem !important; font-weight: 600 !important; margin-top: 1.2
 p, label, span, .stMarkdown, [data-testid="stMarkdownContainer"],
 [data-testid="stWidgetLabel"] { color: var(--ink) !important; font-family: var(--sans) !important; }
 .stButton > button {
-  background: var(--accent) !important; color: #fff !important; border: none !important;
+  background: var(--accent) !important; color: #0d1218 !important; border: none !important;
   border-radius: 6px !important; font-family: var(--sans) !important; font-weight: 600 !important;
   padding: 0.5rem 1rem !important; box-shadow: none !important;
 }
-.stButton > button:hover { background: var(--accent-hover) !important; color: #fff !important; }
+.stButton > button:hover { background: var(--accent-hover) !important; color: #0d1218 !important; }
 input, textarea, .stTextInput input, .stTextArea textarea,
-.stSelectbox > div > div, [data-baseweb="select"] > div {
-  background: var(--panel) !important; color: var(--ink) !important;
+.stSelectbox > div > div, [data-baseweb="select"] > div,
+[data-baseweb="base-input"] {
+  background: var(--panel-2) !important; color: var(--ink) !important;
   border-color: var(--line) !important; border-radius: 6px !important;
 }
 .stTextInput input, .stTextArea textarea { font-family: var(--mono) !important; font-size: 0.9rem !important; }
@@ -110,12 +117,17 @@ input, textarea, .stTextInput input, .stTextArea textarea,
 }
 button[data-baseweb="tab"] { font-family: var(--sans) !important; font-weight: 500 !important; color: var(--ink-soft) !important; }
 button[data-baseweb="tab"][aria-selected="true"] { color: var(--accent) !important; }
+div[data-baseweb="tab-list"] { border-bottom-color: var(--line) !important; }
+.stCheckbox label, .stRadio label { color: var(--ink) !important; }
+.stSlider [data-baseweb="slider"] div[role="slider"] { background: var(--accent) !important; }
+.stAlert { background: var(--panel) !important; }
 .mh-chip {
   display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem;
   border-radius: 999px; font-family: var(--mono); font-size: 0.72rem;
   border: 1px solid var(--line); background: var(--panel); margin: 0.2rem 0.25rem 0.2rem 0;
+  color: var(--ink-soft);
 }
-.mh-chip.on { border-color: #99f6e4; background: #f0fdfa; color: var(--ok); }
+.mh-chip.on { border-color: rgba(111, 212, 190, 0.45); background: rgba(111, 212, 190, 0.12); color: var(--ok); }
 .mh-chip.off { color: var(--ink-soft); }
 .mh-tool {
   border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem;
@@ -124,14 +136,126 @@ button[data-baseweb="tab"][aria-selected="true"] { color: var(--accent) !importa
 .mh-tool h4 { margin: 0 0 0.35rem 0 !important; font-size: 0.95rem !important; color: var(--ink) !important; font-weight: 600 !important; }
 .mh-tool p { margin: 0 0 0.75rem 0 !important; font-size: 0.82rem !important; color: var(--ink-soft) !important; line-height: 1.45; }
 .mh-tool a { font-family: var(--mono); font-size: 0.75rem; color: var(--accent) !important; text-decoration: none; font-weight: 500; }
-.stCodeBlock, pre, code { font-family: var(--mono) !important; }
+.mh-dork-workspace {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1.15rem 1.25rem; margin-bottom: 1rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+.mh-dork-hero .mh-dork-kicker {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 0.35rem;
+}
+.mh-dork-hero h2 {
+  margin: 0 !important; font-size: 1.55rem !important; font-weight: 700 !important;
+  letter-spacing: -0.03em; color: var(--ink) !important; font-family: var(--mono) !important;
+}
+.mh-dork-hero p {
+  margin: 0.5rem 0 0 0 !important; color: var(--ink-soft) !important;
+  font-size: 0.9rem !important; max-width: 46rem; line-height: 1.45;
+}
+.mh-dork-summary {
+  font-family: var(--mono); font-size: 0.78rem; color: var(--ink-soft);
+  padding: 0.55rem 0.75rem; border: 1px dashed var(--line); border-radius: 8px;
+  margin: 0.75rem 0 1rem 0; background: var(--panel-2);
+}
+.mh-dork-side {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  padding: 0.85rem 0.95rem; margin-bottom: 0.75rem;
+}
+.mh-dork-side h4 {
+  margin: 0 0 0.35rem 0 !important; font-family: var(--mono) !important;
+  font-size: 0.68rem !important; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent) !important; font-weight: 600 !important;
+}
+.mh-dork-side p {
+  margin: 0 0 0.55rem 0 !important; font-size: 0.75rem !important;
+  color: var(--ink-soft) !important; line-height: 1.35;
+}
+/* Scroll nos painéis de filtro (containers com height do Streamlit) */
+[data-testid="stVerticalBlockBorderWrapper"]:has(.mh-scroll-mark) {
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  background: var(--panel) !important;
+  padding: 0.35rem 0.55rem 0.55rem !important;
+  margin-bottom: 0.65rem !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.mh-scroll-mark) > div {
+  scrollbar-width: auto;
+  scrollbar-color: #c5ced9 #1e2936;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.mh-scroll-mark) > div::-webkit-scrollbar {
+  width: 10px;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.mh-scroll-mark) > div::-webkit-scrollbar-track {
+  background: #1e2936;
+  border-radius: 8px;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.mh-scroll-mark) > div::-webkit-scrollbar-thumb {
+  background: #8b9aab;
+  border-radius: 8px;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.mh-scroll-mark) > div::-webkit-scrollbar-thumb:hover {
+  background: #c5ced9;
+}
+.mh-dork-card {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1.1rem 1.2rem; margin-bottom: 0.95rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+.mh-dork-card h3 {
+  margin: 0 0 0.35rem 0 !important; font-size: 1.12rem !important;
+  color: var(--ink) !important; font-weight: 700 !important; letter-spacing: -0.02em;
+}
+.mh-dork-card .mh-dork-desc {
+  margin: 0 0 0.65rem 0 !important; font-size: 0.86rem !important;
+  color: var(--ink-soft) !important; line-height: 1.45;
+}
+.mh-dork-card .mh-dork-tags { margin-bottom: 0.75rem; }
+.mh-dork-tag {
+  display: inline-block; font-family: var(--mono); font-size: 0.65rem;
+  letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.5rem;
+  border-radius: 999px; border: 1px solid rgba(111, 212, 190, 0.35);
+  background: rgba(111, 212, 190, 0.12); color: var(--accent);
+  margin: 0 0.3rem 0.3rem 0;
+}
+.mh-dork-query {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.65rem;
+  padding: 0.65rem 0.7rem; margin-top: 0.45rem;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+}
+.mh-dork-engine {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-warm);
+  min-width: 5rem;
+}
+.mh-dork-code {
+  flex: 1 1 240px; font-family: var(--mono); font-size: 0.78rem;
+  color: var(--ink); background: transparent; border: none;
+  border-radius: 0; padding: 0; word-break: break-all; line-height: 1.4;
+}
+.mh-dork-actions { display: flex; gap: 0.55rem; align-items: center; flex-wrap: wrap; }
+.mh-dork-actions a {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--accent) !important;
+  text-decoration: none; font-weight: 600;
+}
+.mh-cat-label {
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--accent); margin: 1.25rem 0 0.55rem 0;
+}
+.stCodeBlock, pre, code,
+[data-testid="stCode"] {
+  font-family: var(--mono) !important;
+  background: var(--panel-2) !important;
+  color: var(--ink) !important;
+}
 img { border-radius: 8px; border: 1px solid var(--line); }
 .mh-foot {
   margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line);
-  font-family: var(--mono); font-size: 0.72rem; color: #6b7280; letter-spacing: 0.04em;
+  font-family: var(--mono); font-size: 0.72rem; color: #7a8796; letter-spacing: 0.04em;
 }
-div[data-testid="stAlert"] { border-radius: 8px !important; }
+div[data-testid="stAlert"] { border-radius: 8px !important; background: var(--panel) !important; }
 hr { border-color: var(--line) !important; }
+a { color: var(--accent) !important; }
 """
 
 _components.html(
@@ -160,12 +284,32 @@ def page_header(eyebrow: str, title: str, desc: str = ""):
     )
 
 
+def ensure_dork_tokens():
+    from Core.Support.DorkWorkbench import empty_tokens
+    if "dork_tokens" not in st.session_state:
+        st.session_state.dork_tokens = empty_tokens()
+    return st.session_state.dork_tokens
+
+
+def send_to_dorks(**kwargs):
+    tokens = ensure_dork_tokens()
+    for key, val in kwargs.items():
+        if val:
+            tokens[key] = str(val).strip()
+            st.session_state[f"dork_tok_{key}"] = tokens[key]
+    st.session_state.dork_tokens = tokens
+    st.session_state.dork_navigate_hint = True
+    st.success("Tokens enviados ao Dorks Workbench — abra o menu **Dorks** na sidebar.")
+
+
 # ── Navigation ───────────────────────────────────────────────────────────────
 PAGES = [
+    "Dorks",
     "Telefone",
     "Email",
     "Domínio",
     "OSINT Avançado",
+    "Leaks",
     "Rede",
     "Gráfico",
     "Ferramentas",
@@ -183,7 +327,9 @@ with st.sidebar:
         </div>
         """
     )
-    page = st.radio("Navegação", PAGES, label_visibility="collapsed")
+    if "nav_page" not in st.session_state:
+        st.session_state.nav_page = "Dorks"
+    page = st.radio("Navegação", PAGES, key="nav_page", label_visibility="collapsed")
     st.markdown("---")
     st.caption("Uso educacional e autorizado.")
 
@@ -251,13 +397,22 @@ if page == "Telefone":
                 b.markdown(f"[Yandex](https://yandex.com/search/?text=%22{digits}%22)")
                 c.markdown(f"[WhatsApp](https://wa.me/{digits})")
                 save_search("phone", digits, country=pais, area=area, carrier=operadora, sites_found=len(sites_found))
+                st.session_state["last_phone"] = digits
             except Exception as e:
                 st.error(str(e))
+    if st.session_state.get("last_phone"):
+        st.caption(f"Último número: `{st.session_state['last_phone']}`")
+        if st.button("Enviar para Dorks Workbench", key="phone_to_dorks"):
+            send_to_dorks(PHONE=st.session_state["last_phone"])
 
 
 # ── Email ────────────────────────────────────────────────────────────────────
 elif page == "Email":
     page_header("Lookup", "Email", "Validação de formato, MX, Gravatar e menções em pastes públicos.")
+    st.caption(
+        "Paralelo gratuito (parcial) à busca de email em breaches do OSINT Leak: "
+        "aqui usamos MX, Gravatar, Holehe e pastes públicos — sem base comercial de stealer logs."
+    )
     email = st.text_input("Endereço", placeholder="exemplo@dominio.com")
     if st.button("Investigar", type="primary") and email:
         with st.spinner("Analisando email…"):
@@ -277,13 +432,30 @@ elif page == "Email":
                 for a in r.get("alertas", []):
                     st.info(a)
                 save_search("email", email.strip().lower(), country=r.get("dominio", ""), sites_found=r.get("total_fontes", 0))
+                st.markdown(
+                    f"[Abrir no OSINT Leak (leaks pagos)](https://app.osintleak.com/dashboard/search) "
+                    f"— cole `{email.strip().lower()}` como tipo email"
+                )
+                st.session_state["last_email"] = email.strip().lower()
+                st.session_state["last_email_domain"] = (r.get("dominio") or "").strip()
             except Exception as e:
                 st.error(str(e))
+    if st.session_state.get("last_email"):
+        st.caption(f"Último email: `{st.session_state['last_email']}`")
+        if st.button("Enviar para Dorks Workbench", key="email_to_dorks"):
+            em = st.session_state["last_email"]
+            dom = st.session_state.get("last_email_domain") or ""
+            org = dom.split(".")[0] if dom else ""
+            send_to_dorks(EMAIL=em, TARGET_DOMAIN=dom, ORG_NAME=org)
 
 
 # ── Domínio ──────────────────────────────────────────────────────────────────
 elif page == "Domínio":
     page_header("Lookup", "Domínio", "Resolução IP, GeoIP, registros DNS, cabeçalhos HTTP e atalhos ViewDNS.")
+    st.caption(
+        "Paralelo gratuito aos tools WHOIS / IP Intelligence do OSINT Leak: "
+        "GeoIP (ip-api) + links ViewDNS (WHOIS, histórico de IP, reverse IP)."
+    )
     domain = st.text_input("Domínio", placeholder="exemplo.com")
     if st.button("Investigar", type="primary") and domain:
         with st.spinner("Investigando domínio…"):
@@ -304,7 +476,7 @@ elif page == "Domínio":
                 for rtype, records in r.get("dns", {}).items():
                     if records:
                         st.markdown(f"`{rtype}`  {', '.join(records[:3])}")
-                st.subheader("ViewDNS")
+                st.subheader("ViewDNS (WHOIS / IP)")
                 cols = st.columns(5)
                 for i, (name, link) in enumerate(r.get("viewdns_links", {}).items()):
                     cols[i % 5].markdown(f"[{name}]({link})")
@@ -314,8 +486,16 @@ elif page == "Domínio":
                     area=r.get("geo", {}).get("city", ""),
                     carrier=r.get("geo", {}).get("isp", ""),
                 )
+                st.session_state["last_domain"] = (r.get("dominio") or domain).strip()
+                st.session_state["last_domain_ip"] = (r.get("ip") or "").strip()
             except Exception as e:
                 st.error(str(e))
+    if st.session_state.get("last_domain"):
+        st.caption(f"Último domínio: `{st.session_state['last_domain']}`")
+        if st.button("Enviar para Dorks Workbench", key="domain_to_dorks"):
+            dom = st.session_state["last_domain"]
+            org = dom.split(".")[0] if dom else ""
+            send_to_dorks(TARGET_DOMAIN=dom, ORG_NAME=org, IP=st.session_state.get("last_domain_ip", ""))
 
 
 # ── OSINT Avançado ───────────────────────────────────────────────────────────
@@ -346,6 +526,7 @@ elif page == "OSINT Avançado":
 
     with tab1:
         st.markdown("Descobre em quais serviços um email possui conta.")
+        st.caption("Complemento gratuito à busca de email em leaks (OSINT Leak): contas públicas, não stealer logs.")
         email_h = st.text_input("Email", placeholder="usuario@dominio.com", key="holehe_email")
         if st.button("Executar Holehe", key="btn_holehe") and email_h:
             with st.spinner("Consultando serviços…"):
@@ -368,6 +549,7 @@ elif page == "OSINT Avançado":
 
     with tab2:
         st.markdown("Username em redes e plataformas (Maigret; Sherlock se disponível).")
+        st.caption("Equivalente open-source ao UserHunter do OSINT Leak — sem cota paga; cobertura via Maigret.")
         user_m = st.text_input("Username", placeholder="joaosilva", key="maigret_user")
         max_sites = st.slider("Limite de sites", 20, 100, 40, key="maigret_n")
         if st.button("Executar Maigret", key="btn_maigret") and user_m:
@@ -645,9 +827,313 @@ elif page == "Gráfico":
             st.info("Adicione entidades no painel à direita.")
 
 
+# ── Dorks Workbench ──────────────────────────────────────────────────────────
+elif page == "Dorks":
+    import importlib
+    import html as _html
+    import Core.Support.DorkWorkbench as _dw
+    _dw = importlib.reload(_dw)
+
+    TOKEN_KEYS = _dw.TOKEN_KEYS
+    TOKEN_LABELS_PT = getattr(
+        _dw,
+        "TOKEN_LABELS_PT",
+        {
+            "TARGET_DOMAIN": "Domínio alvo",
+            "ORG_NAME": "Organização",
+            "USERNAME": "Usuário",
+            "EMAIL": "Email",
+            "IP": "IP",
+            "ASN": "ASN",
+            "PHONE": "Telefone",
+        },
+    )
+    empty_tokens = _dw.empty_tokens
+    filter_techniques = _dw.filter_techniques
+    humanize_goal = _dw.humanize_goal
+    list_engines = _dw.list_engines
+    list_goals = _dw.list_goals
+    load_catalog = _dw.load_catalog
+    localize_technique = getattr(
+        _dw,
+        "localize_technique",
+        lambda tech: {
+            "title": tech.get("title") or "",
+            "description": tech.get("description") or "",
+        },
+    )
+    resolve_queries = _dw.resolve_queries
+    source_label = getattr(_dw, "source_label", lambda s: s or "")
+
+    ensure_dork_tokens()
+    for key in TOKEN_KEYS:
+        sk = f"dork_tok_{key}"
+        if sk not in st.session_state:
+            st.session_state[sk] = st.session_state.dork_tokens.get(key, "")
+
+    catalog = load_catalog()
+    engines_all = list_engines(catalog)
+    goals_all = list_goals(catalog)
+
+    st.html(
+        """
+        <div class="mh-dork-workspace mh-dork-hero">
+          <div class="mh-dork-kicker">Workbench de pesquisa</div>
+          <h2>Dorks</h2>
+          <p>
+            Catálogo curado como o WebDorks (tokens, filtros, engines) — com link direto para
+            abrir a busca e listas nativas do Holmes. Uso educacional e em alvos autorizados.
+          </p>
+        </div>
+        """
+    )
+    st.caption("Técnicas WebDorks © root-Manas (MIT) + Site_lists Mr.Holmes.")
+
+    # Controles superiores (espelha barra do WebDorks)
+    top1, top2 = st.columns([3, 1])
+    with top1:
+        dork_search = st.text_input(
+            "Buscar técnicas",
+            placeholder="buscar por título, objetivo, motor ou sintaxe",
+            key="dork_search",
+        )
+    with top2:
+        if st.button("Limpar tokens", key="dork_clear_tokens", use_container_width=True):
+            st.session_state.dork_tokens = empty_tokens()
+            for key in TOKEN_KEYS:
+                st.session_state[f"dork_tok_{key}"] = ""
+            st.rerun()
+
+    st.markdown("**Substituição de tokens**")
+    placeholders = {
+        "TARGET_DOMAIN": "exemplo.com",
+        "ORG_NAME": "acme",
+        "USERNAME": "johndoe",
+        "EMAIL": "user@empresa.com",
+        "IP": "203.0.113.7",
+        "ASN": "AS15169",
+        "PHONE": "5511999999999",
+    }
+    tcols = st.columns(4)
+    token_vals = {}
+    for i, key in enumerate(TOKEN_KEYS):
+        with tcols[i % 4]:
+            token_vals[key] = st.text_input(
+                f"{TOKEN_LABELS_PT.get(key, key)} ({key})",
+                placeholder=placeholders[key],
+                key=f"dork_tok_{key}",
+            )
+    st.session_state.dork_tokens = {k: (token_vals.get(k) or "").strip() for k in TOKEN_KEYS}
+
+    letters = sorted(
+        {
+            (localize_technique(t).get("title") or t.get("title") or "?")[0].upper()
+            for t in catalog
+            if t.get("title") or localize_technique(t).get("title")
+        }
+    )
+    letter_opts = ["Todas"] + letters
+    letter_pick = st.radio(
+        "Índice A–Z",
+        letter_opts,
+        horizontal=True,
+        key="dork_letter",
+    )
+    letter = None if letter_pick == "Todas" else letter_pick
+
+    # Layout 2 colunas: filtros (WebDorks) + resultados
+    left, right = st.columns([1, 2.6], gap="large")
+
+    with left:
+        st.html(
+            '<div class="mh-dork-side"><h4>Motores</h4>'
+            '<p>Combine a busca com os checkboxes para filtrar melhor.</p></div>'
+        )
+        engine_sel = []
+        with st.container(height=220, border=True):
+            st.html('<span class="mh-scroll-mark"></span>')
+            for eng in engines_all:
+                if st.checkbox(eng, key=f"dork_eng_{eng}"):
+                    engine_sel.append(eng)
+
+        st.html('<div class="mh-dork-side"><h4>Objetivos</h4></div>')
+        goal_sel = []
+        with st.container(height=280, border=True):
+            st.html('<span class="mh-scroll-mark"></span>')
+            for g in goals_all:
+                if st.checkbox(humanize_goal(g), key=f"dork_goal_{g}"):
+                    goal_sel.append(g)
+
+        if st.button("Limpar filtros", key="dork_clear_filters", use_container_width=True):
+            st.session_state.dork_search = ""
+            st.session_state.dork_letter = "Todas"
+            for eng in engines_all:
+                st.session_state[f"dork_eng_{eng}"] = False
+            for g in goals_all:
+                st.session_state[f"dork_goal_{g}"] = False
+            st.rerun()
+
+    with right:
+        filtered = filter_techniques(
+            catalog,
+            search=dork_search,
+            engines=engine_sel,
+            goals=goal_sel,
+            letter=letter,
+        )
+        qcount = sum(len(t.get("queries") or []) for t in filtered)
+        active_bits = []
+        if dork_search:
+            active_bits.append(f"busca «{dork_search}»")
+        if engine_sel:
+            active_bits.append(f"{len(engine_sel)} motor(es)")
+        if goal_sel:
+            active_bits.append(f"{len(goal_sel)} objetivo(s)")
+        if letter:
+            active_bits.append(f"letra {letter}")
+        status = " · ".join(active_bits) if active_bits else "nenhum filtro ativo"
+        st.html(
+            f'<div class="mh-dork-summary">'
+            f"<strong>{len(filtered)}</strong> visíveis de <strong>{len(catalog)}</strong> "
+            f"· {qcount} consultas · {status}</div>"
+        )
+
+        if not filtered:
+            st.info("Nenhuma técnica corresponde aos filtros. Limpe a busca ou amplie motores/objetivos.")
+        else:
+            max_show = st.slider(
+                "Máximo de cards",
+                10,
+                min(200, max(10, len(filtered))),
+                min(40, len(filtered)),
+                key="dork_max",
+            )
+            for tech in filtered[:max_show]:
+                tid = tech.get("id", "")
+                loc = localize_technique(tech)
+                tags = "".join(
+                    f'<span class="mh-dork-tag">{_html.escape(humanize_goal(g))}</span>'
+                    for g in (tech.get("goals") or [])
+                )
+                src = source_label(tech.get("source") or "")
+                src_badge = (
+                    f'<span class="mh-dork-tag">{_html.escape(src)}</span>' if src else ""
+                )
+                rows = resolve_queries(tech, st.session_state.dork_tokens)
+                query_html_parts = []
+                for row in rows:
+                    qtxt = _html.escape(row["q"])
+                    eng = _html.escape(row["engine"])
+                    link = ""
+                    if row.get("url"):
+                        href = _html.escape(row["url"])
+                        label = "Portal" if row.get("portal_only") else "Abrir busca"
+                        link = (
+                            f'<a href="{href}" target="_blank" rel="noopener">{label} →</a>'
+                        )
+                    query_html_parts.append(
+                        f'<div class="mh-dork-query">'
+                        f'<span class="mh-dork-engine">{eng}</span>'
+                        f'<code class="mh-dork-code">{qtxt}</code>'
+                        f'<div class="mh-dork-actions">{link}</div></div>'
+                    )
+                st.html(
+                    f'<div class="mh-dork-card">'
+                    f"<h3>{_html.escape(loc['title'])}</h3>"
+                    f'<p class="mh-dork-desc">{_html.escape(loc["description"])}</p>'
+                    f'<div class="mh-dork-tags">{tags}{src_badge}</div>'
+                    f'{"".join(query_html_parts)}'
+                    f"</div>"
+                )
+                acols = st.columns(min(3, max(1, len(rows))))
+                for qi, row in enumerate(rows):
+                    with acols[qi % len(acols)]:
+                        if st.button(
+                            f"Copiar · {row['engine']}",
+                            key=f"copy_{tid}_{qi}",
+                            use_container_width=True,
+                        ):
+                            st.session_state["dork_clipboard"] = row["q"]
+                            st.code(row["q"], language=None)
+                            st.toast("Consulta pronta para copiar (bloco acima).")
+
+
+# ── Leaks (atalho OSINT Leak — sem API) ──────────────────────────────────────
+elif page == "Leaks":
+    page_header(
+        "Externo",
+        "OSINT Leak",
+        "Atalho para busca em breaches/stealer logs. Sem API paga os resultados não são importados automaticamente.",
+    )
+    st.info(
+        "Busca em leaks requer conta no OSINT Leak. "
+        "O Mr.Holmes não raspa nem armazena a base proprietária deles."
+    )
+
+    tipo_ol = st.selectbox(
+        "Tipo de busca",
+        ["email", "username", "phone", "domain", "ip", "name"],
+        help="Use o mesmo tipo no seletor do dashboard OSINT Leak.",
+    )
+    query_ol = st.text_input(
+        "Consulta",
+        placeholder={
+            "email": "exemplo@dominio.com",
+            "username": "joaosilva",
+            "phone": "5511999999999",
+            "domain": "exemplo.com",
+            "ip": "8.8.8.8",
+            "name": "Nome Sobrenome",
+        }[tipo_ol],
+        key="ol_query",
+    )
+
+    dash_url = "https://app.osintleak.com/dashboard/search"
+    c1, c2 = st.columns(2)
+    with c1:
+        st.link_button("Abrir dashboard OSINT Leak", dash_url, use_container_width=True)
+    with c2:
+        if query_ol.strip():
+            st.link_button(
+                "Abrir PimEyes (imagem)",
+                "https://pimeyes.com",
+                use_container_width=True,
+            )
+        else:
+            st.caption("Informe uma consulta para montar o bloco de cópia.")
+
+    if query_ol.strip():
+        bloco = f"tipo={tipo_ol}\nquery={query_ol.strip()}"
+        st.subheader("Copiar para o dashboard")
+        st.code(bloco, language=None)
+        st.caption(
+            "Cole a query no campo Search do OSINT Leak e escolha o seletor correspondente "
+            f"(`{tipo_ol}`). Monitoring exige plano Platinum+ e não está disponível aqui."
+        )
+        from Core.Support.History import save_search
+        if st.button("Registrar no histórico local"):
+            save_search("osintleak", query_ol.strip(), country=tipo_ol, sites_found=0)
+            st.success("Registrado no histórico local (sem resultados de leak).")
+
+    st.subheader("O que usar no Holmes em vez disso")
+    st.markdown(
+        """
+| Precisa de… | No Holmes (grátis) | No OSINT Leak |
+|---|---|---|
+| Username em redes | **OSINT Avançado → Maigret** | UserHunter |
+| Email (contas / pastes) | **Email** + **Holehe** | Busca email em breaches |
+| Domínio / IP / WHOIS | **Domínio** + ViewDNS | WHOIS & IP tools |
+| Telefone (DDD BR) | **Telefone** | Phone selector (leaks) |
+| Reverse image | Link PimEyes em Ferramentas | AI Reverse Image (pago) |
+| Monitoring contínuo | — | Platinum / Enterprise |
+"""
+    )
+
+
 # ── Ferramentas ──────────────────────────────────────────────────────────────
 elif page == "Ferramentas":
     page_header("Externas", "Ferramentas", "Integrações e serviços úteis para investigação.")
+    st.info("Para dorks organizados com tokens e filtros, use o menu **Dorks** (Workbench interno).")
     st.subheader("UrlScan.io")
     url_to_scan = st.text_input("URL", "https://exemplo.com")
     c1, c2 = st.columns(2)
@@ -672,22 +1158,70 @@ elif page == "Ferramentas":
     with c2:
         st.markdown(f"[Buscar no UrlScan](https://urlscan.io/search/#{url_to_scan})")
 
-    st.subheader("Diretório")
-    tools = [
-        {"name": "Metricool", "desc": "Analytics e anúncios de redes sociais.", "url": "https://metricool.com"},
-        {"name": "PimEyes", "desc": "Busca reversa de rostos.", "url": "https://pimeyes.com"},
-        {"name": "UrlScan.io", "desc": "Sandbox de URLs suspeitas.", "url": "https://urlscan.io"},
-        {"name": "Grep.app", "desc": "Busca em repositórios públicos.", "url": "https://grep.app"},
-        {"name": "ViewDNS", "desc": "WHOIS, histórico de IP, DNS.", "url": "https://viewdns.info"},
-        {"name": "HostingChecker", "desc": "Provedor e localização do host.", "url": "https://hostingchecker.com"},
+    tool_categories = [
+        (
+            "Workbenches",
+            [
+                {
+                    "name": "Dorks Workbench (interno)",
+                    "desc": "Catálogo curado, tokens e filtros — menu Dorks na sidebar.",
+                    "url": None,
+                    "hint": True,
+                },
+                {
+                    "name": "WebDorks (referência)",
+                    "desc": "Workbench original que inspirou o layout do menu Dorks.",
+                    "url": "https://webdorks.vercel.app/",
+                },
+            ],
+        ),
+        (
+            "Leaks",
+            [
+                {
+                    "name": "OSINT Leak",
+                    "desc": "Busca em breaches e stealer logs (conta externa; sem import automático).",
+                    "url": "https://app.osintleak.com/dashboard/search",
+                },
+            ],
+        ),
+        (
+            "Redes sociais",
+            [
+                {"name": "Metricool", "desc": "Analytics e anúncios de redes sociais.", "url": "https://metricool.com"},
+                {"name": "PimEyes", "desc": "Busca reversa de rostos (paralelo ao reverse image pago).", "url": "https://pimeyes.com"},
+            ],
+        ),
+        (
+            "Infra / DNS",
+            [
+                {"name": "UrlScan.io", "desc": "Sandbox de URLs suspeitas.", "url": "https://urlscan.io"},
+                {"name": "ViewDNS", "desc": "WHOIS, histórico de IP, DNS.", "url": "https://viewdns.info"},
+                {"name": "HostingChecker", "desc": "Provedor e localização do host.", "url": "https://hostingchecker.com"},
+            ],
+        ),
+        (
+            "Código",
+            [
+                {"name": "Grep.app", "desc": "Busca em repositórios públicos.", "url": "https://grep.app"},
+            ],
+        ),
     ]
-    cols = st.columns(3)
-    for i, tool in enumerate(tools):
-        with cols[i % 3]:
-            st.html(
-                f'<div class="mh-tool"><h4>{tool["name"]}</h4><p>{tool["desc"]}</p>'
-                f'<a href="{tool["url"]}" target="_blank">Abrir →</a></div>'
-            )
+    for cat_name, tools in tool_categories:
+        st.html(f'<div class="mh-cat-label">{cat_name} · {len(tools)}</div>')
+        cols = st.columns(3)
+        for i, tool in enumerate(tools):
+            with cols[i % 3]:
+                if tool.get("hint"):
+                    st.html(
+                        f'<div class="mh-tool"><h4>{tool["name"]}</h4><p>{tool["desc"]}</p>'
+                        f'<span style="font-family:var(--mono);font-size:0.75rem;color:var(--accent)">→ menu Dorks</span></div>'
+                    )
+                else:
+                    st.html(
+                        f'<div class="mh-tool"><h4>{tool["name"]}</h4><p>{tool["desc"]}</p>'
+                        f'<a href="{tool["url"]}" target="_blank">Abrir →</a></div>'
+                    )
 
 
 # ── Histórico ────────────────────────────────────────────────────────────────
@@ -719,10 +1253,23 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Módulos**
 - Telefone, email, domínio
+- **Dorks Workbench** — catálogo curado (WebDorks MIT + listas Holmes), tokens, filtros, abrir busca
 - Suite OSINT (Holehe, Maigret, theHarvester, dnstwist, httpx…)
+- Atalho **Leaks** → OSINT Leak (conta externa)
 - Rede, gráfico, histórico
 
-**Aviso** — uso educacional e em alvos autorizados. O autor não se responsabiliza por uso indevido.
+**Mr.Holmes vs WebDorks**
+- Layout e catálogo de técnicas inspirados em [WebDorks](https://webdorks.vercel.app/) (© root-Manas, MIT).
+- **Diferenciais Holmes:** links diretos para engines, token `PHONE`, fusão com `Site_lists/`, prefill a partir de Telefone/Email/Domínio.
+
+**Mr.Holmes vs OSINT Leak**
+- **Holmes (grátis/local):** DDD BR, MX/Gravatar/Holehe, Maigret (≈ UserHunter), DNS/WHOIS/ViewDNS, grafo, dorks, sem cota paga.
+- **OSINT Leak (pago):** busca em breaches/stealer logs, similar search, monitoring Platinum+, reverse image AI, API.
+- **Sem API:** resultados de leaks **não** são importados automaticamente; use o menu Leaks para abrir o dashboard e colar a query.
+- Monitoring contínuo e export massivo de leaks ficam no lado OSINT Leak (planos pagos).
+
+**Aviso** — uso educacional e em alvos autorizados. Não raspe bases comerciais.
+O autor não se responsabiliza por uso indevido.
 """)
 
 st.html('<div class="mh-foot">MR.HOLMES · OSINT · USO EDUCACIONAL</div>')

@@ -1,0 +1,10 @@
+[phases.setup]
+nixPkgs = ["python312", "gcc"]
+
+[phases.install]
+cmds = [
+  "python -m venv --copies /opt/venv && . /opt/venv/bin/activate && pip install -U pip && pip install -r requirements.txt"
+]
+
+[start]
+cmd = "streamlit run web_app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false"
