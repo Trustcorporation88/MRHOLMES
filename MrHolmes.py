@@ -5,6 +5,12 @@
 # License: GNU General Public License v3.0
 
 import os
+import urllib.request as _urllib_req
+
+_opener = _urllib_req.build_opener()
+_opener.addheaders = [("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")]
+_urllib_req.install_opener(_opener)
+
 from Core.Support import Menu
 from Core.Support import Font
 from Core.Support import Language

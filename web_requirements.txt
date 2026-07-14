@@ -1,0 +1,11 @@
+streamlit
+phonenumbers
+dnspython
+networkx
+matplotlib
+reportlab
+holehe
+maigret
+dnstwist
+# theHarvester oficial (PyPI tem stub 0.0.1 — usar GitHub):
+# pip install "git+https://github.com/laramies/theHarvester.git"

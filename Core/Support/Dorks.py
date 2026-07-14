@@ -14,24 +14,43 @@ filename
 class Search:
 
     @staticmethod
-    def dork(username, report, nomefile, Type):
+    def dork(username, report, nomefile, Type, compact=False):
         print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE +
               Language.Translation.Translate_Language(filename, "Dorks", "Generation", "None").format(Type))
-        sleep(2)
+        sleep(1)
         username = username.replace(" ","+")
         f = open(report, "a")
         f.write(Type + "-DORKS:\n\n")
         f.close()
-        sleep(3)
+        sleep(1)
         f = open(nomefile, "r")
+        
+        shown = 0
+        total = 0
         for sites in f:
             site = sites.rstrip("\n")
             site = site.replace("{}", username)
-            print(Font.Color.YELLOW + "[v]" + Font.Color.WHITE + site)
-            f = open(report, "a")
-            f.write(site + "\n")
+            total += 1
+            
+            fr = open(report, "a")
+            fr.write(site + "\n")
+            fr.close()
+            
+            if compact:
+                is_social = any(s in site.lower() for s in ["instagram", "facebook", "linkedin", "twitter", "vk.com"])
+                is_general = not any(ext in site.lower() for ext in ["filetype:", "mime:"])
+                
+                if is_social or (is_general and shown < 2):
+                    print(Font.Color.YELLOW + "[v]" + Font.Color.WHITE + site)
+                    shown += 1
+            else:
+                print(Font.Color.YELLOW + "[v]" + Font.Color.WHITE + site)
+        
         f.close()
-        f.close()
+        
+        if compact and total > shown:
+            print(Font.Color.YELLOW + "[v]" + Font.Color.WHITE + f"... +{total - shown} dorks salvos no arquivo")
+        
         print(Font.Color.WHITE + Language.Translation.Translate_Language(filename,
               "Default", "Report", "None") + report)
 

@@ -48,27 +48,23 @@ class Phone_search:
                 os.remove(report)
                 print(Font.Color.BLUE + "\n[I]" + Font.Color.WHITE +
                     Language.Translation.Translate_Language(filename, "Dorks", "Remove", "None").format(rep))
-            else:
-                pass
         Type = "GOOGLE"
-        Dorks.Search.dork(username, report, nomefile, Type)
+        Dorks.Search.dork(username, report, nomefile, Type, compact=True)
         f = open(report, "a")
         f.write(Language.Translation.Translate_Language(
             filename, "Report", "Phone", "FingerPrints"))
         f.close()
         print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE +
               Language.Translation.Translate_Language(filename, "Phone", "FingerPrints", "None"))
-        sleep(3)
-        f = open(fingerprints, "r")
-        for sites in f:
-            site = sites.rstrip("\n")
-            site = site.replace("{}", username)
-            print(Font.Color.YELLOW + "[v]" + Font.Color.WHITE + site)
-            f = open(report, "a")
-            f.write(site + "\n")
-            sleep(2)
-        f.close()
-        f.close()
+        sleep(1)
+        with open(fingerprints, "r") as fp:
+            for sites in fp:
+                site = sites.rstrip("\n")
+                site = site.replace("{}", username)
+                print(Font.Color.YELLOW + "[v]" + Font.Color.WHITE + site)
+                with open(report, "a") as fr:
+                    fr.write(site + "\n")
+                sleep(1)
 
     @staticmethod
     def Yandex_dork(username,rep):
@@ -76,14 +72,14 @@ class Phone_search:
         nomefile = "Site_lists/Phone/Yandex_dorks.txt"
         fingerprints = "Site_lists/Phone/Yandex_Fingerprints.txt"
         Type = "YANDEX"
-        Dorks.Search.dork(username, report, nomefile, Type)
+        Dorks.Search.dork(username, report, nomefile, Type, compact=True)
         f = open(report, "a")
         f.write(Language.Translation.Translate_Language(
             filename, "Report", "Phone", "FingerPrints"))
         f.close()
         print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE +
               Language.Translation.Translate_Language(filename, "Phone", "FingerPrints", "None"))
-        sleep(3)
+        sleep(1)
         f = open(fingerprints, "r")
         for sites in f:
             site = sites.rstrip("\n")
@@ -97,6 +93,7 @@ class Phone_search:
 
     @staticmethod
     def lookup(username, report, international):
+        successfull = []
         f = open(report, "a")
         f.write("\nPHONE NUMBER FOUND ON:\n")
         f.close()
@@ -163,7 +160,6 @@ class Phone_search:
                 pass
             folder = "Phone"
             Logs.Log.Checker(username, folder)
-            successfull = []
             successfullName = []
             ScraperSites = []
             Tags = []
@@ -174,6 +170,8 @@ class Phone_search:
                 username, "Name")
             f = open(data,)
             data = json.loads(f.read())
+            total_sites = sum(1 for sites in data for _ in sites)
+            done_count = 0
             for sites in data:
                 for data1 in sites:
                     name = sites[data1]["name"]
@@ -185,18 +183,20 @@ class Phone_search:
                     error = sites[data1]["Error"]
                     Tag =  sites[data1]["Tag"]
                     is_scrapable = sites[data1]["Scrapable"]
+                    done_count += 1
                     print(
-                        Font.Color.GREEN + "\n[+]" + Font.Color.WHITE + Language.Translation.Translate_Language(filename, "Default", "Attempt", "None").format(name))
+                        Font.Color.GREEN + "\n[+]" + Font.Color.WHITE + f" [{done_count}/{total_sites}] " +
+                        Language.Translation.Translate_Language(filename, "Default", "Attempt", "None").format(name))
                     try:
                         Requests_Search.Search.search(error, report, site1, site2, http_proxy, sites, data1, username,
-                                                      subject, successfull, name, successfullName, is_scrapable, ScraperSites, Writable, main, json_file, json_file2, Tag, Tags, MostTags=[])
+                                                       subject, successfull, name, successfullName, is_scrapable, ScraperSites, Writable, main, json_file, json_file2, Tag, Tags, MostTags=[])
                     except ConnectionError:
                         print(
                             Font.Color.BLUE + "\n[N]" + Font.Color.WHITE + Language.Translation.Translate_Language(filename, "Default", "Connection_Error1", "None"))
                         http_proxy = None
                         try:
                             Requests_Search.Search.search(error, report, site1, site2, http_proxy, sites, data1, username,
-                                                          subject, successfull, name, successfullName, is_scrapable, ScraperSites, Writable, main, json_file, json_file2,Tag, Tags, MostTags=[])
+                                                           subject, successfull, name, successfullName, is_scrapable, ScraperSites, Writable, main, json_file, json_file2,Tag, Tags, MostTags=[])
                         except Exception as e:
                             print(
                                 Font.Color.BLUE + "\n[N]" + Font.Color.WHITE + Language.Translation.Translate_Language(filename, "Default", "Site_Error", "None") + str(e))
@@ -221,10 +221,12 @@ class Phone_search:
         dork = int(input(Font.Color.BLUE + "\n[?]" + Font.Color.WHITE + Language.Translation.Translate_Language(filename, "Default", "Dorks", "None") +
                    Font.Color.GREEN + "[#MR.HOLMES#]" + Font.Color.WHITE + "-->"))
         if dork == 1:
-            print(Font.Color.GREEN + "[+]" + Font.Color.WHITE + "NORMAL FORMAT:")
+            print(Font.Color.YELLOW + "\n[I]" + Font.Color.WHITE + " RESUMO: Os dorks mais úteis são os de REDES SOCIAIS (Instagram, Facebook, LinkedIn).")
+            print(Font.Color.YELLOW + "[I]" + Font.Color.WHITE + " Os links completos estão sendo salvos em GUI/Reports/Phone/Dorks/")
+            print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE + "NORMAL FORMAT:")
             Phone_search.Google_dork(username,username)
             Phone_search.Yandex_dork(username,username)
-            print(Font.Color.GREEN + "[+]" + Font.Color.WHITE + "NATIONAL FORMAT:")
+            print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE + "NATIONAL FORMAT:")
             Phone_search.Google_dork(international[1].replace("-","",1),username)
             Phone_search.Yandex_dork(international[1].replace("-","",1),username)
             Phone_search.Google_dork(international[2],username)
@@ -236,6 +238,7 @@ class Phone_search:
             Phone_search.Yandex_dork(international[0].replace("+",""),username)
         else:
             pass
+        return successfull
 
     @staticmethod
     def searcher(username, Mode):
@@ -259,7 +262,10 @@ class Phone_search:
         num = username
         code = 1
         international = Numbers.Phony.Number(num, report, code, Mode, Type, username)
-        Phone_search.lookup(username, report, international)
+        if not international or len(international) < 4:
+            print(Font.Color.RED + "\n[!]" + Font.Color.WHITE + " Phone lookup aborted — invalid number data.")
+            return
+        successfull = Phone_search.lookup(username, report, international)
         print(Font.Color.WHITE + Language.Translation.Translate_Language(filename, "Default", "Report", "None") +
          report)
         f = open(report, "a")
@@ -275,5 +281,34 @@ class Phone_search:
         Encoding.Encoder.Encode(report)
         print(Font.Color.WHITE + Language.Translation.Translate_Language(filename, "Default", "Report", "None") +
         report)
+        try:
+            from Core.Support.ReportHTML import gerar_relatorio_html
+            html_path = gerar_relatorio_html(
+                numero=num, internacional=international[0], local=international[3],
+                pais="Brazil" if "BR" in str(international) else "N/A",
+                area=international[0].split(" ")[1] if len(international[0].split(" ")) > 1 else "",
+                operadora="N/A",
+                ddd_info=Numbers.get_geo_from_ddd(international[3][:2]) if len(international[3]) >= 2 else {},
+                sites_encontrados=successfull, links_dorks=[],
+                pasta_saida=os.path.join("GUI/Reports/Phone", num),
+            )
+            print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE + f" HTML REPORT: {html_path}")
+
+            from Core.Support.History import save_search
+            save_search("phone", num, country="Brazil", area="",
+                       sites_found=len(successfull), report_path=html_path)
+
+            from Core.Support.ReportPDF import gerar_relatorio_pdf
+            pdf_path = gerar_relatorio_pdf(
+                numero=num, internacional=international[0], local=international[3],
+                pais="Brazil", area=international[0].split(" ")[1] if len(international[0].split(" ")) > 1 else "",
+                operadora="N/A",
+                ddd_info=Numbers.get_geo_from_ddd(international[3][:2]) if len(international[3]) >= 2 else {},
+                sites_encontrados=successfull,
+                pasta_saida=folder,
+            )
+            print(Font.Color.GREEN + "\n[+]" + Font.Color.WHITE + f" PDF REPORT: {pdf_path}")
+        except Exception as e:
+            print(Font.Color.RED + "\n[!]" + Font.Color.WHITE + f" Report generation error: {e}")
         inp = input(Language.Translation.Translate_Language(
                         filename, "Default", "Continue", "None"))
