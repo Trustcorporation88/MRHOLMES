@@ -130,12 +130,104 @@ div[data-baseweb="tab-list"] { border-bottom-color: var(--line) !important; }
 .mh-chip.on { border-color: rgba(111, 212, 190, 0.45); background: rgba(111, 212, 190, 0.12); color: var(--ok); }
 .mh-chip.off { color: var(--ink-soft); }
 .mh-tool {
-  border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem;
-  background: var(--panel); margin-bottom: 0.5rem;
+  border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.05rem 0.95rem;
+  background: linear-gradient(165deg, #1e2834 0%, var(--panel) 55%);
+  margin: 0; min-height: 152px; display: flex; flex-direction: column;
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
 }
-.mh-tool h4 { margin: 0 0 0.35rem 0 !important; font-size: 0.95rem !important; color: var(--ink) !important; font-weight: 600 !important; }
-.mh-tool p { margin: 0 0 0.75rem 0 !important; font-size: 0.82rem !important; color: var(--ink-soft) !important; line-height: 1.45; }
-.mh-tool a { font-family: var(--mono); font-size: 0.75rem; color: var(--accent) !important; text-decoration: none; font-weight: 500; }
+.mh-tool:hover {
+  border-color: rgba(111, 212, 190, 0.42);
+  transform: translateY(-2px);
+  background: linear-gradient(165deg, #243140 0%, var(--panel) 55%);
+}
+.mh-tool-top {
+  display: flex; align-items: baseline; gap: 0.55rem; margin-bottom: 0.4rem;
+}
+.mh-tool-num {
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.08em;
+  color: var(--accent-warm); font-weight: 500; flex-shrink: 0; min-width: 1.4rem;
+}
+.mh-tool h4 {
+  margin: 0 !important; font-size: 0.98rem !important; color: var(--ink) !important;
+  font-weight: 600 !important; letter-spacing: -0.02em; line-height: 1.25 !important;
+}
+.mh-tool p {
+  margin: 0 0 0.85rem 0 !important; font-size: 0.8rem !important;
+  color: var(--ink-soft) !important; line-height: 1.45; flex: 1;
+}
+.mh-tool-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; flex-wrap: wrap; margin-top: auto;
+  padding-top: 0.55rem; border-top: 1px solid rgba(51, 67, 85, 0.7);
+}
+.mh-tool a {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--accent) !important;
+  text-decoration: none; font-weight: 600; letter-spacing: 0.02em;
+}
+.mh-tool a:hover { color: var(--accent-hover) !important; }
+.mh-tool-hint {
+  font-family: var(--mono); font-size: 0.65rem; color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+.mh-tools-hero {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1.15rem 1.25rem; margin-bottom: 1rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+.mh-tools-hero .mh-dork-kicker {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 0.35rem;
+}
+.mh-tools-hero h2 {
+  margin: 0 !important; font-size: 1.45rem !important; font-weight: 700 !important;
+  letter-spacing: -0.03em; color: var(--ink) !important; font-family: var(--mono) !important;
+}
+.mh-tools-hero p {
+  margin: 0.5rem 0 0 0 !important; color: var(--ink-soft) !important;
+  font-size: 0.9rem !important; max-width: 48rem; line-height: 1.45;
+}
+.mh-tools-stats {
+  display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.9rem 0 0 0;
+}
+.mh-tools-stat {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.04em;
+  padding: 0.28rem 0.55rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-soft);
+}
+.mh-tools-stat strong { color: var(--accent); font-weight: 600; }
+.mh-tools-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.75rem; margin: 0.35rem 0 1.35rem 0;
+}
+.mh-tools-section {
+  margin: 1.35rem 0 0.55rem 0; display: flex; align-items: baseline;
+  justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+}
+.mh-tools-section h3 {
+  margin: 0 !important; font-family: var(--mono) !important;
+  font-size: 0.72rem !important; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent) !important; font-weight: 600 !important;
+}
+.mh-tools-section span {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft);
+}
+.mh-tools-empty {
+  border: 1px dashed var(--line); border-radius: 10px; padding: 1.25rem;
+  text-align: center; color: var(--ink-soft); font-family: var(--mono);
+  font-size: 0.8rem; margin: 0.75rem 0 1.25rem 0; background: var(--panel-2);
+}
+.mh-urlscan {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1rem 1.15rem; margin: 1.5rem 0 0.5rem 0;
+}
+.mh-urlscan h3 {
+  margin: 0 0 0.25rem 0 !important; font-size: 1rem !important;
+  color: var(--ink) !important; font-weight: 650 !important;
+}
+.mh-urlscan p {
+  margin: 0 0 0.85rem 0 !important; font-size: 0.82rem !important;
+  color: var(--ink-soft) !important; line-height: 1.4;
+}
 .mh-dork-workspace {
   border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
   padding: 1.15rem 1.25rem; margin-bottom: 1rem;
@@ -1132,96 +1224,381 @@ elif page == "Leaks":
 
 # ── Ferramentas ──────────────────────────────────────────────────────────────
 elif page == "Ferramentas":
-    page_header("Externas", "Ferramentas", "Integrações e serviços úteis para investigação.")
-    st.info("Para dorks organizados com tokens e filtros, use o menu **Dorks** (Workbench interno).")
-    st.subheader("UrlScan.io")
-    url_to_scan = st.text_input("URL", "https://exemplo.com")
+    import html as _html
+    import urllib.request as _ur
+    import json as _json
+
+    page_header(
+        "Diretório",
+        "Ferramentas",
+        "Catálogo externo de serviços OSINT e recon — links oficiais, sem instalação automática.",
+    )
+
+    # cat keys drive filter + section order
+    CAT_META = [
+        ("workbench", "Workbenches"),
+        ("leaks", "Leaks"),
+        ("rede", "Rede & portas"),
+        ("frameworks", "Frameworks de recon"),
+        ("coleta", "Coleta & descoberta"),
+        ("metadados", "Metadados"),
+        ("social", "Redes sociais"),
+        ("infra", "Infra / DNS"),
+        ("codigo", "Código"),
+    ]
+    CAT_LABEL = {k: v for k, v in CAT_META}
+
+    tools_catalog = [
+        {
+            "num": "",
+            "name": "Dorks Workbench",
+            "desc": "Catálogo curado com tokens e filtros — interno ao Mr.Holmes.",
+            "url": None,
+            "hint": "menu Dorks",
+            "cat": "workbench",
+        },
+        {
+            "num": "",
+            "name": "WebDorks",
+            "desc": "Workbench original que inspirou o layout do menu Dorks.",
+            "url": "https://webdorks.vercel.app/",
+            "cat": "workbench",
+        },
+        {
+            "num": "",
+            "name": "OSINT Leak",
+            "desc": "Breaches e stealer logs (conta externa; sem import automático).",
+            "url": "https://app.osintleak.com/dashboard/search",
+            "cat": "leaks",
+        },
+        {
+            "num": "01",
+            "name": "Nmap",
+            "desc": "Scanner de rede e portas (Network Map).",
+            "url": "https://github.com/nmap/nmap",
+            "cat": "rede",
+        },
+        {
+            "num": "18",
+            "name": "Dracnmap",
+            "desc": "Wrapper de scripts Nmap para fluxos guiados.",
+            "url": "https://github.com/Screetsec/Dracnmap",
+            "cat": "rede",
+        },
+        {
+            "num": "19",
+            "name": "rang3r",
+            "desc": "Scanner de portas multithread.",
+            "url": "https://github.com/floriankunushevci/rang3r",
+            "cat": "rede",
+        },
+        {
+            "num": "14",
+            "name": "Xerosploit",
+            "desc": "Kit de ferramentas para testes de penetração.",
+            "url": "https://github.com/LionSec/xerosploit",
+            "cat": "rede",
+        },
+        {
+            "num": "02",
+            "name": "Maltego",
+            "desc": "Análise visual de links e relacionamentos.",
+            "url": "https://www.maltego.com/",
+            "cat": "frameworks",
+        },
+        {
+            "num": "04",
+            "name": "Recon-ng",
+            "desc": "Framework modular de reconhecimento web.",
+            "url": "https://github.com/lanmaster53/recon-ng",
+            "cat": "frameworks",
+        },
+        {
+            "num": "05",
+            "name": "SpiderFoot",
+            "desc": "Automação OSINT pesada (serviço separado).",
+            "url": "https://github.com/smicallef/spiderfoot",
+            "hint": "OSINT Avançado",
+            "cat": "frameworks",
+        },
+        {
+            "num": "07",
+            "name": "Amass",
+            "desc": "Mapeamento de superfície de ataque (OWASP).",
+            "url": "https://github.com/OWASP/Amass",
+            "hint": "OSINT Avançado",
+            "cat": "frameworks",
+        },
+        {
+            "num": "08",
+            "name": "RED HAWK",
+            "desc": "Scanner tudo-em-um para recon e info gathering.",
+            "url": "https://github.com/Tuhinshubhra/RED_HAWK",
+            "cat": "frameworks",
+        },
+        {
+            "num": "09",
+            "name": "ReconSpider",
+            "desc": "Coleta multiuso de inteligência em fontes abertas.",
+            "url": "https://github.com/bhavsec/reconspider",
+            "cat": "frameworks",
+        },
+        {
+            "num": "10",
+            "name": "OSINT Framework",
+            "desc": "Coleção indexada de ferramentas e fontes OSINT.",
+            "url": "https://github.com/lockfale/OSINT-Framework",
+            "cat": "frameworks",
+        },
+        {
+            "num": "16",
+            "name": "ReconDog",
+            "desc": "Canivete suíço de reconhecimento.",
+            "url": "https://github.com/s0md3v/ReconDog",
+            "cat": "frameworks",
+        },
+        {
+            "num": "03",
+            "name": "Shodanfy",
+            "desc": "Wrapper Shodan — dispositivos IoT e superfícies expostas.",
+            "url": "https://github.com/m4ll0k/Shodanfy.py",
+            "cat": "coleta",
+        },
+        {
+            "num": "06",
+            "name": "theHarvester",
+            "desc": "Coletor de e-mails e subdomínios.",
+            "url": "https://github.com/laramies/theHarvester",
+            "hint": "OSINT Avançado",
+            "cat": "coleta",
+        },
+        {
+            "num": "11",
+            "name": "Infoga",
+            "desc": "Coletor OSINT focado em e-mails.",
+            "url": "https://github.com/m4ll0k/Infoga",
+            "cat": "coleta",
+        },
+        {
+            "num": "12",
+            "name": "Striker",
+            "desc": "Coleta ofensiva de informações sobre alvos.",
+            "url": "https://github.com/s0md3v/Striker",
+            "cat": "coleta",
+        },
+        {
+            "num": "13",
+            "name": "SecretFinder",
+            "desc": "Localiza chaves de API e segredos em JS/páginas.",
+            "url": "https://github.com/m4ll0k/SecretFinder",
+            "cat": "coleta",
+        },
+        {
+            "num": "20",
+            "name": "Breacher",
+            "desc": "Localizador de painéis de administração.",
+            "url": "https://github.com/s0md3v/Breacher",
+            "cat": "coleta",
+        },
+        {
+            "num": "15",
+            "name": "FOCA",
+            "desc": "Analisador de metadados em documentos.",
+            "url": "https://github.com/ElevenPaths/FOCA",
+            "cat": "metadados",
+        },
+        {
+            "num": "17",
+            "name": "Metagoofil",
+            "desc": "Extrator de metadados a partir de buscas.",
+            "url": "https://github.com/laramies/metagoofil",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "Metricool",
+            "desc": "Analytics e anúncios de redes sociais.",
+            "url": "https://metricool.com",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "PimEyes",
+            "desc": "Busca reversa de rostos (paralelo ao reverse image pago).",
+            "url": "https://pimeyes.com",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "UrlScan.io",
+            "desc": "Sandbox de URLs suspeitas — use o painel abaixo para enviar.",
+            "url": "https://urlscan.io",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "ViewDNS",
+            "desc": "WHOIS, histórico de IP e consultas DNS.",
+            "url": "https://viewdns.info",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "HostingChecker",
+            "desc": "Provedor e localização do host.",
+            "url": "https://hostingchecker.com",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "Grep.app",
+            "desc": "Busca em repositórios públicos.",
+            "url": "https://grep.app",
+            "cat": "codigo",
+        },
+    ]
+
+    recon_count = sum(1 for t in tools_catalog if t.get("num"))
+    total_count = len(tools_catalog)
+
+    st.html(
+        f"""
+        <div class="mh-tools-hero">
+          <div class="mh-dork-kicker">Catálogo externo</div>
+          <h2>Serviços OSINT</h2>
+          <p>
+            Links para ferramentas de recon, coleta e análise. Itens com selo interno
+            também aparecem no menu <strong>OSINT Avançado</strong> ou <strong>Dorks</strong>.
+            Uso educacional e em alvos autorizados.
+          </p>
+          <div class="mh-tools-stats">
+            <span class="mh-tools-stat"><strong>{total_count}</strong> no diretório</span>
+            <span class="mh-tools-stat"><strong>{recon_count}</strong> recon/OSINT</span>
+            <span class="mh-tools-stat"><strong>{len(CAT_META)}</strong> categorias</span>
+          </div>
+        </div>
+        """
+    )
+
+    f1, f2 = st.columns([2.2, 1])
+    with f1:
+        tool_q = st.text_input(
+            "Buscar",
+            "",
+            key="tools_search",
+            placeholder="Ex.: nmap, email, metadados…",
+            label_visibility="collapsed",
+        )
+    with f2:
+        cat_options = ["Todas"] + [label for _, label in CAT_META]
+        tool_cat = st.selectbox(
+            "Categoria",
+            cat_options,
+            key="tools_cat",
+            label_visibility="collapsed",
+        )
+
+    q = (tool_q or "").strip().lower()
+    selected_cat_key = None
+    if tool_cat != "Todas":
+        selected_cat_key = next(k for k, v in CAT_META if v == tool_cat)
+
+    def _tool_match(t: dict) -> bool:
+        if selected_cat_key and t["cat"] != selected_cat_key:
+            return False
+        if not q:
+            return True
+        blob = " ".join(
+            [
+                t.get("name", ""),
+                t.get("desc", ""),
+                t.get("hint", ""),
+                CAT_LABEL.get(t["cat"], ""),
+                t.get("num", ""),
+            ]
+        ).lower()
+        return q in blob
+
+    filtered = [t for t in tools_catalog if _tool_match(t)]
+    st.caption(f"{len(filtered)} de {total_count} ferramentas visíveis")
+
+    def _render_tool_card(t: dict) -> str:
+        num = _html.escape(t["num"]) if t.get("num") else ""
+        name = _html.escape(t["name"])
+        desc = _html.escape(t["desc"])
+        num_html = f'<span class="mh-tool-num">{num}</span>' if num else "<span></span>"
+        if t.get("url"):
+            href = _html.escape(t["url"])
+            action = f'<a href="{href}" target="_blank" rel="noopener noreferrer">Abrir →</a>'
+        else:
+            action = '<span class="mh-tool-hint">interno</span>'
+        hint = t.get("hint")
+        hint_html = (
+            f'<span class="mh-tool-hint">→ {_html.escape(hint)}</span>' if hint else ""
+        )
+        return (
+            f'<div class="mh-tool">'
+            f'<div class="mh-tool-top">{num_html}<h4>{name}</h4></div>'
+            f"<p>{desc}</p>"
+            f'<div class="mh-tool-foot">{action}{hint_html}</div>'
+            f"</div>"
+        )
+
+    blocks = []
+    for cat_key, cat_label in CAT_META:
+        group = [t for t in filtered if t["cat"] == cat_key]
+        if not group:
+            continue
+        cards = "".join(_render_tool_card(t) for t in group)
+        blocks.append(
+            f'<div class="mh-tools-section">'
+            f"<h3>{_html.escape(cat_label)}</h3>"
+            f"<span>{len(group)}</span>"
+            f"</div>"
+            f'<div class="mh-tools-grid">{cards}</div>'
+        )
+
+    if blocks:
+        st.html("".join(blocks))
+    else:
+        st.html('<div class="mh-tools-empty">Nenhuma ferramenta corresponde aos filtros.</div>')
+
+    st.html(
+        """
+        <div class="mh-urlscan">
+          <h3>UrlScan.io · análise rápida</h3>
+          <p>Envie uma URL para sandbox pública ou abra a busca no site.</p>
+        </div>
+        """
+    )
+    url_to_scan = st.text_input("URL para UrlScan", "https://exemplo.com", key="urlscan_input")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("Enviar análise"):
+        if st.button("Enviar análise", key="urlscan_submit"):
             try:
-                import urllib.request as _ur, json as _json
                 req = _ur.Request(
                     "https://urlscan.io/api/v1/scan/",
                     data=_json.dumps({"url": url_to_scan, "visibility": "public"}).encode(),
-                    headers={"Content-Type": "application/json", "API-Key": "", "User-Agent": "MrHolmes-1.0"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "API-Key": "",
+                        "User-Agent": "MrHolmes-1.0",
+                    },
                 )
                 resp = _ur.urlopen(req, timeout=15)
                 data = _json.loads(resp.read().decode())
                 uuid = data.get("uuid", "")
                 if uuid:
                     st.success("Análise enviada")
-                    st.markdown(f"[Resultado](https://urlscan.io/result/{uuid}/) · [Screenshot](https://urlscan.io/screenshots/{uuid}.png)")
+                    st.markdown(
+                        f"[Resultado](https://urlscan.io/result/{uuid}/) · "
+                        f"[Screenshot](https://urlscan.io/screenshots/{uuid}.png)"
+                    )
             except Exception:
                 st.warning("API indisponível ou limite atingido.")
                 st.markdown(f"[Abrir no UrlScan](https://urlscan.io/search/#{url_to_scan})")
     with c2:
-        st.markdown(f"[Buscar no UrlScan](https://urlscan.io/search/#{url_to_scan})")
-
-    tool_categories = [
-        (
-            "Workbenches",
-            [
-                {
-                    "name": "Dorks Workbench (interno)",
-                    "desc": "Catálogo curado, tokens e filtros — menu Dorks na sidebar.",
-                    "url": None,
-                    "hint": True,
-                },
-                {
-                    "name": "WebDorks (referência)",
-                    "desc": "Workbench original que inspirou o layout do menu Dorks.",
-                    "url": "https://webdorks.vercel.app/",
-                },
-            ],
-        ),
-        (
-            "Leaks",
-            [
-                {
-                    "name": "OSINT Leak",
-                    "desc": "Busca em breaches e stealer logs (conta externa; sem import automático).",
-                    "url": "https://app.osintleak.com/dashboard/search",
-                },
-            ],
-        ),
-        (
-            "Redes sociais",
-            [
-                {"name": "Metricool", "desc": "Analytics e anúncios de redes sociais.", "url": "https://metricool.com"},
-                {"name": "PimEyes", "desc": "Busca reversa de rostos (paralelo ao reverse image pago).", "url": "https://pimeyes.com"},
-            ],
-        ),
-        (
-            "Infra / DNS",
-            [
-                {"name": "UrlScan.io", "desc": "Sandbox de URLs suspeitas.", "url": "https://urlscan.io"},
-                {"name": "ViewDNS", "desc": "WHOIS, histórico de IP, DNS.", "url": "https://viewdns.info"},
-                {"name": "HostingChecker", "desc": "Provedor e localização do host.", "url": "https://hostingchecker.com"},
-            ],
-        ),
-        (
-            "Código",
-            [
-                {"name": "Grep.app", "desc": "Busca em repositórios públicos.", "url": "https://grep.app"},
-            ],
-        ),
-    ]
-    for cat_name, tools in tool_categories:
-        st.html(f'<div class="mh-cat-label">{cat_name} · {len(tools)}</div>')
-        cols = st.columns(3)
-        for i, tool in enumerate(tools):
-            with cols[i % 3]:
-                if tool.get("hint"):
-                    st.html(
-                        f'<div class="mh-tool"><h4>{tool["name"]}</h4><p>{tool["desc"]}</p>'
-                        f'<span style="font-family:var(--mono);font-size:0.75rem;color:var(--accent)">→ menu Dorks</span></div>'
-                    )
-                else:
-                    st.html(
-                        f'<div class="mh-tool"><h4>{tool["name"]}</h4><p>{tool["desc"]}</p>'
-                        f'<a href="{tool["url"]}" target="_blank">Abrir →</a></div>'
-                    )
+        st.link_button("Buscar no UrlScan", f"https://urlscan.io/search/#{url_to_scan}", use_container_width=True)
 
 
 # ── Histórico ────────────────────────────────────────────────────────────────
@@ -1256,6 +1633,7 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 - **Dorks Workbench** — catálogo curado (WebDorks MIT + listas Holmes), tokens, filtros, abrir busca
 - Suite OSINT (Holehe, Maigret, theHarvester, dnstwist, httpx…)
 - Atalho **Leaks** → OSINT Leak (conta externa)
+- **Ferramentas** — catálogo externo (Nmap, Maltego, Amass, SpiderFoot, theHarvester, FOCA…)
 - Rede, gráfico, histórico
 
 **Mr.Holmes vs WebDorks**
