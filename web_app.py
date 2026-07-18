@@ -129,6 +129,46 @@ div[data-baseweb="tab-list"] { border-bottom-color: var(--line) !important; }
 }
 .mh-chip.on { border-color: rgba(111, 212, 190, 0.45); background: rgba(111, 212, 190, 0.12); color: var(--ok); }
 .mh-chip.off { color: var(--ink-soft); }
+/* Nav OSINT: botões-chip (sobrescreve o estilo global de botão) */
+div:has(.mh-osint-nav-mark) [data-testid="stHorizontalBlock"] {
+  gap: 0.4rem !important; flex-wrap: wrap !important; row-gap: 0.45rem !important;
+}
+div:has(.mh-osint-nav-mark) .stButton > button {
+  border-radius: 999px !important;
+  font-family: var(--mono) !important;
+  font-size: 0.74rem !important;
+  font-weight: 500 !important;
+  padding: 0.4rem 0.85rem !important;
+  border: 1px solid var(--line) !important;
+  background: var(--panel) !important;
+  color: var(--ink-soft) !important;
+  box-shadow: none !important;
+  min-height: 2.1rem !important;
+}
+div:has(.mh-osint-nav-mark) .stButton > button:hover {
+  border-color: rgba(111, 212, 190, 0.45) !important;
+  color: var(--ink) !important;
+  background: #243140 !important;
+}
+div:has(.mh-osint-nav-mark) .stButton > button[kind="primary"],
+div:has(.mh-osint-nav-mark) .stButton > button[data-testid="baseButton-primary"] {
+  border-color: rgba(111, 212, 190, 0.55) !important;
+  background: rgba(111, 212, 190, 0.16) !important;
+  color: var(--ok) !important;
+}
+.mh-osint-panel {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1.1rem 1.2rem; margin: 0.75rem 0 1rem 0;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.mh-osint-panel h3 {
+  margin: 0 0 0.35rem 0 !important; font-size: 1.1rem !important;
+  color: var(--ink) !important; font-weight: 600 !important;
+}
+.mh-osint-panel .mh-osint-desc {
+  margin: 0 0 0.85rem 0 !important; font-size: 0.86rem !important;
+  color: var(--ink-soft) !important; line-height: 1.45;
+}
 .mh-tool {
   border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.05rem 0.95rem;
   background: linear-gradient(165deg, #1e2834 0%, var(--panel) 55%);
@@ -598,32 +638,72 @@ elif page == "OSINT Avançado":
         "Holehe, Maigret, theHarvester, subdomínios, dnstwist, httpx e SpiderFoot.",
     )
     from Core.Support.OsintTools import tool_status
+    from Core.Support.History import save_search
+
     status = tool_status()
-    chips = [
-        ("holehe", "Holehe"), ("maigret", "Maigret"), ("theHarvester", "theHarvester"),
-        ("dnstwist", "dnstwist"), ("subfinder", "Subfinder"), ("amass", "Amass"),
-        ("httpx", "httpx"), ("sherlock", "Sherlock"),
+    OSINT_NAV = [
+        ("holehe", "Holehe", "holehe"),
+        ("maigret", "Maigret", "maigret"),
+        ("theHarvester", "theHarvester", "theHarvester"),
+        ("subdomains", "Subdomínios", None),
+        ("dnstwist", "dnstwist", "dnstwist"),
+        ("httpx", "httpx", "httpx"),
+        ("spiderfoot", "SpiderFoot", "spiderfoot"),
     ]
-    chip_html = "".join(
+
+    def _osint_ready(tool_id: str, status_key):
+        if tool_id == "subdomains":
+            return bool(status.get("subfinder") or status.get("amass"))
+        if tool_id == "maigret":
+            return bool(status.get("maigret") or status.get("sherlock"))
+        return bool(status.get(status_key)) if status_key else False
+
+    if "osint_adv_tool" not in st.session_state:
+        st.session_state.osint_adv_tool = "holehe"
+
+    st.html('<div class="mh-osint-nav-mark" aria-hidden="true"></div>')
+    nav_cols = st.columns(len(OSINT_NAV))
+    for i, (tid, label, sk) in enumerate(OSINT_NAV):
+        mark = "●" if _osint_ready(tid, sk) else "○"
+        active = st.session_state.osint_adv_tool == tid
+        with nav_cols[i]:
+            if st.button(
+                f"{mark} {label}",
+                key=f"osint_nav_{tid}",
+                type="primary" if active else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state.osint_adv_tool = tid
+                st.rerun()
+
+    st.caption("Clique em um chip para abrir a ferramenta · ● instalado · ○ fallback ou pendente")
+
+    # Status auxiliar (não são abas — só indicadores)
+    aux = [
+        ("subfinder", "Subfinder"),
+        ("amass", "Amass"),
+        ("sherlock", "Sherlock"),
+    ]
+    aux_html = "".join(
         f'<span class="mh-chip {"on" if status.get(k) else "off"}">'
         f'{"●" if status.get(k) else "○"} {label}</span>'
-        for k, label in chips
+        for k, label in aux
     )
-    st.html(chip_html)
-    st.caption("● instalado · ○ fallback ou pendente")
+    st.html(f'<div style="margin:0.15rem 0 0.85rem 0">{aux_html}</div>')
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "Holehe", "Maigret", "theHarvester", "Subdomínios", "dnstwist", "httpx", "SpiderFoot"
-    ])
+    selected = st.session_state.osint_adv_tool
+    selected_label = next(label for tid, label, _ in OSINT_NAV if tid == selected)
 
-    with tab1:
-        st.markdown("Descobre em quais serviços um email possui conta.")
-        st.caption("Complemento gratuito à busca de email em leaks (OSINT Leak): contas públicas, não stealer logs.")
+    if selected == "holehe":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Descobre em quais serviços um email possui conta. '
+            "Complemento gratuito à busca de email em leaks (OSINT Leak): contas públicas, não stealer logs.</p></div>"
+        )
         email_h = st.text_input("Email", placeholder="usuario@dominio.com", key="holehe_email")
         if st.button("Executar Holehe", key="btn_holehe") and email_h:
             with st.spinner("Consultando serviços…"):
                 from Core.Support.OsintTools import run_holehe
-                from Core.Support.History import save_search
                 r = run_holehe(email_h)
                 if r.get("install"):
                     st.warning(r.get("error", ""))
@@ -639,15 +719,17 @@ elif page == "OSINT Avançado":
                         with st.expander("Saída bruta"):
                             st.code(r["raw"])
 
-    with tab2:
-        st.markdown("Username em redes e plataformas (Maigret; Sherlock se disponível).")
-        st.caption("Equivalente open-source ao UserHunter do OSINT Leak — sem cota paga; cobertura via Maigret.")
+    elif selected == "maigret":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Username em redes e plataformas (Maigret; Sherlock se disponível). '
+            "Equivalente open-source ao UserHunter do OSINT Leak — sem cota paga.</p></div>"
+        )
         user_m = st.text_input("Username", placeholder="joaosilva", key="maigret_user")
         max_sites = st.slider("Limite de sites", 20, 100, 40, key="maigret_n")
         if st.button("Executar Maigret", key="btn_maigret") and user_m:
             with st.spinner("Buscando perfis…"):
                 from Core.Support.OsintTools import run_maigret
-                from Core.Support.History import save_search
                 r = run_maigret(user_m, max_sites=max_sites)
                 if r.get("install"):
                     st.warning(r.get("error", ""))
@@ -655,7 +737,9 @@ elif page == "OSINT Avançado":
                 elif r.get("profiles"):
                     st.success(f"{len(r['profiles'])} perfis · {r.get('tool')}")
                     for p in r["profiles"]:
-                        st.markdown(f"- **{p.get('site', '')}** — [{p.get('url', '')}]({p.get('url', '')})")
+                        st.markdown(
+                            f"- **{p.get('site', '')}** — [{p.get('url', '')}]({p.get('url', '')})"
+                        )
                     save_search("username", user_m, sites_found=len(r["profiles"]))
                 else:
                     st.info("Nenhum perfil encontrado.")
@@ -663,13 +747,15 @@ elif page == "OSINT Avançado":
                         with st.expander("Saída bruta"):
                             st.code(r["raw"])
 
-    with tab3:
-        st.markdown("Emails e hosts associados a um domínio.")
+    elif selected == "theHarvester":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Emails e hosts associados a um domínio.</p></div>'
+        )
         dom_h = st.text_input("Domínio", placeholder="exemplo.com", key="harvester_dom")
         if st.button("Executar theHarvester", key="btn_harvester") and dom_h:
             with st.spinner("Coletando…"):
                 from Core.Support.OsintTools import run_theharvester
-                from Core.Support.History import save_search
                 r = run_theharvester(dom_h)
                 if r.get("note"):
                     st.info(r["note"])
@@ -682,17 +768,22 @@ elif page == "OSINT Avançado":
                     st.subheader(f"Hosts ({len(r.get('hosts', []))})")
                     for h in r.get("hosts", []) or ["—"]:
                         st.write(h if h != "—" else "Nenhum")
-                save_search("harvester", r.get("domain", dom_h),
-                            sites_found=len(r.get("emails", [])) + len(r.get("hosts", [])))
+                save_search(
+                    "harvester",
+                    r.get("domain", dom_h),
+                    sites_found=len(r.get("emails", [])) + len(r.get("hosts", [])),
+                )
                 st.caption(f"Fonte: {r.get('tool', '—')}")
 
-    with tab4:
-        st.markdown("Enumeração via Subfinder/Amass ou brute DNS local.")
+    elif selected == "subdomains":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Enumeração via Subfinder/Amass ou brute DNS local.</p></div>'
+        )
         dom_s = st.text_input("Domínio", placeholder="exemplo.com", key="sub_dom")
         if st.button("Enumerar", key="btn_subs") and dom_s:
             with st.spinner("Enumerando…"):
                 from Core.Support.OsintTools import run_subdomains
-                from Core.Support.History import save_search
                 r = run_subdomains(dom_s)
                 if r.get("note"):
                     st.info(r["note"])
@@ -701,31 +792,42 @@ elif page == "OSINT Avançado":
                     st.code(s, language=None)
                 save_search("subdomains", r.get("domain", dom_s), sites_found=r.get("count", 0))
 
-    with tab5:
-        st.markdown("Variações de domínio (typosquatting).")
+    elif selected == "dnstwist":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Variações de domínio (typosquatting).</p></div>'
+        )
         dom_t = st.text_input("Domínio", placeholder="exemplo.com", key="twist_dom")
         if st.button("Gerar variações", key="btn_twist") and dom_t:
             with st.spinner("Gerando…"):
                 from Core.Support.OsintTools import run_dnstwist
-                from Core.Support.History import save_search
                 r = run_dnstwist(dom_t)
                 if r.get("note"):
                     st.info(r["note"])
                 domains = r.get("domains", [])
                 st.success(f"{len(domains)} · {r.get('tool')}")
                 for d in domains[:80]:
-                    st.markdown(f"`{d.get('domain')}` — {d.get('fuzzer', '')} — {d.get('dns_a', '')}")
+                    st.markdown(
+                        f"`{d.get('domain')}` — {d.get('fuzzer', '')} — {d.get('dns_a', '')}"
+                    )
                 save_search("dnstwist", r.get("domain", dom_t), sites_found=len(domains))
 
-    with tab6:
-        st.markdown("Verifica quais hosts/URLs respondem HTTP.")
-        targets = st.text_area("Alvos (um por linha)", placeholder="exemplo.com\napi.exemplo.com", key="httpx_targets", height=120)
+    elif selected == "httpx":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Verifica quais hosts/URLs respondem HTTP.</p></div>'
+        )
+        targets = st.text_area(
+            "Alvos (um por linha)",
+            placeholder="exemplo.com\napi.exemplo.com",
+            key="httpx_targets",
+            height=120,
+        )
         if st.button("Checar", key="btn_httpx"):
             lines = [l.strip() for l in targets.splitlines() if l.strip()]
             if lines:
                 with st.spinner("Verificando…"):
                     from Core.Support.OsintTools import run_httpx
-                    from Core.Support.History import save_search
                     r = run_httpx(lines)
                     if r.get("note"):
                         st.info(r["note"])
@@ -737,10 +839,13 @@ elif page == "OSINT Avançado":
                         st.warning("Nenhum host respondeu.")
                     save_search("httpx", lines[0], sites_found=len(alive))
 
-    with tab7:
+    elif selected == "spiderfoot":
         from Core.Support.OsintTools import spiderfoot_info
         info = spiderfoot_info()
-        st.markdown("Recon automatizado pesado — roda como serviço separado.")
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Recon automatizado pesado — roda como serviço separado.</p></div>'
+        )
         st.code(info["install"])
         st.markdown(f"[Documentação]({info['docs']}) · UI local: [{info['url']}]({info['url']})")
         alvo_sf = st.text_input("Alvo para copiar", key="sf_target")
