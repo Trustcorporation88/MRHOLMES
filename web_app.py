@@ -4,7 +4,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-import streamlit as st`nfrom external_services_ui import display_external_services
+import streamlit as st
+from external_services_ui import display_external_services
 
 st.set_page_config(
     page_title="Mr.Holmes",
@@ -2035,4 +2036,9 @@ O autor não se responsabiliza por uso indevido.
 """)
 
 st.html('<div class="mh-foot">MR.HOLMES · OSINT · USO EDUCACIONAL</div>')
+
+# Serviços OSINT externos complementares
+st.markdown("---")
+with st.expander("🔧 **Serviços Complementares (Mind, Dehashed, Web-Check, etc)**", expanded=False):
+    display_external_services()
 
