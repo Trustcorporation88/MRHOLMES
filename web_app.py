@@ -1639,6 +1639,121 @@ elif page == "Ferramentas":
             "url": "https://grep.app",
             "cat": "codigo",
         },
+        # ── Curadoria OSINT do catálogo Z4nzu/hackingtool (somente recon/OSINT) ──
+        {
+            "num": "",
+            "name": "Sherlock",
+            "desc": "Username em redes sociais (hackingtool → Other tools).",
+            "url": "https://github.com/sherlock-project/sherlock",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "SocialScan",
+            "desc": "Checa username/email em plataformas (hackingtool).",
+            "url": "https://github.com/iojw/socialscan",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "Subfinder",
+            "desc": "Enum passiva de subdomínios (ProjectDiscovery / hackingtool).",
+            "url": "https://github.com/projectdiscovery/subfinder",
+            "hint": "OSINT Avançado",
+            "cat": "coleta",
+        },
+        {
+            "num": "",
+            "name": "httpx",
+            "desc": "Probe HTTP — status, título, techs (hackingtool).",
+            "url": "https://github.com/projectdiscovery/httpx",
+            "hint": "OSINT Avançado",
+            "cat": "coleta",
+        },
+        {
+            "num": "",
+            "name": "dnsx",
+            "desc": "Toolkit DNS multipropósito (hackingtool).",
+            "url": "https://github.com/projectdiscovery/dnsx",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "Gitleaks",
+            "desc": "Scanner de secrets em Git (hackingtool).",
+            "url": "https://github.com/gitleaks/gitleaks",
+            "cat": "codigo",
+        },
+        {
+            "num": "",
+            "name": "TruffleHog",
+            "desc": "Caça API keys e credenciais em repos (hackingtool).",
+            "url": "https://github.com/trufflesecurity/trufflehog",
+            "cat": "codigo",
+        },
+        {
+            "num": "",
+            "name": "CyberChef",
+            "desc": "Encode/decode e análise de dados (hackingtool online).",
+            "url": "https://gchq.github.io/CyberChef/",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "Aperi'Solve",
+            "desc": "Stego + metadados de imagem no browser (hackingtool).",
+            "url": "https://www.aperisolve.com/",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "StegOnline",
+            "desc": "Explorador LSB de imagens (hackingtool).",
+            "url": "https://georgeom.net/StegOnline/upload",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "ExifTool",
+            "desc": "Metadados EXIF/IPTC/XMP (hackingtool).",
+            "url": "https://exiftool.org/",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "Shodan",
+            "desc": "Busca de hosts e serviços expostos (hackingtool).",
+            "url": "https://www.shodan.io/",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "crt.sh",
+            "desc": "Certificate Transparency — subdomínios via CT logs.",
+            "url": "https://crt.sh/",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "WiGLE",
+            "desc": "Mapa OSINT de redes Wi‑Fi (hackingtool).",
+            "url": "https://wigle.net/",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "Have I Been Pwned",
+            "desc": "Breaches públicos por email (hackingtool-adjacent).",
+            "url": "https://haveibeenpwned.com/",
+            "cat": "leaks",
+        },
+        {
+            "num": "",
+            "name": "hackingtool",
+            "desc": "Catálogo fonte (215 tools) — só referência; não instala ofensivos aqui.",
+            "url": "https://github.com/Z4nzu/hackingtool",
+            "cat": "frameworks",
+        },
     ]
 
     recon_count = sum(1 for t in tools_catalog if t.get("num"))
@@ -2000,8 +2115,9 @@ elif page == "Serviços Externos":
     )
     display_external_services(title=False)
     st.caption(
-        "Mapeamento: Pessoas → Mind · Telefone → Sync.me · Leaks → Dehashed · "
-        "Domínio → Web-Check · Imagem → Jimpl."
+        "Curadoria: serviços web originais + OSINT do catálogo Z4nzu/hackingtool. "
+        "Não incluímos phishing, RAT, DDoS, wireless attack nem exploit frameworks ofensivos. "
+        "Uso apenas em alvos autorizados."
     )
 
 
