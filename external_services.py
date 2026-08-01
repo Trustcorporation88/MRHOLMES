@@ -1,114 +1,129 @@
 """
-Mr.Holmes External OSINT Services - Integração de Serviços Externos
-Categoria de serviços OSINT categorizados com links e redirecionamentos
+Mr.Holmes — catálogo de serviços externos OSINT, separados por categoria.
+Cada serviço fica apenas na categoria correspondente.
 """
 
+# page_key liga a categoria às páginas do web_app (Telefone, Domínio, etc.)
 EXTERNAL_SERVICES = {
-    "🔍 Busca de Pessoas": {
-        "description": "Ferramentas para buscar informações sobre indivíduos",
+    "pessoas": {
+        "label": "Busca de Pessoas",
+        "icon": "🧠",
+        "description": "Investigação de indivíduos e perfis públicos",
+        "page_keys": ["pessoas", "email", "osint"],
         "services": [
             {
+                "id": "mind",
                 "name": "Mind Search",
                 "url": "https://mind-7.org/?r=fala_melo",
                 "icon": "🧠",
-                "description": "Busca avançada de informações pessoais",
-                "type": "people_search"
+                "description": "Busca avançada de informações pessoais em fontes abertas",
+                "use_for": "Nome, CPF/documento, perfil e investigação de pessoas",
             },
-            {
-                "name": "Sync.me",
-                "url": "https://sync.me/pt-br/",
-                "icon": "👤",
-                "description": "Banco de dados de pessoas e telefones",
-                "type": "people_search"
-            }
-        ]
+        ],
     },
-    
-    "🌐 Bases de Dados Expostas": {
-        "description": "Verificar se dados pessoais foram vazados",
+    "telefone": {
+        "label": "Telefone",
+        "icon": "📱",
+        "description": "Consulta reversa de números e contatos",
+        "page_keys": ["telefone"],
         "services": [
             {
+                "id": "syncme",
+                "name": "Sync.me",
+                "url": "https://sync.me/pt-br/",
+                "icon": "📱",
+                "description": "Identificação de dono de telefone e agenda reversa",
+                "use_for": "Número de celular / WhatsApp / caller ID",
+            },
+        ],
+    },
+    "leaks": {
+        "label": "Leaks e Vazamentos",
+        "icon": "🔓",
+        "description": "Bases de dados expostas e breaches",
+        "page_keys": ["leaks", "email"],
+        "services": [
+            {
+                "id": "dehashed",
                 "name": "Dehashed",
                 "url": "https://www.dehashed.com/",
                 "icon": "🔓",
-                "description": "Base de dados de leaks e violações de segurança",
-                "type": "database_search"
-            }
-        ]
+                "description": "Busca em dumps e violações de credenciais",
+                "use_for": "Email, username, senha vazada, domínio em breach",
+            },
+        ],
     },
-    
-    "🔗 Análise de Domínios": {
-        "description": "Ferramentas para investigar websites e domínios",
+    "dominio": {
+        "label": "Domínio e Website",
+        "icon": "🕸️",
+        "description": "Análise técnica de sites e infraestrutura",
+        "page_keys": ["dominio", "rede"],
         "services": [
             {
+                "id": "webcheck",
                 "name": "Web-Check",
                 "url": "https://web-check.xyz/",
                 "icon": "🕸️",
-                "description": "Análise completa de sites (SSL, DNS, tecnologias, etc)",
-                "type": "domain_analysis"
+                "description": "SSL, DNS, headers, tecnologias e fingerprint do site",
+                "use_for": "Domínio, URL, stack e postura do website",
             },
+        ],
+    },
+    "imagem": {
+        "label": "Imagem e Metadados",
+        "icon": "🖼️",
+        "description": "EXIF e metadados de arquivos de imagem",
+        "page_keys": ["imagem", "osint"],
+        "services": [
             {
+                "id": "jimpl",
                 "name": "Jimpl",
                 "url": "https://jimpl.com/",
-                "icon": "🔎",
-                "description": "Verificação de infraestrutura e tecnologias",
-                "type": "domain_analysis"
-            }
-        ]
-    }
+                "icon": "🖼️",
+                "description": "Leitura de EXIF/metadados de fotos (GPS, câmera, software)",
+                "use_for": "Foto, imagem JPEG/PNG e metadados embutidos",
+            },
+        ],
+    },
 }
 
-def get_services_by_category(category=None):
-    """
-    Retorna serviços filtrados por categoria
-    
-    Args:
-        category (str, optional): Nome da categoria. Se None, retorna todas.
-    
-    Returns:
-        dict: Serviços organizados por categoria
-    """
-    if category:
-        return {category: EXTERNAL_SERVICES.get(category, {})}
-    return EXTERNAL_SERVICES
-
-def get_all_services_flat():
-    """
-    Retorna todos os serviços em uma lista única (sem categorias)
-    
-    Returns:
-        list: Lista com todos os serviços
-    """
-    all_services = []
-    for category, data in EXTERNAL_SERVICES.items():
-        for service in data.get("services", []):
-            service["category"] = category
-            all_services.append(service)
-    return all_services
-
-def get_service_by_type(service_type):
-    """
-    Retorna serviços filtrados por tipo
-    
-    Args:
-        service_type (str): Tipo de serviço (people_search, database_search, etc)
-    
-    Returns:
-        list: Lista de serviços do tipo especificado
-    """
-    matching_services = []
-    for category, data in EXTERNAL_SERVICES.items():
-        for service in data.get("services", []):
-            if service.get("type") == service_type:
-                service["category"] = category
-                matching_services.append(service)
-    return matching_services
 
 def get_categories():
-    """
-    Retorna lista de categorias disponíveis
-    
-    Returns:
-        list: Lista de categorias
-    """
+    """Lista ordenada de chaves de categoria."""
     return list(EXTERNAL_SERVICES.keys())
+
+
+def get_category(category_key):
+    """Retorna uma categoria pelo id interno (pessoas, telefone, ...)."""
+    return EXTERNAL_SERVICES.get(category_key)
+
+
+def get_all_categories():
+    """Todas as categorias com dados completos."""
+    return EXTERNAL_SERVICES
+
+
+def get_services_for_page(page_key):
+    """
+    Serviços cujo page_keys inclui a página atual.
+    page_key exemplos: telefone, dominio, leaks, email, pessoas, imagem
+    """
+    key = (page_key or "").strip().lower()
+    blocks = []
+    for cat_key, cat in EXTERNAL_SERVICES.items():
+        if key in [k.lower() for k in cat.get("page_keys", [])] or key == cat_key:
+            blocks.append((cat_key, cat))
+    return blocks
+
+
+def get_all_services_flat():
+    """Lista plana com category_key e category_label em cada serviço."""
+    out = []
+    for cat_key, cat in EXTERNAL_SERVICES.items():
+        for svc in cat.get("services", []):
+            item = dict(svc)
+            item["category_key"] = cat_key
+            item["category_label"] = cat["label"]
+            item["category_icon"] = cat["icon"]
+            out.append(item)
+    return out

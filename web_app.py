@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
-from external_services_ui import display_external_services
+from external_services_ui import display_external_services, display_services_for_page
 
 st.set_page_config(
     page_title="Mr.Holmes",
@@ -516,6 +516,7 @@ PAGES = [
     "Rede",
     "Gráfico",
     "Ferramentas",
+    "Serviços Externos",
     "Aprenda",
     "Histórico",
     "Sobre",
@@ -608,6 +609,7 @@ if page == "Telefone":
         st.caption(f"Último número: `{st.session_state['last_phone']}`")
         if st.button("Enviar para Dorks Workbench", key="phone_to_dorks"):
             send_to_dorks(PHONE=st.session_state["last_phone"])
+    display_services_for_page("telefone", heading="Serviços externos — Telefone")
 
 
 # ── Email ────────────────────────────────────────────────────────────────────
@@ -651,6 +653,7 @@ elif page == "Email":
             dom = st.session_state.get("last_email_domain") or ""
             org = dom.split(".")[0] if dom else ""
             send_to_dorks(EMAIL=em, TARGET_DOMAIN=dom, ORG_NAME=org)
+    display_services_for_page("email", heading="Serviços externos — Email / Pessoas / Leaks")
 
 
 # ── Domínio ──────────────────────────────────────────────────────────────────
@@ -700,6 +703,7 @@ elif page == "Domínio":
             dom = st.session_state["last_domain"]
             org = dom.split(".")[0] if dom else ""
             send_to_dorks(TARGET_DOMAIN=dom, ORG_NAME=org, IP=st.session_state.get("last_domain_ip", ""))
+    display_services_for_page("dominio", heading="Serviços externos — Domínio e Website")
 
 
 # ── OSINT Avançado ───────────────────────────────────────────────────────────
@@ -923,6 +927,7 @@ elif page == "OSINT Avançado":
         alvo_sf = st.text_input("Alvo para copiar", key="sf_target")
         if alvo_sf:
             st.code(alvo_sf)
+    display_services_for_page("osint", heading="Serviços externos — Pessoas e Imagem")
 
 
 # ── Rede ─────────────────────────────────────────────────────────────────────
@@ -1397,6 +1402,7 @@ elif page == "Leaks":
 | Monitoring contínuo | — | Platinum / Enterprise |
 """
     )
+    display_services_for_page("leaks", heading="Serviços externos — Leaks e Vazamentos")
 
 
 # ── Ferramentas ──────────────────────────────────────────────────────────────
@@ -1986,6 +1992,20 @@ elif page == "Aprenda":
 
 
 # ── Histórico ────────────────────────────────────────────────────────────────
+elif page == "Serviços Externos":
+    page_header(
+        "Catálogo",
+        "Serviços Externos",
+        "Cada categoria abaixo lista somente os serviços daquela finalidade — sem misturar.",
+    )
+    display_external_services(title=False)
+    st.caption(
+        "Mapeamento: Pessoas → Mind · Telefone → Sync.me · Leaks → Dehashed · "
+        "Domínio → Web-Check · Imagem → Jimpl."
+    )
+
+
+# ── Histórico ────────────────────────────────────────────────────────────────
 elif page == "Histórico":
     page_header("Registro", "Histórico", "Consultas recentes salvas localmente.")
     try:
@@ -2036,9 +2056,3 @@ O autor não se responsabiliza por uso indevido.
 """)
 
 st.html('<div class="mh-foot">MR.HOLMES · OSINT · USO EDUCACIONAL</div>')
-
-# Serviços OSINT externos complementares
-st.markdown("---")
-with st.expander("🔧 **Serviços Complementares (Mind, Dehashed, Web-Check, etc)**", expanded=False):
-    display_external_services()
-
