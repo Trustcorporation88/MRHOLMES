@@ -4,7 +4,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-import streamlit as st
+import streamlit as st`nfrom external_services_ui import display_external_services
 
 st.set_page_config(
     page_title="Mr.Holmes",
@@ -268,6 +268,76 @@ div:has(.mh-osint-nav-mark) .stButton > button[data-testid="baseButton-primary"]
   margin: 0 0 0.85rem 0 !important; font-size: 0.82rem !important;
   color: var(--ink-soft) !important; line-height: 1.4;
 }
+.mh-learn-hero {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1.2rem 1.3rem; margin-bottom: 1.1rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  position: relative; overflow: hidden;
+}
+.mh-learn-hero::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 90% 10%, rgba(111, 212, 190, 0.12), transparent 45%),
+    radial-gradient(ellipse at 5% 90%, rgba(255, 155, 106, 0.08), transparent 40%);
+  pointer-events: none;
+}
+.mh-learn-hero > * { position: relative; }
+.mh-learn-hero .mh-dork-kicker {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 0.35rem;
+}
+.mh-learn-hero h2 {
+  margin: 0 !important; font-size: 1.45rem !important; font-weight: 700 !important;
+  letter-spacing: -0.03em; color: var(--ink) !important; font-family: var(--mono) !important;
+}
+.mh-learn-hero p {
+  margin: 0.5rem 0 0 0 !important; color: var(--ink-soft) !important;
+  font-size: 0.9rem !important; max-width: 48rem; line-height: 1.45;
+}
+.mh-learn-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem; margin: 0.25rem 0 1rem 0;
+}
+@media (max-width: 820px) {
+  .mh-learn-grid { grid-template-columns: 1fr; }
+}
+a.mh-learn-card {
+  display: grid; grid-template-columns: auto auto 1fr; grid-template-rows: auto auto;
+  column-gap: 0.75rem; row-gap: 0.2rem; align-items: center;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: linear-gradient(165deg, #1e2834 0%, var(--panel) 60%);
+  padding: 0.85rem 1rem; text-decoration: none !important;
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+  min-height: 78px;
+}
+a.mh-learn-card:hover {
+  border-color: rgba(111, 212, 190, 0.45);
+  transform: translateY(-2px);
+  background: linear-gradient(165deg, #243140 0%, var(--panel) 60%);
+}
+.mh-learn-num {
+  grid-row: 1 / span 2; align-self: center;
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.04em; color: var(--ink);
+  background: #0f3d32; border: 1px solid rgba(111, 212, 190, 0.35);
+  border-radius: 6px; min-width: 1.85rem; height: 1.85rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.mh-learn-icon {
+  grid-row: 1 / span 2; width: 2.35rem; height: 2.35rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+  color: #0d1218; background: var(--c, var(--accent)); letter-spacing: -0.02em;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--accent)) 22%, transparent);
+}
+.mh-learn-url {
+  grid-column: 3; font-family: var(--mono); font-size: 0.88rem; font-weight: 600;
+  color: var(--accent) !important; letter-spacing: -0.01em; line-height: 1.25;
+}
+.mh-learn-desc {
+  grid-column: 3; font-size: 0.78rem; color: var(--ink-soft) !important;
+  line-height: 1.4; margin: 0;
+}
 .mh-dork-workspace {
   border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
   padding: 1.15rem 1.25rem; margin-bottom: 1rem;
@@ -445,6 +515,7 @@ PAGES = [
     "Rede",
     "Gráfico",
     "Ferramentas",
+    "Aprenda",
     "Histórico",
     "Sobre",
 ]
@@ -1706,6 +1777,213 @@ elif page == "Ferramentas":
         st.link_button("Buscar no UrlScan", f"https://urlscan.io/search/#{url_to_scan}", use_container_width=True)
 
 
+# ── Aprenda com Mr Holmes ────────────────────────────────────────────────────
+elif page == "Aprenda":
+    import html as _html
+
+    page_header(
+        "Recursos",
+        "Aprenda com Mr Holmes",
+        "Diretório de serviços úteis para estudo, pesquisa e produtividade na web.",
+    )
+
+    learn_catalog = [
+        {
+            "num": "01",
+            "host": "12ft.io",
+            "url": "https://12ft.io",
+            "desc": "Contorna paywalls em páginas de notícias e artigos.",
+            "color": "#4C8DFF",
+            "glyph": "12",
+        },
+        {
+            "num": "02",
+            "host": "libgen.is",
+            "url": "https://libgen.is",
+            "desc": "Milhões de livros e textos para consulta.",
+            "color": "#3DDC97",
+            "glyph": "LG",
+        },
+        {
+            "num": "03",
+            "host": "sci-hub.se",
+            "url": "https://sci-hub.se",
+            "desc": "Acesso a artigos científicos de pesquisa.",
+            "color": "#A78BFA",
+            "glyph": "SH",
+        },
+        {
+            "num": "04",
+            "host": "alternativeto.net",
+            "url": "https://alternativeto.net",
+            "desc": "Encontre alternativas grátis a qualquer app.",
+            "color": "#FF9B6A",
+            "glyph": "AT",
+        },
+        {
+            "num": "05",
+            "host": "justwatch.com",
+            "url": "https://www.justwatch.com",
+            "desc": "Descubra onde assistir filmes e séries em streaming.",
+            "color": "#5B8DEF",
+            "glyph": "JW",
+        },
+        {
+            "num": "06",
+            "host": "archive.org",
+            "url": "https://archive.org",
+            "desc": "Arquivo da web, livros, áudio e mídia histórica.",
+            "color": "#6EA8FE",
+            "glyph": "IA",
+        },
+        {
+            "num": "07",
+            "host": "gutenberg.org",
+            "url": "https://www.gutenberg.org",
+            "desc": "Mais de 70 mil clássicos em domínio público.",
+            "color": "#E8C547",
+            "glyph": "PG",
+        },
+        {
+            "num": "08",
+            "host": "pdfdrive.com",
+            "url": "https://www.pdfdrive.com",
+            "desc": "Busca de PDFs em diversos temas.",
+            "color": "#F07178",
+            "glyph": "PDF",
+        },
+        {
+            "num": "09",
+            "host": "openculture.com",
+            "url": "https://www.openculture.com",
+            "desc": "Cursos online grátis de grandes universidades.",
+            "color": "#C084FC",
+            "glyph": "OC",
+        },
+        {
+            "num": "10",
+            "host": "wolframalpha.com",
+            "url": "https://www.wolframalpha.com",
+            "desc": "Resolva problemas matemáticos e consultas de conhecimento.",
+            "color": "#FF5A5F",
+            "glyph": "Wα",
+        },
+        {
+            "num": "11",
+            "host": "photopea.com",
+            "url": "https://www.photopea.com",
+            "desc": "Editor de imagens no navegador (estilo Photoshop).",
+            "color": "#34D399",
+            "glyph": "P",
+        },
+        {
+            "num": "12",
+            "host": "squoosh.app",
+            "url": "https://squoosh.app",
+            "desc": "Comprima imagens sem perder qualidade perceptível.",
+            "color": "#F472B6",
+            "glyph": "Sq",
+        },
+        {
+            "num": "13",
+            "host": "remove.bg",
+            "url": "https://www.remove.bg",
+            "desc": "Remove fundos de imagens automaticamente.",
+            "color": "#4ADE80",
+            "glyph": "BG",
+        },
+        {
+            "num": "14",
+            "host": "cleanup.picture",
+            "url": "https://cleanup.picture",
+            "desc": "Apague objetos indesejados das suas fotos.",
+            "color": "#A78BFA",
+            "glyph": "CL",
+        },
+        {
+            "num": "15",
+            "host": "unscreen.com",
+            "url": "https://www.unscreen.com",
+            "desc": "Remove o fundo de vídeos automaticamente.",
+            "color": "#2DD4BF",
+            "glyph": "Un",
+        },
+        {
+            "num": "16",
+            "host": "carbon.now.sh",
+            "url": "https://carbon.now.sh",
+            "desc": "Transforme código em imagens profissionais.",
+            "color": "#FB923C",
+            "glyph": "</>",
+        },
+        {
+            "num": "17",
+            "host": "ray.so",
+            "url": "https://ray.so",
+            "desc": "Capturas bonitas de trechos de código.",
+            "color": "#60A5FA",
+            "glyph": "Ry",
+        },
+        {
+            "num": "18",
+            "host": "shots.so",
+            "url": "https://shots.so",
+            "desc": "Mockups de produto grátis e profissionais.",
+            "color": "#F87171",
+            "glyph": "Sh",
+        },
+        {
+            "num": "19",
+            "host": "smartmockups.com",
+            "url": "https://smartmockups.com",
+            "desc": "Mockups sem precisar de Photoshop.",
+            "color": "#4ADE80",
+            "glyph": "SM",
+        },
+        {
+            "num": "20",
+            "host": "haveibeenpwned.com",
+            "url": "https://haveibeenpwned.com",
+            "desc": "Verifique se seus dados apareceram em vazamentos.",
+            "color": "#F87171",
+            "glyph": "HB",
+        },
+    ]
+
+    st.html(
+        """
+        <div class="mh-learn-hero">
+          <div class="mh-dork-kicker">Aprenda com Mr Holmes</div>
+          <h2>Desbloqueie o poder oculto da internet</h2>
+          <p>
+            Catálogo de 20 serviços externos para estudo, pesquisa e produtividade.
+            Links oficiais — sem instalação automática. Use com responsabilidade e
+            respeite direitos autorais e termos de cada site.
+          </p>
+        </div>
+        """
+    )
+
+    cards = []
+    for item in learn_catalog:
+        href = _html.escape(item["url"])
+        host = _html.escape(item["host"])
+        desc = _html.escape(item["desc"])
+        num = _html.escape(item["num"])
+        color = _html.escape(item["color"])
+        glyph = _html.escape(item["glyph"])
+        cards.append(
+            f'<a class="mh-learn-card" href="{href}" target="_blank" rel="noopener noreferrer">'
+            f'<span class="mh-learn-num">{num}</span>'
+            f'<span class="mh-learn-icon" style="--c:{color}">{glyph}</span>'
+            f'<span class="mh-learn-url">{host}</span>'
+            f'<span class="mh-learn-desc">{desc}</span>'
+            f"</a>"
+        )
+
+    st.html(f'<div class="mh-learn-grid">{"".join(cards)}</div>')
+
+
 # ── Histórico ────────────────────────────────────────────────────────────────
 elif page == "Histórico":
     page_header("Registro", "Histórico", "Consultas recentes salvas localmente.")
@@ -1739,6 +2017,7 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 - Suite OSINT (Holehe, Maigret, theHarvester, dnstwist, httpx…)
 - Atalho **Leaks** → OSINT Leak (conta externa)
 - **Ferramentas** — catálogo externo (Nmap, Maltego, Amass, SpiderFoot, theHarvester, FOCA…)
+- **Aprenda com Mr Holmes** — 20 serviços de estudo e produtividade web
 - Rede, gráfico, histórico
 
 **Mr.Holmes vs WebDorks**
@@ -1756,3 +2035,4 @@ O autor não se responsabiliza por uso indevido.
 """)
 
 st.html('<div class="mh-foot">MR.HOLMES · OSINT · USO EDUCACIONAL</div>')
+
