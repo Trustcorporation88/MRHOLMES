@@ -2225,4 +2225,4 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 O autor não se responsabiliza por uso indevido.
 """)
 
-st.html('<div class="mh-foot">MR.HOLMES · OSINT · USO EDUCACIONAL</div>')
+st.caption("Mr.Holmes — console OSINT · apenas uso educacional e alvos autorizados")
