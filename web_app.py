@@ -689,11 +689,10 @@ if page == "Telefone":
                 send_to_dorks(PHONE=st.session_state["last_phone"])
 
     with tab_fontes:
-        st.markdown(
-            '<div class="mh-panel"><h3>Portfólio de telefone</h3>'
-            '<p class="mh-muted">GitHub (PhoneInfoga, Ignorant, Phunter…) + web (Sync.me, Truecaller, Phonebook.cz). '
-            "Só links — uso em alvos autorizados.</p></div>",
-            unsafe_allow_html=True,
+        st.markdown("### Portfólio de telefone")
+        st.caption(
+            "GitHub (PhoneInfoga, Ignorant…) e sites (Sync.me, Truecaller…). "
+            "Só atalhos externos — não rodam dentro do Mr.Holmes."
         )
         display_services_for_page("telefone", heading="Tools & serviços de número")
 
