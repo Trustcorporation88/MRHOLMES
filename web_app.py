@@ -45,9 +45,9 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"]
   background: transparent !important;
 }
 [data-testid="stMain"] .block-container {
-  padding-top: 1.75rem !important;
-  padding-bottom: 3rem !important;
-  max-width: 1180px !important;
+  padding-top: 1.35rem !important;
+  padding-bottom: 2.5rem !important;
+  max-width: 1100px !important;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stToolbar"] { color: var(--ink-soft) !important; }
@@ -58,11 +58,41 @@ section[data-testid="stSidebar"] > div {
 }
 [data-testid="stSidebar"] * { color: var(--sidebar-text) !important; font-family: var(--sans) !important; }
 [data-testid="stSidebar"] .stRadio label {
-  padding: 0.45rem 0.65rem !important;
+  padding: 0.4rem 0.6rem !important;
   border-radius: 6px !important;
   margin-bottom: 2px !important;
+  font-size: 0.9rem !important;
 }
 [data-testid="stSidebar"] .stRadio label:hover { background: #1a2330 !important; }
+[data-testid="stSidebar"] .stRadio [aria-checked="true"] + div,
+[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
+  background: rgba(111, 212, 190, 0.12) !important;
+  border: 1px solid rgba(111, 212, 190, 0.35) !important;
+}
+.mh-nav-group {
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: #6fd4be !important;
+  margin: 0.85rem 0 0.35rem 0; opacity: 0.95;
+}
+.mh-panel {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1rem 1.1rem; margin-bottom: 0.9rem;
+}
+.mh-panel h3 {
+  margin: 0 0 0.35rem 0 !important; font-size: 0.95rem !important;
+  color: var(--ink) !important; font-weight: 650 !important;
+}
+.mh-panel p, .mh-panel .mh-muted {
+  margin: 0; color: var(--ink-soft); font-size: 0.84rem; line-height: 1.4;
+}
+.mh-quick-links a {
+  display: inline-block; margin: 0.2rem 0.35rem 0.2rem 0;
+  padding: 0.35rem 0.65rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  font-family: var(--mono); font-size: 0.72rem; color: var(--accent) !important;
+  text-decoration: none; font-weight: 600;
+}
+.mh-quick-links a:hover { border-color: rgba(111,212,190,.45); }
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
   color: #f1f5f9 !important;
@@ -505,22 +535,14 @@ def send_to_dorks(**kwargs):
     st.success("Tokens enviados ao Dorks Workbench — abra o menu **Dorks** na sidebar.")
 
 
-# ── Navigation ───────────────────────────────────────────────────────────────
-PAGES = [
-    "Dorks",
-    "Telefone",
-    "Email",
-    "Domínio",
-    "OSINT Avançado",
-    "Leaks",
-    "Rede",
-    "Gráfico",
-    "Ferramentas",
-    "Serviços Externos",
-    "Aprenda",
-    "Histórico",
-    "Sobre",
-]
+# ── Navigation (agrupada — menos confusão) ───────────────────────────────────
+NAV_GROUPS = {
+    "Lookups": ["Telefone", "Email", "Domínio", "Dorks"],
+    "Suite": ["OSINT Avançado", "Leaks", "Rede", "Gráfico"],
+    "Catálogo": ["Ferramentas", "Serviços Externos", "Aprenda"],
+    "Sistema": ["Histórico", "Sobre"],
+}
+PAGE_TO_GROUP = {p: g for g, pages in NAV_GROUPS.items() for p in pages}
 
 with st.sidebar:
     st.html(
@@ -528,88 +550,142 @@ with st.sidebar:
         <div class="mh-brand">
           <div class="mark">OSINT Console</div>
           <div class="name">Mr.Holmes</div>
-          <div class="tag">Investigação · fontes abertas</div>
+          <div class="tag">Lookups · fontes abertas</div>
         </div>
         """
     )
     if "nav_page" not in st.session_state:
-        st.session_state.nav_page = "Dorks"
-    page = st.radio("Navegação", PAGES, key="nav_page", label_visibility="collapsed")
+        st.session_state.nav_page = "Telefone"
+    # Seção + página (2 níveis)
+    cur = st.session_state.nav_page
+    default_group = PAGE_TO_GROUP.get(cur, "Lookups")
+    group_keys = list(NAV_GROUPS.keys())
+    g_idx = group_keys.index(default_group) if default_group in group_keys else 0
+    st.markdown('<div class="mh-nav-group">Seção</div>', unsafe_allow_html=True)
+    nav_group = st.radio(
+        "Seção",
+        group_keys,
+        index=g_idx,
+        key="nav_group",
+        label_visibility="collapsed",
+        horizontal=True,
+    )
+    pages_in_group = NAV_GROUPS[nav_group]
+    p_key = f"nav_page_{nav_group}"
+    if p_key not in st.session_state:
+        st.session_state[p_key] = cur if cur in pages_in_group else pages_in_group[0]
+    elif st.session_state[p_key] not in pages_in_group:
+        st.session_state[p_key] = pages_in_group[0]
+    st.markdown('<div class="mh-nav-group">Página</div>', unsafe_allow_html=True)
+    page = st.radio(
+        "Página",
+        pages_in_group,
+        key=p_key,
+        label_visibility="collapsed",
+    )
+    st.session_state.nav_page = page
     st.markdown("---")
-    st.caption("Uso educacional e autorizado.")
+    st.caption("Uso educacional · alvos autorizados")
 
 
 # ── Telefone ─────────────────────────────────────────────────────────────────
 if page == "Telefone":
-    page_header("Lookup", "Telefone", "Operadora, geolocalização por DDD e links de consulta pública.")
-    phone = st.text_input("Número (código do país + DDD)", placeholder="5511999999999")
-    if st.button("Investigar", type="primary") and phone:
-        with st.spinner("Analisando número…"):
-            try:
-                from Core.Support.Phone.Numbers import get_geo_from_ddd
-                from Core.Support.History import save_search
-                import phonenumbers as pn
-                from phonenumbers import carrier, geocoder, timezone
+    page_header(
+        "Lookup",
+        "Telefone",
+        "Análise local (operadora/DDD) + portfólio ampliado de fontes OSINT de número.",
+    )
 
-                digits = "".join(c for c in phone.strip() if c.isdigit())
-                parsed = pn.parse("+" + digits, "BR")
-                pais = geocoder.country_name_for_number(parsed, "pt") or geocoder.country_name_for_number(parsed, "en") or "N/A"
-                area = geocoder.description_for_number(parsed, "pt") or geocoder.description_for_number(parsed, "en") or "N/A"
-                operadora = carrier.name_for_number(parsed, "pt") or carrier.name_for_number(parsed, "en") or "N/A"
+    tab_analise, tab_fontes = st.tabs(["1 · Analisar número", "2 · Fontes & tools de telefone"])
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("País", pais)
-                c1.metric("Área", area)
-                c2.metric("Operadora", operadora or "—")
-                c2.metric("Região", pn.region_code_for_country_code(parsed.country_code))
-                c3.metric("Internacional", pn.format_number(parsed, pn.PhoneNumberFormat.INTERNATIONAL))
-                tz = timezone.time_zones_for_number(parsed)
-                c3.metric("Fuso", tz[0] if tz else "—")
+    with tab_analise:
+        st.markdown(
+            '<div class="mh-panel"><h3>Consulta local</h3>'
+            '<p class="mh-muted">libphonenumber + DDD BR. Não consulta bases pagas automaticamente.</p></div>',
+            unsafe_allow_html=True,
+        )
+        c_in, c_btn = st.columns([3, 1])
+        with c_in:
+            phone = st.text_input(
+                "Número (código do país + DDD)",
+                placeholder="5511999999999",
+                label_visibility="collapsed",
+                key="phone_input_main",
+            )
+        with c_btn:
+            st.write("")
+            run_phone = st.button("Investigar", type="primary", use_container_width=True)
 
-                e164 = pn.format_number(parsed, pn.PhoneNumberFormat.E164)
-                cc = str(parsed.country_code)
-                local = e164[1:]
-                if local.startswith(cc):
-                    local = local[len(cc):]
-                ddd = local[:2]
-                geo = get_geo_from_ddd(ddd)
+        if run_phone and phone:
+            with st.spinner("Analisando número…"):
+                try:
+                    from Core.Support.Phone.Numbers import get_geo_from_ddd
+                    from Core.Support.History import save_search
+                    import phonenumbers as pn
+                    from phonenumbers import carrier, geocoder, timezone
 
-                if geo:
-                    st.success(f"DDD {ddd} → {geo['city']}/{geo['state']}")
-                    st.map(data={"lat": [geo["lat"]], "lon": [geo["lon"]]}, zoom=10)
-                    st.caption(f"maps.google.com/maps/place/{geo['lat']},{geo['lon']}")
+                    digits = "".join(c for c in phone.strip() if c.isdigit())
+                    parsed = pn.parse("+" + digits, "BR")
+                    pais = geocoder.country_name_for_number(parsed, "pt") or geocoder.country_name_for_number(parsed, "en") or "N/A"
+                    area = geocoder.description_for_number(parsed, "pt") or geocoder.description_for_number(parsed, "en") or "N/A"
+                    operadora = carrier.name_for_number(parsed, "pt") or carrier.name_for_number(parsed, "en") or "N/A"
 
-                st.subheader("Consultas públicas")
-                st.caption("HTTP 200 indica página acessível — não confirma registro do número.")
-                sites_found = []
-                for site_name, url in [
-                    ("free-lookup.net", f"https://free-lookup.net/{digits}"),
-                    ("whosenumber.info", f"https://whosenumber.info/{digits}"),
-                    ("spamcalls.net", f"https://spamcalls.net/en/number/{digits}"),
-                ]:
-                    try:
-                        import urllib.request as _ur
-                        req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                        resp = _ur.urlopen(req, timeout=8)
-                        if resp.status == 200:
-                            st.markdown(f"- [{site_name}]({url}) — acessível")
-                            sites_found.append(site_name)
-                    except Exception:
-                        st.markdown(f"- {site_name} — indisponível")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("País", pais)
+                    c1.metric("Área", area)
+                    c2.metric("Operadora", operadora or "—")
+                    c2.metric("Região", pn.region_code_for_country_code(parsed.country_code))
+                    c3.metric("Internacional", pn.format_number(parsed, pn.PhoneNumberFormat.INTERNATIONAL))
+                    tz = timezone.time_zones_for_number(parsed)
+                    c3.metric("Fuso", tz[0] if tz else "—")
 
-                a, b, c = st.columns(3)
-                a.markdown(f"[Google](https://www.google.com/search?q=%22{digits}%22)")
-                b.markdown(f"[Yandex](https://yandex.com/search/?text=%22{digits}%22)")
-                c.markdown(f"[WhatsApp](https://wa.me/{digits})")
-                save_search("phone", digits, country=pais, area=area, carrier=operadora, sites_found=len(sites_found))
-                st.session_state["last_phone"] = digits
-            except Exception as e:
-                st.error(str(e))
-    if st.session_state.get("last_phone"):
-        st.caption(f"Último número: `{st.session_state['last_phone']}`")
-        if st.button("Enviar para Dorks Workbench", key="phone_to_dorks"):
-            send_to_dorks(PHONE=st.session_state["last_phone"])
-    display_services_for_page("telefone", heading="Serviços externos — Telefone")
+                    e164 = pn.format_number(parsed, pn.PhoneNumberFormat.E164)
+                    cc = str(parsed.country_code)
+                    local = e164[1:]
+                    if local.startswith(cc):
+                        local = local[len(cc):]
+                    ddd = local[:2]
+                    geo = get_geo_from_ddd(ddd)
+
+                    if geo:
+                        st.success(f"DDD {ddd} → {geo['city']}/{geo['state']}")
+                        st.map(data={"lat": [geo["lat"]], "lon": [geo["lon"]]}, zoom=10)
+
+                    st.markdown("##### Atalhos rápidos")
+                    ql = (
+                        f'<div class="mh-quick-links">'
+                        f'<a href="https://free-lookup.net/{digits}" target="_blank">Free-Lookup</a>'
+                        f'<a href="https://whosenumber.info/{digits}" target="_blank">WhoseNumber</a>'
+                        f'<a href="https://spamcalls.net/en/number/{digits}" target="_blank">SpamCalls</a>'
+                        f'<a href="https://www.google.com/search?q=%22{digits}%22" target="_blank">Google</a>'
+                        f'<a href="https://yandex.com/search/?text=%22{digits}%22" target="_blank">Yandex</a>'
+                        f'<a href="https://wa.me/{digits}" target="_blank">WhatsApp</a>'
+                        f'<a href="https://www.truecaller.com/search/br/{digits}" target="_blank">Truecaller</a>'
+                        f'<a href="https://phonebook.cz/" target="_blank">Phonebook.cz</a>'
+                        f"</div>"
+                    )
+                    st.markdown(ql, unsafe_allow_html=True)
+                    st.caption("HTTP/acesso ao site não confirma que o número está cadastrado.")
+
+                    sites_found = 8
+                    save_search("phone", digits, country=pais, area=area, carrier=operadora, sites_found=sites_found)
+                    st.session_state["last_phone"] = digits
+                except Exception as e:
+                    st.error(str(e))
+
+        if st.session_state.get("last_phone"):
+            st.caption(f"Último número: `{st.session_state['last_phone']}`")
+            if st.button("Enviar para Dorks Workbench", key="phone_to_dorks"):
+                send_to_dorks(PHONE=st.session_state["last_phone"])
+
+    with tab_fontes:
+        st.markdown(
+            '<div class="mh-panel"><h3>Portfólio de telefone</h3>'
+            '<p class="mh-muted">GitHub (PhoneInfoga, Ignorant, Phunter…) + web (Sync.me, Truecaller, Phonebook.cz). '
+            "Só links — uso em alvos autorizados.</p></div>",
+            unsafe_allow_html=True,
+        )
+        display_services_for_page("telefone", heading="Tools & serviços de número")
 
 
 # ── Email ────────────────────────────────────────────────────────────────────
@@ -1753,6 +1829,70 @@ elif page == "Ferramentas":
             "desc": "Catálogo fonte (215 tools) — só referência; não instala ofensivos aqui.",
             "url": "https://github.com/Z4nzu/hackingtool",
             "cat": "frameworks",
+        },
+        # Phone OSINT portfolio (GitHub + web)
+        {
+            "num": "",
+            "name": "PhoneInfoga",
+            "desc": "Framework OSINT de números (sundowndev) — scanners e dorks.",
+            "url": "https://github.com/sundowndev/phoneinfoga",
+            "cat": "coleta",
+        },
+        {
+            "num": "",
+            "name": "Ignorant",
+            "desc": "Número em redes (Instagram/Snap…) — megadose.",
+            "url": "https://github.com/megadose/ignorant",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "Phunter",
+            "desc": "OSINT multiponto a partir de telefone (N0rz3).",
+            "url": "https://github.com/N0rz3/Phunter",
+            "cat": "coleta",
+        },
+        {
+            "num": "",
+            "name": "SearchPhone",
+            "desc": "Multi-API phone OSINT + relatório (HackUnderway).",
+            "url": "https://github.com/HackUnderway/SearchPhone",
+            "cat": "coleta",
+        },
+        {
+            "num": "",
+            "name": "Moriarty Project",
+            "desc": "Informações a partir do número informado.",
+            "url": "https://github.com/AzizKpln/Moriarty-Project",
+            "cat": "coleta",
+        },
+        {
+            "num": "",
+            "name": "Telephone-OSINT Toolbox",
+            "desc": "Coleção curada de phone lookup tools.",
+            "url": "https://github.com/The-Osint-Toolbox/Telephone-OSINT",
+            "cat": "frameworks",
+        },
+        {
+            "num": "",
+            "name": "Sync.me",
+            "desc": "Caller ID / agenda reversa (web).",
+            "url": "https://sync.me/pt-br/",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "Truecaller",
+            "desc": "Caller ID colaborativo (web/app).",
+            "url": "https://www.truecaller.com/",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "Phonebook.cz",
+            "desc": "Busca em dumps públicos indexados.",
+            "url": "https://phonebook.cz/",
+            "cat": "leaks",
         },
     ]
 
