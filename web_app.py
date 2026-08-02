@@ -535,14 +535,43 @@ def send_to_dorks(**kwargs):
     st.success("Tokens enviados ao Dorks Workbench — abra o menu **Dorks** na sidebar.")
 
 
-# ── Navigation (agrupada — menos confusão) ───────────────────────────────────
-NAV_GROUPS = {
-    "Lookups": ["Telefone", "Email", "Domínio", "Dorks"],
-    "Suite": ["OSINT Avançado", "Leaks", "Rede", "Gráfico"],
-    "Catálogo": ["Ferramentas", "Serviços Externos", "Aprenda"],
-    "Sistema": ["Histórico", "Sobre"],
+# ── Navigation (lista única, rótulos claros — sem menus aninhados) ────────────
+# page_id interno permanece estável para o resto do app
+NAV_OPTIONS = [
+    "Telefone",
+    "Email",
+    "Domínio",
+    "Dorks",
+    "OSINT Avançado",
+    "Leaks",
+    "Rede",
+    "Gráfico",
+    "Ferramentas",
+    "Serviços Externos",
+    "Aprenda",
+    "Histórico",
+    "Sobre",
+]
+NAV_LABEL = {
+    "Telefone": "1 · Telefone",
+    "Email": "2 · Email",
+    "Domínio": "3 · Domínio",
+    "Dorks": "4 · Dorks Google",
+    "OSINT Avançado": "5 · Username / Social",
+    "Leaks": "6 · Leaks",
+    "Rede": "7 · Rede / IP",
+    "Gráfico": "8 · Grafo",
+    "Ferramentas": "9 · Catálogo (GitHub)",
+    "Serviços Externos": "10 · Links web",
+    "Aprenda": "11 · Aprenda",
+    "Histórico": "12 · Histórico",
+    "Sobre": "13 · Sobre",
 }
-PAGE_TO_GROUP = {p: g for g, pages in NAV_GROUPS.items() for p in pages}
+
+
+def _nav_label(page_id: str) -> str:
+    return NAV_LABEL.get(page_id, page_id)
+
 
 with st.sidebar:
     st.html(
@@ -550,42 +579,23 @@ with st.sidebar:
         <div class="mh-brand">
           <div class="mark">OSINT Console</div>
           <div class="name">Mr.Holmes</div>
-          <div class="tag">Lookups · fontes abertas</div>
+          <div class="tag">Uma ferramenta por tela</div>
         </div>
         """
     )
-    if "nav_page" not in st.session_state:
+    st.caption("Busca → 1–4 · Análise → 5–8 · Catálogo → 9–11")
+    if "nav_page" not in st.session_state or st.session_state.nav_page not in NAV_OPTIONS:
         st.session_state.nav_page = "Telefone"
-    # Seção + página (2 níveis)
-    cur = st.session_state.nav_page
-    default_group = PAGE_TO_GROUP.get(cur, "Lookups")
-    group_keys = list(NAV_GROUPS.keys())
-    g_idx = group_keys.index(default_group) if default_group in group_keys else 0
-    st.markdown('<div class="mh-nav-group">Seção</div>', unsafe_allow_html=True)
-    nav_group = st.radio(
-        "Seção",
-        group_keys,
-        index=g_idx,
-        key="nav_group",
-        label_visibility="collapsed",
-        horizontal=True,
-    )
-    pages_in_group = NAV_GROUPS[nav_group]
-    p_key = f"nav_page_{nav_group}"
-    if p_key not in st.session_state:
-        st.session_state[p_key] = cur if cur in pages_in_group else pages_in_group[0]
-    elif st.session_state[p_key] not in pages_in_group:
-        st.session_state[p_key] = pages_in_group[0]
-    st.markdown('<div class="mh-nav-group">Página</div>', unsafe_allow_html=True)
     page = st.radio(
-        "Página",
-        pages_in_group,
-        key=p_key,
+        "Menu",
+        NAV_OPTIONS,
+        index=NAV_OPTIONS.index(st.session_state.nav_page),
+        format_func=_nav_label,
+        key="nav_page",
         label_visibility="collapsed",
     )
-    st.session_state.nav_page = page
     st.markdown("---")
-    st.caption("Uso educacional · alvos autorizados")
+    st.caption("Educacional · alvos autorizados")
 
 
 # ── Telefone ─────────────────────────────────────────────────────────────────
@@ -1225,36 +1235,64 @@ elif page == "Dorks":
     engines_all = list_engines(catalog)
     goals_all = list_goals(catalog)
 
-    st.html(
-        """
-        <div class="mh-dork-workspace mh-dork-hero">
-          <div class="mh-dork-kicker">Workbench de pesquisa</div>
-          <h2>Dorks</h2>
-          <p>
-            Catálogo curado como o WebDorks (tokens, filtros, engines) — com link direto para
-            abrir a busca e listas nativas do Holmes. Uso educacional e em alvos autorizados.
-          </p>
-        </div>
-        """
+    page_header(
+        "Busca",
+        "Dorks Google",
+        "Monte consultas prontas, filtre por motor/objetivo e abra no buscador. "
+        "Uso educacional · alvos autorizados.",
     )
-    st.caption("Técnicas WebDorks © root-Manas (MIT) + Site_lists Mr.Holmes.")
+    st.caption(f"{len(catalog)} técnicas · WebDorks + Site_lists Holmes")
 
-    # Controles superiores (espelha barra do WebDorks)
-    top1, top2 = st.columns([3, 1])
-    with top1:
+    # 1) Busca + letra (simples)
+    f1, f2, f3 = st.columns([3, 1, 1])
+    with f1:
         dork_search = st.text_input(
-            "Buscar técnicas",
-            placeholder="buscar por título, objetivo, motor ou sintaxe",
+            "Buscar",
+            placeholder="ex.: pdf, login, subdomain…",
             key="dork_search",
+            label_visibility="collapsed",
         )
-    with top2:
-        if st.button("Limpar tokens", key="dork_clear_tokens", use_container_width=True):
-            st.session_state.dork_tokens = empty_tokens()
-            for key in TOKEN_KEYS:
-                st.session_state[f"dork_tok_{key}"] = ""
+    letters = sorted(
+        {
+            (localize_technique(t).get("title") or t.get("title") or "?")[0].upper()
+            for t in catalog
+            if t.get("title") or localize_technique(t).get("title")
+        }
+    )
+    with f2:
+        letter_pick = st.selectbox(
+            "Letra",
+            ["Todas"] + letters,
+            key="dork_letter",
+        )
+    letter = None if letter_pick == "Todas" else letter_pick
+    with f3:
+        if st.button("Limpar filtros", key="dork_clear_filters", use_container_width=True):
+            st.session_state.dork_search = ""
+            st.session_state.dork_letter = "Todas"
+            st.session_state.dork_eng_ms = []
+            st.session_state.dork_goal_ms = []
             st.rerun()
 
-    st.markdown("**Substituição de tokens**")
+    # 2) Filtros compactos (sem parede de checkbox)
+    engine_sel = st.multiselect(
+        "Motores (opcional)",
+        engines_all,
+        default=[],
+        key="dork_eng_ms",
+        placeholder="Todos os motores",
+    )
+    goal_labels = {humanize_goal(g): g for g in goals_all}
+    goal_picked = st.multiselect(
+        "Objetivos (opcional)",
+        list(goal_labels.keys()),
+        default=[],
+        key="dork_goal_ms",
+        placeholder="Todos os objetivos",
+    )
+    goal_sel = [goal_labels[x] for x in goal_picked]
+
+    # 3) Tokens recolhidos (não poluem a tela)
     placeholders = {
         "TARGET_DOMAIN": "exemplo.com",
         "ORG_NAME": "acme",
@@ -1264,148 +1302,101 @@ elif page == "Dorks":
         "ASN": "AS15169",
         "PHONE": "5511999999999",
     }
-    tcols = st.columns(4)
-    token_vals = {}
-    for i, key in enumerate(TOKEN_KEYS):
-        with tcols[i % 4]:
-            token_vals[key] = st.text_input(
-                f"{TOKEN_LABELS_PT.get(key, key)} ({key})",
-                placeholder=placeholders[key],
-                key=f"dork_tok_{key}",
-            )
-    st.session_state.dork_tokens = {k: (token_vals.get(k) or "").strip() for k in TOKEN_KEYS}
-
-    letters = sorted(
-        {
-            (localize_technique(t).get("title") or t.get("title") or "?")[0].upper()
-            for t in catalog
-            if t.get("title") or localize_technique(t).get("title")
+    with st.expander("Preencher alvos (domínio, email, IP…)", expanded=False):
+        st.caption("Substitui os placeholders nas consultas abaixo.")
+        tcols = st.columns(4)
+        token_vals = {}
+        for i, key in enumerate(TOKEN_KEYS):
+            with tcols[i % 4]:
+                token_vals[key] = st.text_input(
+                    TOKEN_LABELS_PT.get(key, key),
+                    placeholder=placeholders.get(key, ""),
+                    key=f"dork_tok_{key}",
+                )
+        ctok1, ctok2 = st.columns(2)
+        with ctok1:
+            if st.button("Limpar alvos", key="dork_clear_tokens", use_container_width=True):
+                st.session_state.dork_tokens = empty_tokens()
+                for key in TOKEN_KEYS:
+                    st.session_state[f"dork_tok_{key}"] = ""
+                st.rerun()
+        st.session_state.dork_tokens = {
+            k: (token_vals.get(k) or "").strip() for k in TOKEN_KEYS
         }
+
+    filtered = filter_techniques(
+        catalog,
+        search=dork_search,
+        engines=engine_sel,
+        goals=goal_sel,
+        letter=letter,
     )
-    letter_opts = ["Todas"] + letters
-    letter_pick = st.radio(
-        "Índice A–Z",
-        letter_opts,
-        horizontal=True,
-        key="dork_letter",
+    qcount = sum(len(t.get("queries") or []) for t in filtered)
+    st.markdown(
+        f"**{len(filtered)}** técnicas · **{qcount}** consultas"
+        + (f" · filtro: `{dork_search}`" if dork_search else "")
     )
-    letter = None if letter_pick == "Todas" else letter_pick
 
-    # Layout 2 colunas: filtros (WebDorks) + resultados
-    left, right = st.columns([1, 2.6], gap="large")
-
-    with left:
-        st.html(
-            '<div class="mh-dork-side"><h4>Motores</h4>'
-            '<p>Combine a busca com os checkboxes para filtrar melhor.</p></div>'
+    if not filtered:
+        st.info("Nada encontrado. Limpe os filtros ou mude a busca.")
+    else:
+        _opts = [n for n in (10, 20, 40, 60, 100) if n <= max(10, len(filtered))]
+        if not _opts:
+            _opts = [len(filtered) or 10]
+        max_show = st.select_slider(
+            "Mostrar até",
+            options=_opts,
+            value=_opts[min(1, len(_opts) - 1)],
+            key="dork_max_slider",
         )
-        engine_sel = []
-        with st.container(height=220, border=True):
-            st.html('<span class="mh-scroll-mark"></span>')
-            for eng in engines_all:
-                if st.checkbox(eng, key=f"dork_eng_{eng}"):
-                    engine_sel.append(eng)
-
-        st.html('<div class="mh-dork-side"><h4>Objetivos</h4></div>')
-        goal_sel = []
-        with st.container(height=280, border=True):
-            st.html('<span class="mh-scroll-mark"></span>')
-            for g in goals_all:
-                if st.checkbox(humanize_goal(g), key=f"dork_goal_{g}"):
-                    goal_sel.append(g)
-
-        if st.button("Limpar filtros", key="dork_clear_filters", use_container_width=True):
-            st.session_state.dork_search = ""
-            st.session_state.dork_letter = "Todas"
-            for eng in engines_all:
-                st.session_state[f"dork_eng_{eng}"] = False
-            for g in goals_all:
-                st.session_state[f"dork_goal_{g}"] = False
-            st.rerun()
-
-    with right:
-        filtered = filter_techniques(
-            catalog,
-            search=dork_search,
-            engines=engine_sel,
-            goals=goal_sel,
-            letter=letter,
-        )
-        qcount = sum(len(t.get("queries") or []) for t in filtered)
-        active_bits = []
-        if dork_search:
-            active_bits.append(f"busca «{dork_search}»")
-        if engine_sel:
-            active_bits.append(f"{len(engine_sel)} motor(es)")
-        if goal_sel:
-            active_bits.append(f"{len(goal_sel)} objetivo(s)")
-        if letter:
-            active_bits.append(f"letra {letter}")
-        status = " · ".join(active_bits) if active_bits else "nenhum filtro ativo"
-        st.html(
-            f'<div class="mh-dork-summary">'
-            f"<strong>{len(filtered)}</strong> visíveis de <strong>{len(catalog)}</strong> "
-            f"· {qcount} consultas · {status}</div>"
-        )
-
-        if not filtered:
-            st.info("Nenhuma técnica corresponde aos filtros. Limpe a busca ou amplie motores/objetivos.")
-        else:
-            max_show = st.slider(
-                "Máximo de cards",
-                10,
-                min(200, max(10, len(filtered))),
-                min(40, len(filtered)),
-                key="dork_max",
+        for tech in filtered[: int(max_show)]:
+            tid = tech.get("id", "")
+            loc = localize_technique(tech)
+            tags = "".join(
+                f'<span class="mh-dork-tag">{_html.escape(humanize_goal(g))}</span>'
+                for g in (tech.get("goals") or [])
             )
-            for tech in filtered[:max_show]:
-                tid = tech.get("id", "")
-                loc = localize_technique(tech)
-                tags = "".join(
-                    f'<span class="mh-dork-tag">{_html.escape(humanize_goal(g))}</span>'
-                    for g in (tech.get("goals") or [])
-                )
-                src = source_label(tech.get("source") or "")
-                src_badge = (
-                    f'<span class="mh-dork-tag">{_html.escape(src)}</span>' if src else ""
-                )
-                rows = resolve_queries(tech, st.session_state.dork_tokens)
-                query_html_parts = []
-                for row in rows:
-                    qtxt = _html.escape(row["q"])
-                    eng = _html.escape(row["engine"])
-                    link = ""
-                    if row.get("url"):
-                        href = _html.escape(row["url"])
-                        label = "Portal" if row.get("portal_only") else "Abrir busca"
-                        link = (
-                            f'<a href="{href}" target="_blank" rel="noopener">{label} →</a>'
-                        )
-                    query_html_parts.append(
-                        f'<div class="mh-dork-query">'
-                        f'<span class="mh-dork-engine">{eng}</span>'
-                        f'<code class="mh-dork-code">{qtxt}</code>'
-                        f'<div class="mh-dork-actions">{link}</div></div>'
+            src = source_label(tech.get("source") or "")
+            src_badge = (
+                f'<span class="mh-dork-tag">{_html.escape(src)}</span>' if src else ""
+            )
+            rows = resolve_queries(tech, st.session_state.dork_tokens)
+            query_html_parts = []
+            for row in rows:
+                qtxt = _html.escape(row["q"])
+                eng = _html.escape(row["engine"])
+                link = ""
+                if row.get("url"):
+                    href = _html.escape(row["url"])
+                    label = "Portal" if row.get("portal_only") else "Abrir"
+                    link = (
+                        f'<a href="{href}" target="_blank" rel="noopener">{label} →</a>'
                     )
-                st.html(
-                    f'<div class="mh-dork-card">'
-                    f"<h3>{_html.escape(loc['title'])}</h3>"
-                    f'<p class="mh-dork-desc">{_html.escape(loc["description"])}</p>'
-                    f'<div class="mh-dork-tags">{tags}{src_badge}</div>'
-                    f'{"".join(query_html_parts)}'
-                    f"</div>"
+                query_html_parts.append(
+                    f'<div class="mh-dork-query">'
+                    f'<span class="mh-dork-engine">{eng}</span>'
+                    f'<code class="mh-dork-code">{qtxt}</code>'
+                    f'<div class="mh-dork-actions">{link}</div></div>'
                 )
-                acols = st.columns(min(3, max(1, len(rows))))
-                for qi, row in enumerate(rows):
-                    with acols[qi % len(acols)]:
-                        if st.button(
-                            f"Copiar · {row['engine']}",
-                            key=f"copy_{tid}_{qi}",
-                            use_container_width=True,
-                        ):
-                            st.session_state["dork_clipboard"] = row["q"]
-                            st.code(row["q"], language=None)
-                            st.toast("Consulta pronta para copiar (bloco acima).")
+            st.html(
+                f'<div class="mh-dork-card">'
+                f"<h3>{_html.escape(loc['title'])}</h3>"
+                f'<p class="mh-dork-desc">{_html.escape(loc["description"])}</p>'
+                f'<div class="mh-dork-tags">{tags}{src_badge}</div>'
+                f'{"".join(query_html_parts)}'
+                f"</div>"
+            )
+            acols = st.columns(min(3, max(1, len(rows))))
+            for qi, row in enumerate(rows):
+                with acols[qi % len(acols)]:
+                    if st.button(
+                        f"Copiar · {row['engine']}",
+                        key=f"copy_{tid}_{qi}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["dork_clipboard"] = row["q"]
+                        st.code(row["q"], language=None)
+                        st.toast("Consulta pronta para copiar.")
 
 
 # ── Leaks (atalho OSINT Leak — sem API) ──────────────────────────────────────
@@ -1488,21 +1479,22 @@ elif page == "Ferramentas":
     import json as _json
 
     page_header(
-        "Diretório",
-        "Ferramentas",
-        "Catálogo externo de serviços OSINT e recon — links oficiais, sem instalação automática.",
+        "Catálogo",
+        "Ferramentas (GitHub / CLI)",
+        "Só OSINT e recon passivo — links oficiais. Sem instalação automática. "
+        "Para sites web prontos, use o menu «Links web».",
     )
 
     # cat keys drive filter + section order
     CAT_META = [
         ("workbench", "Workbenches"),
         ("leaks", "Leaks"),
-        ("rede", "Rede & portas"),
-        ("frameworks", "Frameworks de recon"),
+        ("frameworks", "Frameworks OSINT"),
         ("coleta", "Coleta & descoberta"),
         ("metadados", "Metadados"),
         ("social", "Redes sociais"),
         ("infra", "Infra / DNS"),
+        ("telefone", "Telefone"),
         ("codigo", "Código"),
     ]
     CAT_LABEL = {k: v for k, v in CAT_META}
@@ -1531,209 +1523,61 @@ elif page == "Ferramentas":
             "cat": "leaks",
         },
         {
-            "num": "01",
-            "name": "Nmap",
-            "desc": "Scanner de rede e portas (Network Map).",
-            "url": "https://github.com/nmap/nmap",
-            "cat": "rede",
-        },
-        {
-            "num": "18",
-            "name": "Dracnmap",
-            "desc": "Wrapper de scripts Nmap para fluxos guiados.",
-            "url": "https://github.com/Screetsec/Dracnmap",
-            "cat": "rede",
-        },
-        {
-            "num": "19",
-            "name": "rang3r",
-            "desc": "Scanner de portas multithread.",
-            "url": "https://github.com/floriankunushevci/rang3r",
-            "cat": "rede",
-        },
-        {
-            "num": "14",
-            "name": "Xerosploit",
-            "desc": "Kit de ferramentas para testes de penetração.",
-            "url": "https://github.com/LionSec/xerosploit",
-            "cat": "rede",
-        },
-        {
-            "num": "02",
+            "num": "",
             "name": "Maltego",
-            "desc": "Análise visual de links e relacionamentos.",
+            "desc": "Grafo de relacionamentos (pessoas, domínios, infra).",
             "url": "https://www.maltego.com/",
             "cat": "frameworks",
         },
         {
-            "num": "04",
+            "num": "",
             "name": "Recon-ng",
-            "desc": "Framework modular de reconhecimento web.",
+            "desc": "Framework modular de recon web.",
             "url": "https://github.com/lanmaster53/recon-ng",
             "cat": "frameworks",
         },
         {
-            "num": "05",
+            "num": "",
             "name": "SpiderFoot",
-            "desc": "Automação OSINT pesada (serviço separado).",
+            "desc": "Automação OSINT (módulos de fontes abertas).",
             "url": "https://github.com/smicallef/spiderfoot",
             "hint": "OSINT Avançado",
             "cat": "frameworks",
         },
         {
-            "num": "07",
+            "num": "",
             "name": "Amass",
-            "desc": "Mapeamento de superfície de ataque (OWASP).",
+            "desc": "Mapeamento de superfície / subdomínios (OWASP).",
             "url": "https://github.com/OWASP/Amass",
             "hint": "OSINT Avançado",
             "cat": "frameworks",
         },
         {
-            "num": "08",
-            "name": "RED HAWK",
-            "desc": "Scanner tudo-em-um para recon e info gathering.",
-            "url": "https://github.com/Tuhinshubhra/RED_HAWK",
-            "cat": "frameworks",
-        },
-        {
-            "num": "09",
-            "name": "ReconSpider",
-            "desc": "Coleta multiuso de inteligência em fontes abertas.",
-            "url": "https://github.com/bhavsec/reconspider",
-            "cat": "frameworks",
-        },
-        {
-            "num": "10",
+            "num": "",
             "name": "OSINT Framework",
-            "desc": "Coleção indexada de ferramentas e fontes OSINT.",
+            "desc": "Mapa indexado de fontes OSINT.",
             "url": "https://github.com/lockfale/OSINT-Framework",
             "cat": "frameworks",
         },
         {
-            "num": "16",
-            "name": "ReconDog",
-            "desc": "Canivete suíço de reconhecimento.",
-            "url": "https://github.com/s0md3v/ReconDog",
-            "cat": "frameworks",
-        },
-        {
-            "num": "03",
-            "name": "Shodanfy",
-            "desc": "Wrapper Shodan — dispositivos IoT e superfícies expostas.",
-            "url": "https://github.com/m4ll0k/Shodanfy.py",
-            "cat": "coleta",
-        },
-        {
-            "num": "06",
+            "num": "",
             "name": "theHarvester",
-            "desc": "Coletor de e-mails e subdomínios.",
+            "desc": "Coleta emails e subdomínios em fontes abertas.",
             "url": "https://github.com/laramies/theHarvester",
             "hint": "OSINT Avançado",
             "cat": "coleta",
         },
         {
-            "num": "11",
+            "num": "",
             "name": "Infoga",
-            "desc": "Coletor OSINT focado em e-mails.",
+            "desc": "OSINT focado em e-mails.",
             "url": "https://github.com/m4ll0k/Infoga",
             "cat": "coleta",
         },
         {
-            "num": "12",
-            "name": "Striker",
-            "desc": "Coleta ofensiva de informações sobre alvos.",
-            "url": "https://github.com/s0md3v/Striker",
-            "cat": "coleta",
-        },
-        {
-            "num": "13",
-            "name": "SecretFinder",
-            "desc": "Localiza chaves de API e segredos em JS/páginas.",
-            "url": "https://github.com/m4ll0k/SecretFinder",
-            "cat": "coleta",
-        },
-        {
-            "num": "20",
-            "name": "Breacher",
-            "desc": "Localizador de painéis de administração.",
-            "url": "https://github.com/s0md3v/Breacher",
-            "cat": "coleta",
-        },
-        {
-            "num": "15",
-            "name": "FOCA",
-            "desc": "Analisador de metadados em documentos.",
-            "url": "https://github.com/ElevenPaths/FOCA",
-            "cat": "metadados",
-        },
-        {
-            "num": "17",
-            "name": "Metagoofil",
-            "desc": "Extrator de metadados a partir de buscas.",
-            "url": "https://github.com/laramies/metagoofil",
-            "cat": "metadados",
-        },
-        {
-            "num": "",
-            "name": "Metricool",
-            "desc": "Analytics e anúncios de redes sociais.",
-            "url": "https://metricool.com",
-            "cat": "social",
-        },
-        {
-            "num": "",
-            "name": "PimEyes",
-            "desc": "Busca reversa de rostos (paralelo ao reverse image pago).",
-            "url": "https://pimeyes.com",
-            "cat": "social",
-        },
-        {
-            "num": "",
-            "name": "UrlScan.io",
-            "desc": "Sandbox de URLs suspeitas — use o painel abaixo para enviar.",
-            "url": "https://urlscan.io",
-            "cat": "infra",
-        },
-        {
-            "num": "",
-            "name": "ViewDNS",
-            "desc": "WHOIS, histórico de IP e consultas DNS.",
-            "url": "https://viewdns.info",
-            "cat": "infra",
-        },
-        {
-            "num": "",
-            "name": "HostingChecker",
-            "desc": "Provedor e localização do host.",
-            "url": "https://hostingchecker.com",
-            "cat": "infra",
-        },
-        {
-            "num": "",
-            "name": "Grep.app",
-            "desc": "Busca em repositórios públicos.",
-            "url": "https://grep.app",
-            "cat": "codigo",
-        },
-        # ── Curadoria OSINT do catálogo Z4nzu/hackingtool (somente recon/OSINT) ──
-        {
-            "num": "",
-            "name": "Sherlock",
-            "desc": "Username em redes sociais (hackingtool → Other tools).",
-            "url": "https://github.com/sherlock-project/sherlock",
-            "cat": "social",
-        },
-        {
-            "num": "",
-            "name": "SocialScan",
-            "desc": "Checa username/email em plataformas (hackingtool).",
-            "url": "https://github.com/iojw/socialscan",
-            "cat": "social",
-        },
-        {
             "num": "",
             "name": "Subfinder",
-            "desc": "Enum passiva de subdomínios (ProjectDiscovery / hackingtool).",
+            "desc": "Enum passiva de subdomínios (ProjectDiscovery).",
             "url": "https://github.com/projectdiscovery/subfinder",
             "hint": "OSINT Avançado",
             "cat": "coleta",
@@ -1741,22 +1585,94 @@ elif page == "Ferramentas":
         {
             "num": "",
             "name": "httpx",
-            "desc": "Probe HTTP — status, título, techs (hackingtool).",
+            "desc": "Probe HTTP — status, título, tecnologias.",
             "url": "https://github.com/projectdiscovery/httpx",
             "hint": "OSINT Avançado",
             "cat": "coleta",
         },
         {
             "num": "",
+            "name": "FOCA",
+            "desc": "Metadados em documentos públicos.",
+            "url": "https://github.com/ElevenPaths/FOCA",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "Metagoofil",
+            "desc": "Extrai metadados a partir de buscas.",
+            "url": "https://github.com/laramies/metagoofil",
+            "cat": "metadados",
+        },
+        {
+            "num": "",
+            "name": "Sherlock",
+            "desc": "Username em redes sociais.",
+            "url": "https://github.com/sherlock-project/sherlock",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "SocialScan",
+            "desc": "Checa username/email em plataformas.",
+            "url": "https://github.com/iojw/socialscan",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "PimEyes",
+            "desc": "Busca reversa de rostos (serviço web).",
+            "url": "https://pimeyes.com",
+            "cat": "social",
+        },
+        {
+            "num": "",
+            "name": "UrlScan.io",
+            "desc": "Sandbox de URLs — painel no final desta página.",
+            "url": "https://urlscan.io",
+            "cat": "infra",
+        },
+        {
+            "num": "",
+            "name": "ViewDNS",
+            "desc": "WHOIS, histórico de IP, DNS.",
+            "url": "https://viewdns.info",
+            "cat": "infra",
+        },
+        {
+            "num": "",
             "name": "dnsx",
-            "desc": "Toolkit DNS multipropósito (hackingtool).",
+            "desc": "Toolkit DNS (ProjectDiscovery).",
             "url": "https://github.com/projectdiscovery/dnsx",
             "cat": "infra",
         },
         {
             "num": "",
+            "name": "PhoneInfoga",
+            "desc": "Framework OSINT de números (destaque telefone).",
+            "url": "https://github.com/sundowndev/phoneinfoga",
+            "hint": "menu Telefone",
+            "cat": "telefone",
+        },
+        {
+            "num": "",
+            "name": "Ignorant",
+            "desc": "Número → presença em redes (Instagram, Snap…).",
+            "url": "https://github.com/megadose/ignorant",
+            "hint": "menu Telefone",
+            "cat": "telefone",
+        },
+        {
+            "num": "",
+            "name": "Grep.app",
+            "desc": "Busca em código público.",
+            "url": "https://grep.app",
+            "cat": "codigo",
+        },
+        {
+            "num": "",
             "name": "Gitleaks",
-            "desc": "Scanner de secrets em Git (hackingtool).",
+            "desc": "Secrets expostos em repositórios Git.",
             "url": "https://github.com/gitleaks/gitleaks",
             "cat": "codigo",
         },
@@ -2250,14 +2166,13 @@ elif page == "Aprenda":
 elif page == "Serviços Externos":
     page_header(
         "Catálogo",
-        "Serviços Externos",
-        "Cada categoria abaixo lista somente os serviços daquela finalidade — sem misturar.",
+        "Links web por categoria",
+        "Sites e portais OSINT separados por finalidade (pessoas, telefone, leaks, domínio…). "
+        "No menu «Catálogo (GitHub)» ficam as tools de código/CLI.",
     )
     display_external_services(title=False)
     st.caption(
-        "Curadoria: serviços web originais + OSINT do catálogo Z4nzu/hackingtool. "
-        "Não incluímos phishing, RAT, DDoS, wireless attack nem exploit frameworks ofensivos. "
-        "Uso apenas em alvos autorizados."
+        "Só OSINT legítimo · sem phishing/RAT/DDoS · alvos autorizados."
     )
 
 
