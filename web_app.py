@@ -127,6 +127,27 @@ p, label, span, .stMarkdown, [data-testid="stMarkdownContainer"],
   padding: 0.5rem 1rem !important; box-shadow: none !important;
 }
 .stButton > button:hover { background: var(--accent-hover) !important; color: #0d1218 !important; }
+/* link_button (cards externos) */
+[data-testid="stLinkButton"] > a,
+.stLinkButton > a {
+  background: var(--accent) !important; color: #0d1218 !important;
+  border: none !important; border-radius: 8px !important;
+  font-weight: 700 !important; text-decoration: none !important;
+  box-shadow: none !important;
+}
+[data-testid="stLinkButton"] > a:hover,
+.stLinkButton > a:hover { background: var(--accent-hover) !important; color: #0d1218 !important; }
+/* cards nativos com borda */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  background: var(--panel-2) !important;
+  border-color: var(--line) !important;
+  border-radius: 12px !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+  border-color: rgba(111, 212, 190, 0.4) !important;
+}
+/* abas mais legíveis */
+button[data-baseweb="tab"] { padding: 0.55rem 0.85rem !important; }
 input, textarea, .stTextInput input, .stTextArea textarea,
 .stSelectbox > div > div, [data-baseweb="select"] > div,
 [data-baseweb="base-input"] {
@@ -600,13 +621,17 @@ with st.sidebar:
 
 # ── Telefone ─────────────────────────────────────────────────────────────────
 if page == "Telefone":
+    from external_services import get_category as _get_ext_cat
+    _phone_n = len((_get_ext_cat("telefone") or {}).get("services") or [])
     page_header(
         "Lookup",
         "Telefone",
-        "Análise local (operadora/DDD) + portfólio ampliado de fontes OSINT de número.",
+        "Passo 1: analisar o número localmente. Passo 2: abrir fontes externas (Web/GitHub).",
     )
 
-    tab_analise, tab_fontes = st.tabs(["1 · Analisar número", "2 · Fontes & tools de telefone"])
+    tab_analise, tab_fontes = st.tabs(
+        ["1 · Analisar número", f"2 · Fontes externas ({_phone_n})"]
+    )
 
     with tab_analise:
         st.markdown(
@@ -738,7 +763,7 @@ elif page == "Email":
             dom = st.session_state.get("last_email_domain") or ""
             org = dom.split(".")[0] if dom else ""
             send_to_dorks(EMAIL=em, TARGET_DOMAIN=dom, ORG_NAME=org)
-    display_services_for_page("email", heading="Serviços externos — Email / Pessoas / Leaks")
+    display_services_for_page("email", heading="Fontes de email, pessoas e leaks")
 
 
 # ── Domínio ──────────────────────────────────────────────────────────────────
@@ -788,7 +813,7 @@ elif page == "Domínio":
             dom = st.session_state["last_domain"]
             org = dom.split(".")[0] if dom else ""
             send_to_dorks(TARGET_DOMAIN=dom, ORG_NAME=org, IP=st.session_state.get("last_domain_ip", ""))
-    display_services_for_page("dominio", heading="Serviços externos — Domínio e Website")
+    display_services_for_page("dominio", heading="Fontes de domínio, DNS e recon")
 
 
 # ── OSINT Avançado ───────────────────────────────────────────────────────────
@@ -1012,7 +1037,7 @@ elif page == "OSINT Avançado":
         alvo_sf = st.text_input("Alvo para copiar", key="sf_target")
         if alvo_sf:
             st.code(alvo_sf)
-    display_services_for_page("osint", heading="Serviços externos — Pessoas e Imagem")
+    display_services_for_page("osint", heading="Fontes de pessoas, imagem e utilitários")
 
 
 # ── Rede ─────────────────────────────────────────────────────────────────────
@@ -1468,7 +1493,7 @@ elif page == "Leaks":
 | Monitoring contínuo | — | Platinum / Enterprise |
 """
     )
-    display_services_for_page("leaks", heading="Serviços externos — Leaks e Vazamentos")
+    display_services_for_page("leaks", heading="Fontes de leaks e breaches")
 
 
 # ── Ferramentas ──────────────────────────────────────────────────────────────
@@ -2163,16 +2188,18 @@ elif page == "Aprenda":
 
 # ── Histórico ────────────────────────────────────────────────────────────────
 elif page == "Serviços Externos":
+    from external_services import get_all_services_flat, get_all_categories
+    _n = len(get_all_services_flat())
+    _nc = len(get_all_categories())
     page_header(
         "Catálogo",
-        "Links web por categoria",
-        "Sites e portais OSINT separados por finalidade (pessoas, telefone, leaks, domínio…). "
-        "No menu «Catálogo (GitHub)» ficam as tools de código/CLI.",
+        "Links por categoria",
+        f"{_n} fontes em {_nc} categorias (Web + GitHub). "
+        "Use o filtro Todos / Web / GitHub dentro de cada aba. "
+        "O menu «Catálogo (GitHub)» lista tools CLI com mais detalhe.",
     )
     display_external_services(title=False)
-    st.caption(
-        "Só OSINT legítimo · sem phishing/RAT/DDoS · alvos autorizados."
-    )
+    st.caption("Só OSINT legítimo · sem phishing/RAT/DDoS · alvos autorizados.")
 
 
 # ── Histórico ────────────────────────────────────────────────────────────────
