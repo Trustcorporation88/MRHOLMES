@@ -1,0 +1,7 @@
+Robin (https://github.com/apurvsinghgautam/robin)
+Copyright (c) 2025 Apurv Singh Gautam
+Licensed under the MIT License (see LICENSE in this folder).
+
+This folder vendors and adapts Robin's search/scrape pipeline and
+investigation prompts so Mr.Holmes can run the tool in-process.
+The original project remains the source of truth for upstream fixes.
