@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import streamlit as st
 from external_services_ui import display_external_services, display_services_for_page
 from osint_premium_ui import display_osint_premium
-from robin_workspace import render_llm_key_fields, sync_llm_keys_from_session
+from robin_workspace import sync_llm_keys_from_session
 
 try:
     from dotenv import load_dotenv
@@ -653,10 +653,20 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     st.markdown("---")
-    with st.expander("Chaves LLM · OpenAI / Claude"):
-        render_llm_key_fields()
     sync_llm_keys_from_session()
-    st.caption("Educacional · alvos autorizados · chaves só na sessão ou no .env")
+    _prov = None
+    try:
+        from Core.Support.Robin.engine import tool_status as _ts
+        _prov = _ts().get("providers") or {}
+    except Exception:
+        _prov = {}
+    st.caption(
+        "LLM · "
+        f"OpenAI {'●' if _prov.get('openai') else '○'} · "
+        f"Claude {'●' if _prov.get('anthropic') else '○'} · "
+        "cole as chaves na aba Robin"
+    )
+    st.caption("Educacional · alvos autorizados")
 
 
 # ── OSINT Premium ────────────────────────────────────────────────────────────

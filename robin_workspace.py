@@ -19,57 +19,72 @@ from Core.Support.Robin.llm_bridge import apply_keys
 
 
 def sync_llm_keys_from_session() -> None:
+    try:
+        apply_keys(
+            openai=st.secrets.get("OPENAI_API_KEY"),
+            anthropic=st.secrets.get("ANTHROPIC_API_KEY") or st.secrets.get("CLAUDE_API_KEY"),
+        )
+    except Exception:
+        pass
     apply_keys(
         openai=st.session_state.get("llm_openai_key"),
         anthropic=st.session_state.get("llm_anthropic_key"),
     )
 
 
-def render_llm_key_fields(prefix: str = "llm") -> None:
+def render_llm_key_fields() -> None:
     """Campos de senha — a chave fica só na sessão, não no git."""
-    st.text_input(
-        "OpenAI API key",
-        type="password",
-        key="llm_openai_key",
-        placeholder="sk-...",
-        help="Usada pelos modelos gpt-4o / gpt-4.1. Não é salva no repositório.",
-    )
-    st.text_input(
-        "Claude / Anthropic API key",
-        type="password",
-        key="llm_anthropic_key",
-        placeholder="sk-ant-...",
-        help="Usada pelos modelos Claude. Também aceita a variável CLAUDE_API_KEY.",
-    )
+    c1, c2 = st.columns(2)
+    with c1:
+        st.text_input(
+            "OpenAI API key",
+            type="password",
+            key="llm_openai_key",
+            placeholder="sk-… cola aqui nesta tela",
+            help="gpt-4o / gpt-4.1. Não vai para o git.",
+        )
+    with c2:
+        st.text_input(
+            "Claude / Anthropic API key",
+            type="password",
+            key="llm_anthropic_key",
+            placeholder="sk-ant-… cola aqui nesta tela",
+            help="Claude Sonnet/Haiku. Não vai para o git.",
+        )
     sync_llm_keys_from_session()
     status = tool_status()["providers"]
     st.caption(
         f"OpenAI: {'pronta' if status['openai'] else 'ausente'} · "
-        f"Claude: {'pronta' if status['anthropic'] else 'ausente'}"
+        f"Claude: {'pronta' if status['anthropic'] else 'ausente'} · "
+        "No Railway, use Variables com os mesmos nomes e faça redeploy."
     )
 
 
 def _status_chips() -> dict:
     status = tool_status()
+    prov = status.get("providers") or {}
     tor = "on" if status["tor"] else "off"
-    llm = "on" if status["llm"] else "off"
+    oa = "on" if prov.get("openai") else "off"
+    cl = "on" if prov.get("anthropic") else "off"
     st.html(
         f"""
         <div style="margin:0 0 0.85rem 0">
-          <span class="mh-chip {tor}">{"●" if status["tor"] else "○"} Tor :9050</span>
-          <span class="mh-chip {llm}">{"●" if status["llm"] else "○"} LLM</span>
+          <span class="mh-chip {oa}">{"●" if prov.get("openai") else "○"} OpenAI</span>
+          <span class="mh-chip {cl}">{"●" if prov.get("anthropic") else "○"} Claude</span>
+          <span class="mh-chip {tor}">{"●" if status["tor"] else "○"} Tor :9050 (opcional)</span>
         </div>
         """
     )
-    if not status["tor"]:
-        st.info(
-            "Tor não está na porta 9050. A busca ainda roda pela Ahmia (clearnet). "
-            "Scrape de páginas .onion fica limitado até o proxy subir (`apt install tor` / `brew install tor`)."
-        )
     if not status["llm"]:
-        st.info(
-            "Cole as chaves OpenAI e/ou Claude na sidebar (Chaves LLM) ou num arquivo `.env`. "
-            "Sem isso a busca roda, mas o briefing sai heurístico."
+        st.warning(
+            "Cole as chaves **nesta tela** (campos abaixo). "
+            "As chaves do Cursor/agente não entram sozinhas no Railway. "
+            "Sem elas a busca roda, mas o briefing sai heurístico."
+        )
+    if not status["tor"]:
+        st.caption(
+            "Tor opcional: sem proxy na :9050 a busca usa Ahmia (clearnet). "
+            "Scrape de páginas .onion fica limitado."
         )
     return status
 
@@ -155,6 +170,7 @@ def display_robin_workspace() -> None:
         """
     )
     sync_llm_keys_from_session()
+    render_llm_key_fields()
     status = _status_chips()
     models = status.get("models") or []
     model_ids = [m["id"] for m in models]
