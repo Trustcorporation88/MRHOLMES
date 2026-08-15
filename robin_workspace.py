@@ -163,83 +163,85 @@ def _render_chat(inv: dict, model: str | None) -> None:
         st.rerun()
 
 
-def display_robin_workspace() -> None:
-    st.html(
-        """
-        <div class="mh-osint-panel">
-          <h3>Robin — investigação no console</h3>
-          <p class="mh-osint-desc">
-            Pipeline educacional embutido (MIT © Apurv Singh Gautam):
-            refina a query, busca motores .onion / Ahmia, filtra, raspa texto e
-            monta o dossiê. Uso em alvos autorizados.
-          </p>
-        </div>
-        """
-    )
-    sync_llm_keys_from_session()
-    render_llm_key_fields()
-    status = _status_chips()
+def _robin_options(status: dict) -> tuple:
     models = status.get("models") or []
     model_ids = [m["id"] for m in models]
     labels = {m["id"]: m["label"] for m in models}
-
     saved = load_investigations()
-    c_model, c_preset, c_hist = st.columns([1.4, 1.2, 1.4])
-    with c_model:
-        model = None
-        if model_ids:
-            model = st.selectbox(
-                "Modelo",
-                model_ids,
-                format_func=lambda mid: labels.get(mid, mid),
-                key="robin_model",
+    model = None
+    preset = next(iter(PRESET_LABELS), "threat_intel")
+    extra = ""
+    threads, max_results, max_scrape = 4, 40, 8
+
+
+    with st.expander("Modelo, domínio e limites", expanded=False):
+        c_model, c_preset, c_hist = st.columns([1.4, 1.2, 1.4])
+        with c_model:
+            model = None
+            if model_ids:
+                model = st.selectbox(
+                    "Modelo",
+                    model_ids,
+                    format_func=lambda mid: labels.get(mid, mid),
+                    key="robin_model",
+                )
+            else:
+                st.selectbox("Modelo", ["heurístico (sem API)"], disabled=True, key="robin_model_off")
+        with c_preset:
+            preset = st.selectbox(
+                "Domínio",
+                list(PRESET_LABELS.keys()),
+                format_func=lambda k: PRESET_LABELS[k],
+                key="robin_preset",
             )
-        else:
-            st.selectbox("Modelo", ["heurístico (sem API)"], disabled=True, key="robin_model_off")
-    with c_preset:
-        preset = st.selectbox(
-            "Domínio",
-            list(PRESET_LABELS.keys()),
-            format_func=lambda k: PRESET_LABELS[k],
-            key="robin_preset",
+        with c_hist:
+            hist_labels = ["(investigação atual)"] + [
+                f"{item.get('_filename', '')} — {(item.get('query') or '')[:32]}"
+                for item in saved
+            ]
+            picked = st.selectbox("Passadas", hist_labels, key="robin_hist")
+            if picked != "(investigação atual)" and st.button("Carregar", key="robin_load"):
+                idx = hist_labels.index(picked) - 1
+                loaded = dict(saved[idx])
+                loaded.setdefault("refined_query", loaded.get("refined", ""))
+                st.session_state.robin_active = loaded
+                st.session_state.robin_chat = []
+                st.session_state.robin_pivots = []
+                st.rerun()
+
+        extra = st.text_area(
+            "Instruções extras (opcional)",
+            key="robin_extra",
+            height=70,
+            placeholder="Ex.: priorizar wallets e nomes de fóruns citados no texto.",
         )
-    with c_hist:
-        hist_labels = ["(investigação atual)"] + [
-            f"{item.get('_filename', '')} — {(item.get('query') or '')[:32]}"
-            for item in saved
-        ]
-        picked = st.selectbox("Passadas", hist_labels, key="robin_hist")
-        if picked != "(investigação atual)" and st.button("Carregar", key="robin_load"):
-            idx = hist_labels.index(picked) - 1
-            loaded = dict(saved[idx])
-            loaded.setdefault("refined_query", loaded.get("refined", ""))
-            st.session_state.robin_active = loaded
-            st.session_state.robin_chat = []
-            st.session_state.robin_pivots = []
-            st.rerun()
+        t1, t2, t3 = st.columns(3)
+        threads = t1.slider("Threads", 1, 8, 4, key="robin_threads")
+        max_results = t2.slider("Máx. resultados", 10, 80, 40, key="robin_max_results")
+        max_scrape = t3.slider("Máx. páginas", 3, 16, 8, key="robin_max_scrape")
+    return model, preset, extra or "", threads, max_results, max_scrape
 
-    extra = st.text_area(
-        "Instruções extras (opcional)",
-        key="robin_extra",
-        height=70,
-        placeholder="Ex.: priorizar wallets e nomes de fóruns citados no texto.",
-    )
-    t1, t2, t3 = st.columns(3)
-    threads = t1.slider("Threads", 1, 8, 4, key="robin_threads")
-    max_results = t2.slider("Máx. resultados", 10, 80, 40, key="robin_max_results")
-    max_scrape = t3.slider("Máx. páginas", 3, 16, 8, key="robin_max_scrape")
 
+def display_robin_workspace() -> None:
     pending = st.session_state.pop("robin_pivot_query", None)
     if pending:
         st.session_state.robin_query = pending
+
     with st.form("robin_form", clear_on_submit=False):
         query = st.text_input(
-            "Query",
-            placeholder="Ex.: vazamento credenciais domínio autorizado",
-            label_visibility="collapsed",
+            "Nome, username ou query",
+            placeholder="Ex.: joaosilva   ·   alvo autorizado",
             key="robin_query",
+            help="Pessoa, handle, e-mail, domínio ou frase. O relatório aparece nesta tela.",
         )
-        run = st.form_submit_button("Investigar", use_container_width=True)
+        run = st.form_submit_button("Investigar", type="primary", use_container_width=True)
+
+    st.caption("Digite o alvo acima e clique em Investigar. Uso educacional · alvo autorizado.")
+
+    sync_llm_keys_from_session()
+    render_llm_key_fields()
+    status = _status_chips()
+    model, preset, extra, threads, max_results, max_scrape = _robin_options(status)
 
     if (run and (query or "").strip()) or pending:
         active_query = (pending or query or "").strip()
@@ -248,7 +250,7 @@ def display_robin_workspace() -> None:
                 active_query,
                 model=model,
                 preset=preset,
-                custom_instructions=extra or "",
+                custom_instructions=extra,
                 threads=threads,
                 max_results=max_results,
                 max_scrape=max_scrape,
@@ -272,5 +274,3 @@ def display_robin_workspace() -> None:
     if inv:
         _render_report(inv)
         _render_chat(inv, model)
-    else:
-        st.caption("Digite a query e clique em Investigar. O relatório aparece nesta mesma tela.")

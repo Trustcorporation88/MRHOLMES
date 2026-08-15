@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from osint_premium import (
     FEATURED,
@@ -103,6 +104,14 @@ class PendingNavigationTests(unittest.TestCase):
         session = {}
         apply_pending_navigation(session, NAV)
         self.assertEqual(session["nav_page"], "Telefone")
+
+
+class RobinQueryFieldTests(unittest.TestCase):
+    def test_name_field_sits_above_options(self):
+        src = Path("robin_workspace.py").read_text(encoding="utf-8")
+        body = src[src.index("def display_robin_workspace") :]
+        self.assertIn("Nome, username ou query", body)
+        self.assertLess(body.index("Nome, username ou query"), body.index("_robin_options("))
 
 
 if __name__ == "__main__":
