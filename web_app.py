@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
 from external_services_ui import display_external_services, display_services_for_page
+from osint_premium import apply_pending_navigation
 from osint_premium_ui import display_osint_premium
 from robin_workspace import sync_llm_keys_from_session
 
@@ -642,12 +643,10 @@ with st.sidebar:
         """
     )
     st.caption("Hub ★ · Busca 1–4 · Análise 5–8 · Catálogo 9–11")
-    if "nav_page" not in st.session_state or st.session_state.nav_page not in NAV_OPTIONS:
-        st.session_state.nav_page = "Telefone"
+    apply_pending_navigation(st.session_state, NAV_OPTIONS)
     page = st.radio(
         "Menu",
         NAV_OPTIONS,
-        index=NAV_OPTIONS.index(st.session_state.nav_page),
         format_func=_nav_label,
         key="nav_page",
         label_visibility="collapsed",

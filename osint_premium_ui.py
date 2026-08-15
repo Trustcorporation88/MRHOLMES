@@ -11,6 +11,7 @@ from osint_premium import (
     NATIVE_SUITES,
     PLAYBOOKS,
     premium_stats,
+    queue_navigation,
     search_catalog,
     search_featured,
     search_native,
@@ -20,17 +21,12 @@ from robin_workspace import display_robin_workspace
 
 
 def go_to_page(page_id: str, osint_tool: str | None = None, premium_view: str | None = None) -> None:
-    if osint_tool:
-        st.session_state.osint_adv_tool = osint_tool
-    if premium_view:
-        st.session_state.premium_view = premium_view
-    st.session_state.nav_page = page_id
+    queue_navigation(st.session_state, page_id, osint_tool, premium_view)
     st.rerun()
 
 
 def open_robin() -> None:
-    st.session_state.premium_view = "robin"
-    st.session_state.nav_page = "OSINT Premium"
+    queue_navigation(st.session_state, "OSINT Premium", premium_view="robin")
     st.rerun()
 
 
