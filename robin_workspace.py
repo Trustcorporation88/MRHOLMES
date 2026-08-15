@@ -15,7 +15,7 @@ from Core.Support.Robin.engine import (
     suggest_pivots,
     tool_status,
 )
-from Core.Support.Robin.llm_bridge import apply_keys
+from Core.Support.Robin.llm_bridge import apply_keys, provider_status
 
 
 def sync_llm_keys_from_session() -> None:
@@ -53,27 +53,23 @@ def _key_inputs() -> None:
 
 
 def render_llm_key_fields() -> None:
-    """Mostra campos só se a Variable do Railway ainda não estiver no processo."""
+    """Se as Variables já estão no processo, não renderiza nenhum campo de API."""
     sync_llm_keys_from_session()
-    status = tool_status()["providers"]
-    oa, cl = status.get("openai"), status.get("anthropic")
+    status = provider_status()
+    oa, cl = bool(status.get("openai")), bool(status.get("anthropic"))
     if oa and cl:
-        st.success("OpenAI e Claude já estão nas Variables do Railway. Não precisa colar de novo.")
-        with st.expander("Trocar chave só nesta sessão"):
-            _key_inputs()
-            sync_llm_keys_from_session()
+        st.caption("OpenAI e Claude: Variables do Railway ativas. Sem campos de chave nesta tela.")
         return
     if not oa and not cl:
         st.warning(
-            "Nenhuma chave no processo. Cole abaixo ou confira o **nome exato** "
+            "Nenhuma chave no processo. Cole abaixo ou confira o nome exato "
             "no Railway: `OPENAI_API_KEY` e `ANTHROPIC_API_KEY`, depois Redeploy."
         )
+        _key_inputs()
     else:
-        st.info(
-            f"{'OpenAI' if oa else 'Claude'} já veio do Railway. "
-            "A outra chave ainda não — cole abaixo ou ajuste a Variable e faça redeploy."
-        )
-    _key_inputs()
+        missing = "Claude" if oa else "OpenAI"
+        st.info(f"{missing} ainda não está no processo. Cole só essa chave ou ajuste a Variable.")
+        _key_inputs()
     sync_llm_keys_from_session()
 
 
