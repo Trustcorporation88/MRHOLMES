@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
 from external_services_ui import display_external_services, display_services_for_page
+from osint_premium_ui import display_osint_premium
 
 st.set_page_config(
     page_title="Mr.Holmes",
@@ -320,6 +321,32 @@ div:has(.mh-osint-nav-mark) .stButton > button[data-testid="baseButton-primary"]
   margin: 0 0 0.85rem 0 !important; font-size: 0.82rem !important;
   color: var(--ink-soft) !important; line-height: 1.4;
 }
+.mh-premium-hero {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 1.2rem 1.3rem; margin-bottom: 1.1rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  position: relative; overflow: hidden;
+}
+.mh-premium-hero::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 88% 8%, rgba(111, 212, 190, 0.16), transparent 46%),
+    radial-gradient(ellipse at 8% 92%, rgba(255, 155, 106, 0.10), transparent 42%);
+  pointer-events: none;
+}
+.mh-premium-hero > * { position: relative; }
+.mh-premium-hero .mh-dork-kicker {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 0.35rem;
+}
+.mh-premium-hero h2 {
+  margin: 0 !important; font-size: 1.45rem !important; font-weight: 700 !important;
+  letter-spacing: -0.03em; color: var(--ink) !important; font-family: var(--mono) !important;
+}
+.mh-premium-hero p {
+  margin: 0.5rem 0 0 0 !important; color: var(--ink-soft) !important;
+  font-size: 0.9rem !important; max-width: 48rem; line-height: 1.45;
+}
 .mh-learn-hero {
   border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
   padding: 1.2rem 1.3rem; margin-bottom: 1.1rem;
@@ -559,6 +586,7 @@ def send_to_dorks(**kwargs):
 # ── Navigation (lista única, rótulos claros — sem menus aninhados) ────────────
 # page_id interno permanece estável para o resto do app
 NAV_OPTIONS = [
+    "OSINT Premium",
     "Telefone",
     "Email",
     "Domínio",
@@ -574,6 +602,7 @@ NAV_OPTIONS = [
     "Sobre",
 ]
 NAV_LABEL = {
+    "OSINT Premium": "★ OSINT Premium",
     "Telefone": "1 · Telefone",
     "Email": "2 · Email",
     "Domínio": "3 · Domínio",
@@ -600,11 +629,11 @@ with st.sidebar:
         <div class="mh-brand">
           <div class="mark">OSINT Console</div>
           <div class="name">Mr.Holmes</div>
-          <div class="tag">Uma ferramenta por tela</div>
+          <div class="tag">OSINT Premium · hub unificado</div>
         </div>
         """
     )
-    st.caption("Busca → 1–4 · Análise → 5–8 · Catálogo → 9–11")
+    st.caption("Hub ★ · Busca 1–4 · Análise 5–8 · Catálogo 9–11")
     if "nav_page" not in st.session_state or st.session_state.nav_page not in NAV_OPTIONS:
         st.session_state.nav_page = "Telefone"
     page = st.radio(
@@ -619,8 +648,19 @@ with st.sidebar:
     st.caption("Educacional · alvos autorizados")
 
 
+# ── OSINT Premium ────────────────────────────────────────────────────────────
+if page == "OSINT Premium":
+    page_header(
+        "Hub",
+        "OSINT Premium",
+        "Espaço único para ordenar lookups nativos, catálogo e destaques oficiais "
+        "(Robin, SpiderFoot, Maltego, leaks). Educacional · alvos autorizados.",
+    )
+    display_osint_premium()
+
+
 # ── Telefone ─────────────────────────────────────────────────────────────────
-if page == "Telefone":
+elif page == "Telefone":
     from external_services import get_category as _get_ext_cat
     _phone_n = len((_get_ext_cat("telefone") or {}).get("services") or [])
     page_header(
@@ -1541,6 +1581,14 @@ elif page == "Ferramentas":
         },
         {
             "num": "",
+            "name": "Robin",
+            "desc": "Briefing de dark web com LLM (repo oficial). Roda no Docker dele, não no Holmes.",
+            "url": "https://github.com/apurvsinghgautam/robin",
+            "hint": "OSINT Premium",
+            "cat": "frameworks",
+        },
+        {
+            "num": "",
             "name": "OSINT Leak",
             "desc": "Breaches e stealer logs (conta externa; sem import automático).",
             "url": "https://app.osintleak.com/dashboard/search",
@@ -2230,13 +2278,18 @@ elif page == "Sobre":
 análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Módulos**
+- **OSINT Premium** — hub que ordena suites nativas, playbooks e destaques oficiais
 - Telefone, email, domínio
 - **Dorks Workbench** — catálogo curado (WebDorks MIT + listas Holmes), tokens, filtros, abrir busca
 - Suite OSINT (Holehe, Maigret, theHarvester, dnstwist, httpx…)
 - Atalho **Leaks** → OSINT Leak (conta externa)
-- **Ferramentas** — catálogo externo (Nmap, Maltego, Amass, SpiderFoot, theHarvester, FOCA…)
+- **Ferramentas** — catálogo externo (Robin, Maltego, Amass, SpiderFoot, theHarvester, FOCA…)
 - **Aprenda com Mr Holmes** — 20 serviços de estudo e produtividade web
 - Rede, gráfico, histórico
+
+**Mr.Holmes vs Robin**
+- **Holmes:** clear web — pessoa, telefone, domínio, dorks, grafo.
+- **Robin** ([apurvsinghgautam/robin](https://github.com/apurvsinghgautam/robin), MIT): briefing de dark web com LLM no container oficial (Tor + modelo). Holmes **não** copia o código nem sobe Tor; o Premium só aponta para o repo e documenta o entregável.
 
 **Mr.Holmes vs WebDorks**
 - Layout e catálogo de técnicas inspirados em [WebDorks](https://webdorks.vercel.app/) (© root-Manas, MIT).
