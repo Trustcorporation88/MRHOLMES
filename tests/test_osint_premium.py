@@ -4,7 +4,9 @@ from osint_premium import (
     FEATURED,
     NATIVE_SUITES,
     PLAYBOOKS,
+    apply_pending_navigation,
     premium_stats,
+    queue_navigation,
     search_catalog,
     search_featured,
     search_native,
@@ -56,6 +58,51 @@ class OsintPremiumCatalogTests(unittest.TestCase):
     def test_catalog_includes_robin_category(self):
         hits = search_catalog("robin", "darkweb")
         self.assertTrue(any(item.get("id") == "robin" for item in hits))
+
+
+NAV = ["OSINT Premium", "Telefone", "OSINT Avançado", "Gráfico"]
+
+
+class PendingNavigationTests(unittest.TestCase):
+    def test_queue_does_not_write_nav_page(self):
+        session = {"nav_page": "OSINT Premium"}
+        queue_navigation(session, "OSINT Avançado", osint_tool="maigret")
+        self.assertEqual(session["nav_page"], "OSINT Premium")
+        self.assertEqual(session["_pending_nav"], "OSINT Avançado")
+        self.assertEqual(session["_pending_osint_tool"], "maigret")
+
+    def test_apply_moves_to_maigret_module(self):
+        session = {
+            "nav_page": "OSINT Premium",
+            "_pending_nav": "OSINT Avançado",
+            "_pending_osint_tool": "maigret",
+        }
+        apply_pending_navigation(session, NAV)
+        self.assertEqual(session["nav_page"], "OSINT Avançado")
+        self.assertEqual(session["osint_adv_tool"], "maigret")
+        self.assertNotIn("_pending_nav", session)
+        self.assertNotIn("_pending_osint_tool", session)
+
+    def test_apply_opens_robin_without_leaving_premium(self):
+        session = {
+            "nav_page": "OSINT Premium",
+            "_pending_nav": "OSINT Premium",
+            "_pending_premium_view": "robin",
+        }
+        apply_pending_navigation(session, NAV)
+        self.assertEqual(session["nav_page"], "OSINT Premium")
+        self.assertEqual(session["premium_view"], "robin")
+        self.assertNotIn("_pending_premium_view", session)
+
+    def test_unknown_pending_page_is_ignored(self):
+        session = {"nav_page": "Telefone", "_pending_nav": "Nope"}
+        apply_pending_navigation(session, NAV)
+        self.assertEqual(session["nav_page"], "Telefone")
+
+    def test_default_when_nav_missing(self):
+        session = {}
+        apply_pending_navigation(session, NAV)
+        self.assertEqual(session["nav_page"], "Telefone")
 
 
 if __name__ == "__main__":

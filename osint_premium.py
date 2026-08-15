@@ -437,6 +437,52 @@ def search_catalog(query: str = "", category: str | None = None) -> list[dict]:
     return out
 
 
+def queue_navigation(
+    session: dict,
+    page_id: str,
+    osint_tool: str | None = None,
+    premium_view: str | None = None,
+) -> None:
+    """Stash a page change for the next script run.
+
+    Streamlit forbids writing ``session_state.nav_page`` after the sidebar
+    radio with ``key='nav_page'`` already exists in the same run. Buttons
+    therefore queue here and call ``st.rerun()``; ``apply_pending_navigation``
+    runs at the top of the next pass, before that widget is created.
+    """
+    session["_pending_nav"] = page_id
+    if osint_tool:
+        session["_pending_osint_tool"] = osint_tool
+    else:
+        session.pop("_pending_osint_tool", None)
+    if premium_view:
+        session["_pending_premium_view"] = premium_view
+    else:
+        session.pop("_pending_premium_view", None)
+
+
+def apply_pending_navigation(
+    session: dict,
+    nav_options: Iterable[str],
+    default: str = "Telefone",
+) -> None:
+    """Consume queued navigation before the sidebar radio is instantiated."""
+    options = set(nav_options)
+    pending = session.pop("_pending_nav", None)
+    if pending in options:
+        session["nav_page"] = pending
+    elif session.get("nav_page") not in options:
+        session["nav_page"] = default
+
+    pending_tool = session.pop("_pending_osint_tool", None)
+    if pending_tool:
+        session["osint_adv_tool"] = pending_tool
+
+    pending_view = session.pop("_pending_premium_view", None)
+    if pending_view:
+        session["premium_view"] = pending_view
+
+
 def premium_stats() -> dict:
     cats = get_all_categories()
     return {
