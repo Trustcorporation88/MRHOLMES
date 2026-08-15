@@ -32,15 +32,14 @@ def sync_llm_keys_from_session() -> None:
     )
 
 
-def render_llm_key_fields() -> None:
-    """Campos de senha — a chave fica só na sessão, não no git."""
+def _key_inputs() -> None:
     c1, c2 = st.columns(2)
     with c1:
         st.text_input(
             "OpenAI API key",
             type="password",
             key="llm_openai_key",
-            placeholder="sk-… cola aqui nesta tela",
+            placeholder="sk-… só se quiser trocar nesta sessão",
             help="gpt-4o / gpt-4.1. Não vai para o git.",
         )
     with c2:
@@ -48,16 +47,34 @@ def render_llm_key_fields() -> None:
             "Claude / Anthropic API key",
             type="password",
             key="llm_anthropic_key",
-            placeholder="sk-ant-… cola aqui nesta tela",
+            placeholder="sk-ant-… só se quiser trocar nesta sessão",
             help="Claude Sonnet/Haiku. Não vai para o git.",
         )
+
+
+def render_llm_key_fields() -> None:
+    """Mostra campos só se a Variable do Railway ainda não estiver no processo."""
     sync_llm_keys_from_session()
     status = tool_status()["providers"]
-    st.caption(
-        f"OpenAI: {'pronta' if status['openai'] else 'ausente'} · "
-        f"Claude: {'pronta' if status['anthropic'] else 'ausente'} · "
-        "No Railway, use Variables com os mesmos nomes e faça redeploy."
-    )
+    oa, cl = status.get("openai"), status.get("anthropic")
+    if oa and cl:
+        st.success("OpenAI e Claude já estão nas Variables do Railway. Não precisa colar de novo.")
+        with st.expander("Trocar chave só nesta sessão"):
+            _key_inputs()
+            sync_llm_keys_from_session()
+        return
+    if not oa and not cl:
+        st.warning(
+            "Nenhuma chave no processo. Cole abaixo ou confira o **nome exato** "
+            "no Railway: `OPENAI_API_KEY` e `ANTHROPIC_API_KEY`, depois Redeploy."
+        )
+    else:
+        st.info(
+            f"{'OpenAI' if oa else 'Claude'} já veio do Railway. "
+            "A outra chave ainda não — cole abaixo ou ajuste a Variable e faça redeploy."
+        )
+    _key_inputs()
+    sync_llm_keys_from_session()
 
 
 def _status_chips() -> dict:
@@ -75,16 +92,10 @@ def _status_chips() -> dict:
         </div>
         """
     )
-    if not status["llm"]:
-        st.warning(
-            "Cole as chaves **nesta tela** (campos abaixo). "
-            "As chaves do Cursor/agente não entram sozinhas no Railway. "
-            "Sem elas a busca roda, mas o briefing sai heurístico."
-        )
     if not status["tor"]:
         st.caption(
-            "Tor opcional: sem proxy na :9050 a busca usa Ahmia (clearnet). "
-            "Scrape de páginas .onion fica limitado."
+            "Tor ainda não subiu neste container. Depois do deploy com o pacote `tor`, "
+            "o chip fica ● e a busca usa motores .onion. Enquanto isso, Ahmia (clearnet)."
         )
     return status
 

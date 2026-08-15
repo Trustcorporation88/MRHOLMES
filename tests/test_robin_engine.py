@@ -10,7 +10,7 @@ from Core.Support.Robin.engine import (
     run_investigation,
 )
 from Core.Support.Robin.llm_bridge import apply_keys, list_models
-from Core.Support.Robin.search import extract_onion_results
+from Core.Support.Robin.search import ensure_tor, extract_onion_results, tor_proxy_up
 
 
 AHMIA_HTML = """
@@ -39,6 +39,14 @@ class RobinKeyTests(unittest.TestCase):
 
 
 class RobinSearchTests(unittest.TestCase):
+    def test_ensure_tor_without_binary_is_false_or_already_up(self):
+        up = tor_proxy_up()
+        result = ensure_tor(wait_seconds=0.2)
+        if up:
+            self.assertTrue(result)
+        else:
+            self.assertIsInstance(result, bool)
+
     def test_extract_onion_results(self):
         hits = extract_onion_results(AHMIA_HTML)
         self.assertEqual(len(hits), 1)

@@ -14,7 +14,7 @@ from pathlib import Path
 from . import llm_bridge
 from .llm_bridge import last_error
 from .scrape import scrape_multiple
-from .search import get_search_results, tor_proxy_up
+from .search import ensure_tor, get_search_results, tor_proxy_up
 
 INVESTIGATIONS_DIR = Path("investigations")
 
@@ -86,7 +86,7 @@ INPUT:
 def tool_status() -> dict:
     models = llm_bridge.list_models()
     return {
-        "tor": tor_proxy_up(),
+        "tor": ensure_tor(wait_seconds=8),
         "llm": bool(models),
         "models": models,
         "providers": llm_bridge.provider_status(),
