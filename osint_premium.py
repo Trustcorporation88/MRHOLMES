@@ -1,10 +1,8 @@
 """
-OSINT Premium — hub curado dentro do Mr.Holmes.
+OSINT Premium — hub + ferramentas embutidas no Mr.Holmes.
 
-Não vendorize ferramentas de terceiros. Este módulo só:
-- ordena módulos nativos do console
-- aponta para o catálogo já existente
-- destaca projetos oficiais (ex.: Robin) com atribuição e link
+Robin roda in-process (MIT © Apurv Singh Gautam). Suites nativas
+abrem o módulo Holmes. Serviços comerciais continuam no site oficial.
 """
 
 from __future__ import annotations
@@ -15,6 +13,15 @@ from external_services import get_all_categories, get_all_services_flat
 
 # page_id precisa coincidir com NAV_OPTIONS em web_app.py
 NATIVE_SUITES = [
+    {
+        "id": "robin",
+        "page": "OSINT Premium",
+        "icon": "🕵️",
+        "title": "Robin",
+        "blurb": "Briefing dark web no console: busca, filtro, scrape e relatório.",
+        "kind": "tool",
+        "premium_view": "robin",
+    },
     {
         "id": "telefone",
         "page": "Telefone",
@@ -112,21 +119,23 @@ FEATURED = [
         "name": "Robin",
         "icon": "🕵️",
         "tier": "Destaque",
-        "tagline": "Briefing de dark web com LLM — projeto oficial, roda separado.",
+        "tagline": "Ferramenta embutida: query → busca → scrape → dossiê nesta tela.",
         "delivers": [
             "Query refinada pelo modelo (máx. 5 palavras)",
-            "Agregação de motores .onion via Tor no container oficial",
+            "Motores .onion via Tor + Ahmia clearnet se o proxy cair",
             "Filtro de relevância e scrape de texto",
             "Relatório Markdown (artefatos, insights, próximos passos)",
-            "JSON persistido + chat de follow-up + pivôs",
+            "JSON em investigations/ + chat de follow-up + pivôs",
         ],
-        "complements": "Holmes cobre clear web (pessoa, telefone, domínio). Robin cobre resumo de fontes .onion. Não misture os pipelines.",
-        "requires": "Tor no host + chave de LLM (ou Ollama). Docker oficial recomendado.",
+        "complements": "Holmes cobre clear web. Robin cobre o briefing .onion no mesmo console.",
+        "requires": "Opcional: Tor :9050 e chave de LLM / Ollama. Sem isso, busca Ahmia + relatório heurístico.",
         "license": "MIT",
         "author": "Apurv Singh Gautam",
         "url": "https://github.com/apurvsinghgautam/robin",
         "docs": "https://github.com/apurvsinghgautam/robin#readme",
         "source": "github",
+        "in_app": True,
+        "premium_view": "robin",
         "tags": ["darkweb", "llm", "relatorio", "tor"],
     },
     {
@@ -348,7 +357,7 @@ PLAYBOOKS = [
         "id": "darkweb",
         "title": "Briefing dark web (Robin)",
         "icon": "🕵️",
-        "goal": "Resumo educacional de fontes .onion no projeto oficial — fora deste console.",
+        "goal": "Rodar o Robin aqui no console e só então ligar artefatos no Grafo.",
         "steps": [
             {
                 "label": "Fechar o caso na clear web",
@@ -357,19 +366,14 @@ PLAYBOOKS = [
                 "page": "Leaks",
             },
             {
-                "label": "Abrir o repositório oficial do Robin",
-                "detail": "MIT · Docker · UI Streamlit própria",
-                "kind": "external",
-                "url": "https://github.com/apurvsinghgautam/robin",
+                "label": "Investigar com Robin",
+                "detail": "Ferramenta embutida nesta página",
+                "kind": "tool",
+                "premium_view": "robin",
             },
             {
-                "label": "Rodar o container oficial (não o Holmes)",
-                "detail": "Tor + LLM no ambiente do Robin. Holmes não faz proxy Tor.",
-                "kind": "note",
-            },
-            {
-                "label": "Trazer só o resumo para o Grafo",
-                "detail": "Artefatos já validados, sem colar dumps crus",
+                "label": "Trazer artefatos validados para o Grafo",
+                "detail": "Sem colar dumps crus",
                 "kind": "native",
                 "page": "Gráfico",
             },

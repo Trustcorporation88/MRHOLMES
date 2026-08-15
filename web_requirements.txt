@@ -7,5 +7,7 @@ reportlab
 holehe
 maigret
 dnstwist
+PySocks
+python-dotenv
 # theHarvester oficial (PyPI tem stub 0.0.1 — usar GitHub):
 # pip install "git+https://github.com/laramies/theHarvester.git"

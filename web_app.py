@@ -653,8 +653,8 @@ if page == "OSINT Premium":
     page_header(
         "Hub",
         "OSINT Premium",
-        "Espaço único para ordenar lookups nativos, catálogo e destaques oficiais "
-        "(Robin, SpiderFoot, Maltego, leaks). Educacional · alvos autorizados.",
+        "Robin investiga nesta tela. As outras suites abrem o módulo Holmes. "
+        "Educacional · alvos autorizados.",
     )
     display_osint_premium()
 
@@ -2278,7 +2278,7 @@ elif page == "Sobre":
 análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Módulos**
-- **OSINT Premium** — hub que ordena suites nativas, playbooks e destaques oficiais
+- **OSINT Premium** — Robin embutido (busca + relatório) e atalhos para as suites nativas
 - Telefone, email, domínio
 - **Dorks Workbench** — catálogo curado (WebDorks MIT + listas Holmes), tokens, filtros, abrir busca
 - Suite OSINT (Holehe, Maigret, theHarvester, dnstwist, httpx…)
@@ -2289,7 +2289,7 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Mr.Holmes vs Robin**
 - **Holmes:** clear web — pessoa, telefone, domínio, dorks, grafo.
-- **Robin** ([apurvsinghgautam/robin](https://github.com/apurvsinghgautam/robin), MIT): briefing de dark web com LLM no container oficial (Tor + modelo). Holmes **não** copia o código nem sobe Tor; o Premium só aponta para o repo e documenta o entregável.
+- **Robin** (MIT © [Apurv Singh Gautam](https://github.com/apurvsinghgautam/robin)): agora **roda no menu OSINT Premium** — query, busca (Tor + Ahmia), scrape e dossiê. Sem LLM/Tor o módulo ainda busca e gera relatório heurístico.
 
 **Mr.Holmes vs WebDorks**
 - Layout e catálogo de técnicas inspirados em [WebDorks](https://webdorks.vercel.app/) (© root-Manas, MIT).

@@ -1,4 +1,4 @@
-"""UI Streamlit do hub OSINT Premium."""
+"""UI Streamlit do hub OSINT Premium — Robin roda nesta página."""
 
 from __future__ import annotations
 
@@ -16,12 +16,21 @@ from osint_premium import (
     search_native,
 )
 from external_services import get_all_categories
+from robin_workspace import display_robin_workspace
 
 
-def go_to_page(page_id: str, osint_tool: str | None = None) -> None:
+def go_to_page(page_id: str, osint_tool: str | None = None, premium_view: str | None = None) -> None:
     if osint_tool:
         st.session_state.osint_adv_tool = osint_tool
+    if premium_view:
+        st.session_state.premium_view = premium_view
     st.session_state.nav_page = page_id
+    st.rerun()
+
+
+def open_robin() -> None:
+    st.session_state.premium_view = "robin"
+    st.session_state.nav_page = "OSINT Premium"
     st.rerun()
 
 
@@ -30,6 +39,7 @@ def _kind_chip(kind: str) -> str:
         "lookup": "Lookup",
         "analise": "Análise",
         "catalogo": "Catálogo",
+        "tool": "Ferramenta",
         "native": "Nativo",
         "external": "Oficial",
         "note": "Nota",
@@ -42,51 +52,66 @@ def display_osint_premium() -> None:
         f"""
         <div class="mh-premium-hero">
           <div class="mh-dork-kicker">OSINT Premium</div>
-          <h2>Um espaço, todos os serviços</h2>
+          <h2>A ferramenta, neste console</h2>
           <p>
-            Hub educacional do Mr.Holmes: módulos nativos, catálogo já curado e
-            destaques oficiais (incluindo <strong>Robin</strong>).
-            Ferramentas de terceiros abrem no site/repo original — este console
-            não copia código nem sobe Tor.
+            O <strong>Robin</strong> investiga aqui: query, busca, scrape e dossiê.
+            As outras suites do Holmes abrem no próprio módulo. Serviços comerciais
+            (Maltego, OSINT Leak, Shodan) continuam no produto oficial — não dá para
+            embutir a conta deles.
           </p>
           <div class="mh-tools-stats">
+            <span class="mh-tools-stat"><strong>Robin</strong> in-app</span>
             <span class="mh-tools-stat"><strong>{stats['playbooks']}</strong> playbooks</span>
-            <span class="mh-tools-stat"><strong>{stats['native']}</strong> suites nativas</span>
-            <span class="mh-tools-stat"><strong>{stats['featured']}</strong> destaques</span>
-            <span class="mh-tools-stat"><strong>{stats['catalog']}</strong> fontes no catálogo</span>
+            <span class="mh-tools-stat"><strong>{stats['native']}</strong> suites</span>
+            <span class="mh-tools-stat"><strong>{stats['catalog']}</strong> fontes</span>
           </div>
         </div>
         """
     )
 
-    tab_play, tab_native, tab_feat, tab_cat = st.tabs(
-        [
-            "1 · Playbooks",
-            f"2 · Suites nativas ({stats['native']})",
-            f"3 · Destaques ({stats['featured']})",
-            f"4 · Catálogo ({stats['catalog']})",
-        ]
-    )
+    views = [
+        ("robin", "0 · Robin (ferramenta)"),
+        ("playbooks", "1 · Playbooks"),
+        ("native", f"2 · Suites ({stats['native']})"),
+        ("featured", f"3 · Destaques ({stats['featured']})"),
+        ("catalog", f"4 · Catálogo ({stats['catalog']})"),
+    ]
+    if st.session_state.get("premium_view") not in {v[0] for v in views}:
+        st.session_state.premium_view = "robin"
 
-    with tab_play:
+    cols = st.columns(len(views))
+    for i, (vid, label) in enumerate(views):
+        active = st.session_state.premium_view == vid
+        with cols[i]:
+            if st.button(
+                label,
+                key=f"premium_view_{vid}",
+                type="primary" if active else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state.premium_view = vid
+                st.rerun()
+
+    view = st.session_state.premium_view
+    if view == "robin":
+        display_robin_workspace()
+    elif view == "playbooks":
         _render_playbooks()
-    with tab_native:
+    elif view == "native":
         _render_native()
-    with tab_feat:
+    elif view == "featured":
         _render_featured()
-    with tab_cat:
+    else:
         _render_catalog()
 
     st.caption(
-        "Educacional · alvos autorizados · sem phishing/RAT/DDoS · "
-        "Robin e demais projetos oficiais permanecem nos repositórios originais."
+        "Educacional · alvos autorizados · Robin MIT © Apurv Singh Gautam · "
+        "sem phishing/RAT/DDoS."
     )
 
 
 def _render_playbooks() -> None:
-    st.markdown(
-        "Receitas de investigação. Cada passo abre o módulo Holmes ou o link oficial."
-    )
+    st.markdown("Receitas de investigação. Passos nativos e o Robin abrem a ferramenta, não um site.")
     labels = [f"{p['icon']} {p['title']}" for p in PLAYBOOKS]
     pick = st.radio("Playbook", labels, horizontal=True, key="premium_playbook")
     book = PLAYBOOKS[labels.index(pick)]
@@ -104,29 +129,20 @@ def _render_playbooks() -> None:
             st.markdown(f"**{i}. {step['label']}**")
             st.caption(f"{_kind_chip(kind)} · {step.get('detail', '')}")
         with cols[1]:
-            if kind == "native":
-                if st.button(
-                    "Abrir módulo",
-                    key=f"pb_{book['id']}_{i}",
-                    use_container_width=True,
-                ):
+            if kind == "tool" or step.get("premium_view") == "robin":
+                if st.button("Usar ferramenta", key=f"pb_{book['id']}_{i}", use_container_width=True):
+                    open_robin()
+            elif kind == "native":
+                if st.button("Abrir módulo", key=f"pb_{book['id']}_{i}", use_container_width=True):
                     go_to_page(step["page"], step.get("osint_tool"))
             elif kind == "external" and step.get("url"):
-                st.link_button(
-                    "Abrir oficial →",
-                    step["url"],
-                    use_container_width=True,
-                )
+                st.link_button("Abrir oficial →", step["url"], use_container_width=True)
             else:
                 st.caption("Siga a nota")
 
 
 def _render_native() -> None:
-    q = st.text_input(
-        "Filtrar suites",
-        key="premium_native_q",
-        placeholder="telefone, dorks, grafo…",
-    )
+    q = st.text_input("Filtrar suites", key="premium_native_q", placeholder="robin, telefone, dorks…")
     items = search_native(q)
     if not items:
         st.info("Nenhuma suite com esse filtro.")
@@ -139,27 +155,19 @@ def _render_native() -> None:
                 st.markdown(f"{suite['icon']} **{suite['title']}**")
                 st.caption(_kind_chip(suite["kind"]))
                 st.markdown(suite["blurb"])
-                if st.button(
-                    "Ir para o módulo",
-                    key=f"nat_{suite['id']}",
-                    use_container_width=True,
-                ):
-                    go_to_page(suite["page"], suite.get("osint_tool"))
+                label = "Usar ferramenta" if suite.get("kind") == "tool" else "Ir para o módulo"
+                if st.button(label, key=f"nat_{suite['id']}", use_container_width=True):
+                    if suite.get("premium_view") == "robin" or suite.get("id") == "robin":
+                        open_robin()
+                    else:
+                        go_to_page(suite["page"], suite.get("osint_tool"))
         if (i % 3) == 2 and i < len(items) - 1:
             row = st.columns(3)
 
 
 def _render_featured() -> None:
-    st.markdown(
-        "Projetos oficiais que **complementam** o Holmes. "
-        "O Robin não é embutido: o entregável dele (relatório + JSON + chat) "
-        "fica no container/repo original."
-    )
-    q = st.text_input(
-        "Filtrar destaques",
-        key="premium_feat_q",
-        placeholder="robin, leaks, grafo…",
-    )
+    st.markdown("Destaques. **Robin abre a ferramenta nesta página.** Os demais ou vão ao módulo Holmes ou ao produto oficial (conta deles).")
+    q = st.text_input("Filtrar destaques", key="premium_feat_q", placeholder="robin, leaks, grafo…")
     items = search_featured(q) if q else list(FEATURED)
 
     for item in items:
@@ -179,22 +187,24 @@ def _render_featured() -> None:
             if item.get("author"):
                 st.caption(f"Autor / origem: {item['author']}")
 
-            b1, b2, b3 = st.columns(3)
-            with b1:
-                st.link_button("Repositório / site →", item["url"], use_container_width=True)
-            with b2:
-                docs = item.get("docs") or item["url"]
-                st.link_button("Documentação →", docs, use_container_width=True)
-            with b3:
-                if item.get("native_page"):
-                    if st.button(
-                        "Módulo Holmes",
-                        key=f"feat_go_{item['id']}",
-                        use_container_width=True,
-                    ):
-                        go_to_page(item["native_page"], item.get("osint_tool"))
-                else:
-                    st.caption("Roda fora do Holmes")
+            if item.get("in_app") or item.get("premium_view") == "robin":
+                if st.button("Usar ferramenta agora", key=f"feat_run_{item['id']}", use_container_width=True):
+                    open_robin()
+            else:
+                b1, b2 = st.columns(2)
+                with b1:
+                    if item.get("native_page"):
+                        if st.button(
+                            "Abrir no Holmes",
+                            key=f"feat_go_{item['id']}",
+                            use_container_width=True,
+                        ):
+                            go_to_page(item["native_page"], item.get("osint_tool"))
+                    elif item.get("url"):
+                        st.link_button("Abrir serviço →", item["url"], use_container_width=True)
+                with b2:
+                    if item.get("url") and item.get("native_page"):
+                        st.link_button("Site oficial →", item["url"], use_container_width=True)
 
 
 def _render_catalog() -> None:
@@ -207,11 +217,7 @@ def _render_catalog() -> None:
 
     c1, c2 = st.columns([2.2, 1])
     with c1:
-        q = st.text_input(
-            "Buscar no catálogo",
-            key="premium_cat_q",
-            placeholder="sherlock, hibp, crt.sh…",
-        )
+        q = st.text_input("Buscar no catálogo", key="premium_cat_q", placeholder="robin, sherlock, hibp…")
     with c2:
         cat_pick = st.selectbox(
             "Categoria",
@@ -222,7 +228,7 @@ def _render_catalog() -> None:
 
     want = None if cat_pick == "todas" else cat_pick
     items = search_catalog(q, want)
-    st.caption(f"{len(items)} fontes visíveis")
+    st.caption(f"{len(items)} fontes visíveis · Robin abre in-app; o resto é atalho oficial")
 
     if not items:
         st.info("Nenhum item com esse filtro.")
@@ -239,13 +245,17 @@ def _render_catalog() -> None:
                     st.markdown(svc["description"])
                 if svc.get("use_for"):
                     st.caption(f"Uso: {svc['use_for']}")
-                url = (svc.get("url") or "").strip()
-                if url:
-                    st.link_button(
-                        "Abrir →",
-                        url,
-                        use_container_width=True,
-                        key=f"prem_cat_{svc.get('id', i)}_{i}",
-                    )
+                if svc.get("id") == "robin":
+                    if st.button("Usar ferramenta", key=f"prem_cat_robin_{i}", use_container_width=True):
+                        open_robin()
+                else:
+                    url = (svc.get("url") or "").strip()
+                    if url:
+                        st.link_button(
+                            "Abrir →",
+                            url,
+                            use_container_width=True,
+                            key=f"prem_cat_{svc.get('id', i)}_{i}",
+                        )
         if (i % 3) == 2 and i < len(items) - 1:
             row = st.columns(3)

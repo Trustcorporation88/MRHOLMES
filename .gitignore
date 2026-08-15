@@ -105,6 +105,9 @@ venv.bak/
 dmypy.json
 .pyre/
 
+# Robin — dossiês gerados localmente
+investigations/*.json
+
 # Mr.Holmes — dados sensíveis / locais
 GUI/Credentials/
 GUI/Reports/
