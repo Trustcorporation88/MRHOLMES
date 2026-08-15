@@ -129,8 +129,26 @@ section[data-testid="stSidebar"] > div {
 .mh-page .desc { margin-top: 0.4rem; color: var(--ink-soft); font-size: 0.95rem; max-width: 40rem; }
 h1, h2, h3 { font-family: var(--sans) !important; color: var(--ink) !important; }
 h2 { font-size: 1.15rem !important; font-weight: 600 !important; margin-top: 1.25rem !important; }
-p, label, span, .stMarkdown, [data-testid="stMarkdownContainer"],
+p, label, .stMarkdown, [data-testid="stMarkdownContainer"],
 [data-testid="stWidgetLabel"] { color: var(--ink) !important; font-family: var(--sans) !important; }
+/* Expander/chevron icons are Material ligatures (_arrow_right). Do not put font-family on `span`. */
+[data-testid="stIconMaterial"],
+[data-testid="stExpanderToggleIcon"],
+[data-testid="stExpander"] summary > span:first-child,
+span[class*="material-symbols"],
+span[class*="material-icons"] {
+  font-family: "Material Symbols Rounded", "Material Symbols Outlined",
+    "Material Icons", sans-serif !important;
+  font-feature-settings: "liga" !important;
+  -webkit-font-feature-settings: "liga" !important;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  letter-spacing: normal !important;
+  line-height: 1 !important;
+  overflow: hidden;
+}
+[data-testid="stExpander"] [data-testid="stIconMaterial"] {
+  color: var(--ink-soft) !important;
+}
 .stButton > button {
   background: var(--accent) !important; color: #0d1218 !important; border: none !important;
   border-radius: 6px !important; font-family: var(--sans) !important; font-weight: 600 !important;
