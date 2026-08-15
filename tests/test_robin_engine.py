@@ -32,7 +32,7 @@ class RobinKeyTests(unittest.TestCase):
         apply_keys(openai="sk-test-openai", anthropic="sk-ant-test")
         ids = {m["id"] for m in list_models()}
         self.assertIn("gpt-4o-mini", ids)
-        self.assertIn("claude-sonnet-4-0", ids)
+        self.assertIn("claude-sonnet-4-5", ids)
         os.environ.pop("OPENAI_API_KEY", None)
         os.environ.pop("ANTHROPIC_API_KEY", None)
         os.environ.pop("CLAUDE_API_KEY", None)
