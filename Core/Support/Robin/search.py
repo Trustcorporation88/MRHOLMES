@@ -7,9 +7,13 @@ https://github.com/apurvsinghgautam/robin
 
 from __future__ import annotations
 
+import os
 import random
 import re
+import shutil
 import socket
+import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote_plus
 
@@ -50,6 +54,46 @@ def tor_proxy_up(host: str = "127.0.0.1", port: int = 9050, timeout: float = 2.0
         return True
     except OSError:
         return False
+
+
+_TOR_START_ATTEMPTED = False
+
+
+def ensure_tor(wait_seconds: float = 20.0) -> bool:
+    """Sobe o daemon Tor local se o binário existir e a :9050 estiver fechada."""
+    global _TOR_START_ATTEMPTED
+    if tor_proxy_up():
+        return True
+    if _TOR_START_ATTEMPTED:
+        return False
+    _TOR_START_ATTEMPTED = True
+    binary = shutil.which("tor")
+    if not binary:
+        return False
+    data_dir = os.environ.get("TOR_DATA_DIR", "/tmp/tordata")
+    os.makedirs(data_dir, exist_ok=True)
+    try:
+        subprocess.Popen(
+            [
+                binary,
+                "--RunAsDaemon", "1",
+                "--SocksPort", "127.0.0.1:9050",
+                "--ControlPort", "127.0.0.1:9051",
+                "--CookieAuthentication", "0",
+                "--DataDirectory", data_dir,
+                "--Log", "notice file /tmp/tor.log",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    deadline = time.time() + max(1.0, wait_seconds)
+    while time.time() < deadline:
+        if tor_proxy_up():
+            return True
+        time.sleep(0.5)
+    return tor_proxy_up()
 
 
 def get_tor_session() -> requests.Session:
@@ -129,7 +173,7 @@ def get_search_results(refined_query: str, max_workers: int = 5) -> dict:
     if not query:
         return {"results": [], "via_tor": False, "via_clearnet": False, "engines": 0}
 
-    via_tor = tor_proxy_up()
+    via_tor = ensure_tor()
     collected: list[dict] = []
     engines = 0
 
