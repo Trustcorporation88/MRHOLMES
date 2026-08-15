@@ -44,27 +44,6 @@ def _kind_chip(kind: str) -> str:
 
 def display_osint_premium() -> None:
     stats = premium_stats()
-    st.html(
-        f"""
-        <div class="mh-premium-hero">
-          <div class="mh-dork-kicker">OSINT Premium</div>
-          <h2>A ferramenta, neste console</h2>
-          <p>
-            O <strong>Robin</strong> investiga aqui: query, busca, scrape e dossiê.
-            As outras suites do Holmes abrem no próprio módulo. Serviços comerciais
-            (Maltego, OSINT Leak, Shodan) continuam no produto oficial — não dá para
-            embutir a conta deles.
-          </p>
-          <div class="mh-tools-stats">
-            <span class="mh-tools-stat"><strong>Robin</strong> in-app</span>
-            <span class="mh-tools-stat"><strong>{stats['playbooks']}</strong> playbooks</span>
-            <span class="mh-tools-stat"><strong>{stats['native']}</strong> suites</span>
-            <span class="mh-tools-stat"><strong>{stats['catalog']}</strong> fontes</span>
-          </div>
-        </div>
-        """
-    )
-
     views = [
         ("robin", "0 · Robin (ferramenta)"),
         ("playbooks", "1 · Playbooks"),
@@ -74,10 +53,33 @@ def display_osint_premium() -> None:
     ]
     if st.session_state.get("premium_view") not in {v[0] for v in views}:
         st.session_state.premium_view = "robin"
+    view = st.session_state.premium_view
+
+    if view != "robin":
+        st.html(
+            f"""
+            <div class="mh-premium-hero">
+              <div class="mh-dork-kicker">OSINT Premium</div>
+              <h2>A ferramenta, neste console</h2>
+              <p>
+                O <strong>Robin</strong> investiga aqui: query, busca, scrape e dossiê.
+                As outras suites do Holmes abrem o próprio módulo. Serviços comerciais
+                (Maltego, OSINT Leak, Shodan) continuam no produto oficial — não dá para
+                embutir a conta deles.
+              </p>
+              <div class="mh-tools-stats">
+                <span class="mh-tools-stat"><strong>Robin</strong> in-app</span>
+                <span class="mh-tools-stat"><strong>{stats['playbooks']}</strong> playbooks</span>
+                <span class="mh-tools-stat"><strong>{stats['native']}</strong> suites</span>
+                <span class="mh-tools-stat"><strong>{stats['catalog']}</strong> fontes</span>
+              </div>
+            </div>
+            """
+        )
 
     cols = st.columns(len(views))
     for i, (vid, label) in enumerate(views):
-        active = st.session_state.premium_view == vid
+        active = view == vid
         with cols[i]:
             if st.button(
                 label,
@@ -88,7 +90,6 @@ def display_osint_premium() -> None:
                 st.session_state.premium_view = vid
                 st.rerun()
 
-    view = st.session_state.premium_view
     if view == "robin":
         display_robin_workspace()
     elif view == "playbooks":
