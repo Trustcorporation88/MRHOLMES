@@ -73,8 +73,8 @@ def list_models() -> list[dict]:
         models.append({"id": "gpt-4o", "label": "[openai] gpt-4o", "provider": "openai"})
         models.append({"id": "gpt-4.1", "label": "[openai] gpt-4.1", "provider": "openai"})
     if _is_set(_clean("ANTHROPIC_API_KEY")):
-        models.append({"id": "claude-sonnet-4-0", "label": "[anthropic] claude-sonnet-4-0", "provider": "anthropic"})
-        models.append({"id": "claude-3-5-sonnet-latest", "label": "[anthropic] claude-3.5-sonnet", "provider": "anthropic"})
+        models.append({"id": "claude-sonnet-4-5", "label": "[anthropic] claude-sonnet-4-5", "provider": "anthropic"})
+        models.append({"id": "claude-haiku-4-5", "label": "[anthropic] claude-haiku-4-5", "provider": "anthropic"})
     if _is_set(_clean("GOOGLE_API_KEY")):
         models.append({"id": "gemini-2.5-flash", "label": "[google] gemini-2.5-flash", "provider": "google"})
     if _is_set(_clean("OPENROUTER_API_KEY")):
