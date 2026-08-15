@@ -7,6 +7,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 import streamlit as st
 from external_services_ui import display_external_services, display_services_for_page
 from osint_premium_ui import display_osint_premium
+from robin_workspace import render_llm_key_fields, sync_llm_keys_from_session
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
 
 st.set_page_config(
     page_title="Mr.Holmes",
@@ -645,7 +653,10 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     st.markdown("---")
-    st.caption("Educacional · alvos autorizados")
+    with st.expander("Chaves LLM · OpenAI / Claude"):
+        render_llm_key_fields()
+    sync_llm_keys_from_session()
+    st.caption("Educacional · alvos autorizados · chaves só na sessão ou no .env")
 
 
 # ── OSINT Premium ────────────────────────────────────────────────────────────
@@ -2289,7 +2300,8 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Mr.Holmes vs Robin**
 - **Holmes:** clear web — pessoa, telefone, domínio, dorks, grafo.
-- **Robin** (MIT © [Apurv Singh Gautam](https://github.com/apurvsinghgautam/robin)): agora **roda no menu OSINT Premium** — query, busca (Tor + Ahmia), scrape e dossiê. Sem LLM/Tor o módulo ainda busca e gera relatório heurístico.
+- **Robin** (MIT © [Apurv Singh Gautam](https://github.com/apurvsinghgautam/robin)): agora **roda no menu OSINT Premium** — query, busca (Tor + Ahmia), scrape e dossiê.
+- **Chaves:** cole OpenAI/Claude na sidebar **Chaves LLM**, ou use `.env` / variáveis Railway (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). Sem chave a busca ainda roda.
 
 **Mr.Holmes vs WebDorks**
 - Layout e catálogo de técnicas inspirados em [WebDorks](https://webdorks.vercel.app/) (© root-Manas, MIT).

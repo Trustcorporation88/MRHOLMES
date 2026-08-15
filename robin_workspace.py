@@ -15,6 +15,38 @@ from Core.Support.Robin.engine import (
     suggest_pivots,
     tool_status,
 )
+from Core.Support.Robin.llm_bridge import apply_keys
+
+
+def sync_llm_keys_from_session() -> None:
+    apply_keys(
+        openai=st.session_state.get("llm_openai_key"),
+        anthropic=st.session_state.get("llm_anthropic_key"),
+    )
+
+
+def render_llm_key_fields(prefix: str = "llm") -> None:
+    """Campos de senha — a chave fica só na sessão, não no git."""
+    st.text_input(
+        "OpenAI API key",
+        type="password",
+        key="llm_openai_key",
+        placeholder="sk-...",
+        help="Usada pelos modelos gpt-4o / gpt-4.1. Não é salva no repositório.",
+    )
+    st.text_input(
+        "Claude / Anthropic API key",
+        type="password",
+        key="llm_anthropic_key",
+        placeholder="sk-ant-...",
+        help="Usada pelos modelos Claude. Também aceita a variável CLAUDE_API_KEY.",
+    )
+    sync_llm_keys_from_session()
+    status = tool_status()["providers"]
+    st.caption(
+        f"OpenAI: {'pronta' if status['openai'] else 'ausente'} · "
+        f"Claude: {'pronta' if status['anthropic'] else 'ausente'}"
+    )
 
 
 def _status_chips() -> dict:
@@ -36,9 +68,8 @@ def _status_chips() -> dict:
         )
     if not status["llm"]:
         st.info(
-            "Nenhum LLM configurado. A ferramenta busca e lista fontes; o briefing completo "
-            "aparece quando você define OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, "
-            "OPENROUTER_API_KEY ou sobe o Ollama."
+            "Cole as chaves OpenAI e/ou Claude na sidebar (Chaves LLM) ou num arquivo `.env`. "
+            "Sem isso a busca roda, mas o briefing sai heurístico."
         )
     return status
 
@@ -123,6 +154,7 @@ def display_robin_workspace() -> None:
         </div>
         """
     )
+    sync_llm_keys_from_session()
     status = _status_chips()
     models = status.get("models") or []
     model_ids = [m["id"] for m in models]
@@ -210,6 +242,8 @@ def display_robin_workspace() -> None:
             except Exception:
                 st.session_state.robin_pivots = []
             st.success(f"Concluído · salvo em `{result.get('filename')}`")
+            if result.get("llm_error"):
+                st.warning(f"LLM: {result['llm_error']}")
 
     inv = st.session_state.get("robin_active")
     if inv:

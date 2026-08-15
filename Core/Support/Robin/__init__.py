@@ -9,3 +9,4 @@ from .engine import (
     suggest_pivots,
     tool_status,
 )
+from .llm_bridge import apply_keys, last_error, list_models

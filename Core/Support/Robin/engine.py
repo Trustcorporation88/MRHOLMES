@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import llm_bridge
+from .llm_bridge import last_error
 from .scrape import scrape_multiple
 from .search import get_search_results, tor_proxy_up
 
@@ -212,6 +213,7 @@ def run_investigation(
         "via_tor": search.get("via_tor"),
         "via_clearnet": search.get("via_clearnet"),
         "engines": search.get("engines"),
+        "llm_error": last_error(),
     }
     record["filename"] = save_investigation(record)
     return record

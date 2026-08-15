@@ -17,8 +17,26 @@ except Exception:
     pass
 
 
+_LAST_ERROR: Optional[str] = None
+
+
+def last_error() -> Optional[str]:
+    return _LAST_ERROR
+
+
+def apply_keys(openai: Optional[str] = None, anthropic: Optional[str] = None) -> None:
+    """Aplica chaves da sessão/.env sem gravar no disco."""
+    if openai and str(openai).strip() and not str(openai).startswith("your_"):
+        os.environ["OPENAI_API_KEY"] = str(openai).strip()
+    if anthropic and str(anthropic).strip() and not str(anthropic).startswith("your_"):
+        os.environ["ANTHROPIC_API_KEY"] = str(anthropic).strip()
+        os.environ.setdefault("CLAUDE_API_KEY", str(anthropic).strip())
+
+
 def _clean(name: str, default: Optional[str] = None) -> Optional[str]:
     value = os.getenv(name, default)
+    if name == "ANTHROPIC_API_KEY" and not value:
+        value = os.getenv("CLAUDE_API_KEY", default)
     if value is None:
         return None
     value = str(value).strip()
@@ -52,9 +70,11 @@ def list_models() -> list[dict]:
     models = []
     if _is_set(_clean("OPENAI_API_KEY")):
         models.append({"id": "gpt-4o-mini", "label": "[openai] gpt-4o-mini", "provider": "openai"})
+        models.append({"id": "gpt-4o", "label": "[openai] gpt-4o", "provider": "openai"})
         models.append({"id": "gpt-4.1", "label": "[openai] gpt-4.1", "provider": "openai"})
     if _is_set(_clean("ANTHROPIC_API_KEY")):
         models.append({"id": "claude-sonnet-4-0", "label": "[anthropic] claude-sonnet-4-0", "provider": "anthropic"})
+        models.append({"id": "claude-3-5-sonnet-latest", "label": "[anthropic] claude-3.5-sonnet", "provider": "anthropic"})
     if _is_set(_clean("GOOGLE_API_KEY")):
         models.append({"id": "gemini-2.5-flash", "label": "[google] gemini-2.5-flash", "provider": "google"})
     if _is_set(_clean("OPENROUTER_API_KEY")):
@@ -83,6 +103,8 @@ def _openai_chat(base_url: str, api_key: str, model: str, system: str, user: str
         json={"model": model, "messages": messages, "temperature": 0},
         timeout=90,
     )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"OpenAI HTTP {resp.status_code}: {resp.text[:240]}")
     resp.raise_for_status()
     data = resp.json()
     return (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
@@ -104,6 +126,8 @@ def _anthropic_chat(model: str, system: str, user: str, history=None) -> str:
         json={"model": model, "max_tokens": 2048, "system": system, "messages": messages},
         timeout=90,
     )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Anthropic HTTP {resp.status_code}: {resp.text[:240]}")
     resp.raise_for_status()
     blocks = resp.json().get("content") or []
     return "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
@@ -149,6 +173,8 @@ def _ollama_chat(model: str, system: str, user: str, history=None) -> str:
 
 def chat(model_id: Optional[str], system: str, user: str, history=None) -> str:
     """Chama o provedor do modelo. Sem modelo/chave → string vazia."""
+    global _LAST_ERROR
+    _LAST_ERROR = None
     if not model_id:
         return ""
     mid = model_id.strip()
@@ -179,7 +205,8 @@ def chat(model_id: Optional[str], system: str, user: str, history=None) -> str:
             return _gemini_chat(mid, system, user, history)
         if mid.startswith("gpt-"):
             return _openai_chat("https://api.openai.com/v1", _clean("OPENAI_API_KEY") or "", mid, system, user, history)
-    except Exception:
+    except Exception as exc:
+        _LAST_ERROR = str(exc)[:400]
         return ""
     return ""
 

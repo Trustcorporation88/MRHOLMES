@@ -9,6 +9,7 @@ from Core.Support.Robin.engine import (
     _refine_query,
     run_investigation,
 )
+from Core.Support.Robin.llm_bridge import apply_keys, list_models
 from Core.Support.Robin.search import extract_onion_results
 
 
@@ -20,6 +21,21 @@ AHMIA_HTML = """
 <a href="https://example.com">clear</a>
 </body></html>
 """
+
+
+class RobinKeyTests(unittest.TestCase):
+    def test_apply_keys_unlocks_openai_and_claude(self):
+        import os
+
+        os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        apply_keys(openai="sk-test-openai", anthropic="sk-ant-test")
+        ids = {m["id"] for m in list_models()}
+        self.assertIn("gpt-4o-mini", ids)
+        self.assertIn("claude-sonnet-4-0", ids)
+        os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        os.environ.pop("CLAUDE_API_KEY", None)
 
 
 class RobinSearchTests(unittest.TestCase):
