@@ -681,7 +681,7 @@ with st.sidebar:
         "LLM · "
         f"OpenAI {'●' if _prov.get('openai') else '○'} · "
         f"Claude {'●' if _prov.get('anthropic') else '○'} · "
-        "cole as chaves na aba Robin"
+        "cole a chave OpenAI na aba Investigar"
     )
     st.caption("Educacional · alvos autorizados")
 
@@ -691,7 +691,7 @@ if page == "OSINT Premium":
     page_header(
         "Hub",
         "OSINT Premium",
-        "Robin investiga .onion com LLM. Flowsint (grafo) e o Arsenal OSINT abrem na aba Investigar. "
+        "Digite o nome na aba Investigar. A OpenAI busca na web e o Holmes consulta as fontes locais. "
         "Educacional · alvos autorizados.",
     )
     display_osint_premium()

@@ -211,6 +211,53 @@ def chat(model_id: Optional[str], system: str, user: str, history=None) -> str:
     return ""
 
 
+def openai_web_search(prompt: str, model: str = "gpt-4o-mini") -> dict:
+    """Responses API + ferramenta web_search. Sem chave → ok=False."""
+    global _LAST_ERROR
+    _LAST_ERROR = None
+    key = _clean("OPENAI_API_KEY")
+    if not _is_set(key):
+        return {"ok": False, "error": "OPENAI_API_KEY ausente", "text": "", "citations": []}
+    payload = {
+        "model": model or "gpt-4o-mini",
+        "tools": [{"type": "web_search"}],
+        "input": prompt,
+    }
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=120,
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"OpenAI HTTP {resp.status_code}: {resp.text[:280]}")
+        data = resp.json()
+    except Exception as exc:
+        _LAST_ERROR = str(exc)[:400]
+        return {"ok": False, "error": str(exc)[:280], "text": "", "citations": []}
+
+    text = (data.get("output_text") or "").strip()
+    citations = []
+    for item in data.get("output") or []:
+        if item.get("type") != "message":
+            continue
+        for block in item.get("content") or []:
+            if not text and block.get("type") in ("output_text", "text"):
+                text = (block.get("text") or "").strip()
+            for ann in block.get("annotations") or []:
+                url = ann.get("url") or ""
+                if url:
+                    citations.append({"title": ann.get("title") or url, "url": url})
+    seen = set()
+    uniq = []
+    for c in citations:
+        if c["url"] not in seen:
+            seen.add(c["url"])
+            uniq.append(c)
+    return {"ok": bool(text), "text": text, "citations": uniq, "error": None if text else "Resposta vazia"}
+
+
 def provider_status() -> dict:
     return {
         "openai": _is_set(_clean("OPENAI_API_KEY")),
