@@ -11,7 +11,9 @@ from robin_workspace import render_llm_key_fields, sync_llm_keys_from_session
 
 def display_investigate_workspace() -> None:
     sync_llm_keys_from_session()
-    st.markdown("**Digite o alvo abaixo.** A OpenAI busca na web e o Holmes consulta Wikipedia, GitHub, email/MX e Maigret quando couber.")
+    st.markdown(
+        "**Cole o alvo e clique em Investigar.** A OpenAI (sua API key) busca LinkedIn, GitHub, notícias e devolve o dossiê aqui — você não precisa abrir Google."
+    )
 
     pending = st.session_state.pop("investigate_pending", None)
     if pending:
@@ -27,16 +29,19 @@ def display_investigate_workspace() -> None:
 
     render_llm_key_fields()
     status = provider_status()
-    models = [m["id"] for m in list_models() if m.get("provider") == "openai"] or [
-        m["id"] for m in list_models()
-    ]
-    model = models[0] if models else "gpt-4o-mini"
+    ids = [m["id"] for m in list_models() if m.get("provider") == "openai"]
+    if "gpt-4o" in ids:
+        model = "gpt-4o"
+    elif ids:
+        model = ids[0]
+    else:
+        model = "gpt-4o"
     oa = "●" if status.get("openai") else "○"
-    st.caption(f"OpenAI {oa} · modelo `{model}` · alvos autorizados · fontes abertas")
+    st.caption(f"OpenAI {oa} · `{model}` busca na web por você · alvos autorizados")
 
     if run and (query or "").strip():
         kind = classify_target(query)
-        with st.spinner(f"Investigando `{query.strip()}` ({kind})…"):
+        with st.spinner("A OpenAI está buscando o alvo (LinkedIn, GitHub, notícias)…"):
             result = run_name_investigation(query, model=model)
         if not result.get("ok"):
             st.error(result.get("error") or "Falha na investigação.")
@@ -44,10 +49,10 @@ def display_investigate_workspace() -> None:
             st.session_state.investigate_active = result
             st.session_state.investigate_chat = []
             if result.get("web_ok"):
-                st.success("Dossiê pronto · OpenAI web_search + fontes locais")
+                st.success("Dossiê pronto — a API buscou e consolidou as fontes")
             else:
                 st.warning(
-                    "OpenAI web_search não respondeu. Dossiê com fontes locais. "
+                    "A busca web da OpenAI falhou. Mostrando só o que as APIs locais acharam. "
                     f"{result.get('web_error') or result.get('llm_error') or ''}"
                 )
 
@@ -57,13 +62,6 @@ def display_investigate_workspace() -> None:
         return
 
     st.markdown(inv.get("dossier") or "_Sem dossiê._")
-
-    links = inv.get("links") or []
-    if links:
-        st.markdown("**Abrir nos serviços oficiais**")
-        cols = st.columns(min(4, len(links)))
-        for i, item in enumerate(links[:8]):
-            cols[i % len(cols)].link_button(item["name"], item["url"], use_container_width=True)
 
     cites = inv.get("citations") or []
     if cites:
@@ -85,7 +83,7 @@ def display_investigate_workspace() -> None:
     for turn in st.session_state.get("investigate_chat") or []:
         with st.chat_message(turn.get("role", "assistant")):
             st.markdown(turn.get("content", ""))
-    follow = st.chat_input("Ex.: quais handles vale checar no Maigret?")
+    follow = st.chat_input("Pergunte sobre o dossiê — a API busca de novo se precisar")
     if follow:
         history = st.session_state.setdefault("investigate_chat", [])
         answer = answer_followup(model, follow, inv, history=history)
