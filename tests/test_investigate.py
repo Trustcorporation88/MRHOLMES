@@ -5,8 +5,10 @@ from Core.Support.Investigate import (
     _fallback_dossier,
     _search_angles,
     classify_target,
+    handle_candidates,
     looks_like_same_person,
     official_links,
+    plan_holmes_tools,
     run_name_investigation,
 )
 from Core.Support.Robin import llm_bridge
@@ -30,7 +32,22 @@ class NamesakeTests(unittest.TestCase):
         self.assertTrue(looks_like_same_person("Thiago Augusto Pinto Gomes", query))
 
 
-class PromptTests(unittest.TestCase):
+class HolmesPlanTests(unittest.TestCase):
+    def test_person_handles_from_full_name(self):
+        cands = handle_candidates("Thiago Augusto Pinto Gomes")
+        self.assertIn("thiagogomes", cands)
+        self.assertTrue(any("." in c for c in cands) or len(cands) >= 1)
+
+    @patch("Core.Support.Investigate._holmes_available", return_value={"maigret": True, "holehe": True})
+    def test_person_plan_includes_maigret(self, _avail):
+        labels = " ".join(step["label"] for step in plan_holmes_tools("Thiago Augusto Pinto Gomes", "person"))
+        self.assertIn("Maigret", labels)
+
+    @patch("Core.Support.Investigate._holmes_available", return_value={"holehe": True})
+    def test_email_plan_includes_holehe(self, _avail):
+        ids = [step["id"] for step in plan_holmes_tools("ana@exemplo.com", "email")]
+        self.assertIn("holehe", ids)
+        self.assertIn("email_holmes", ids)
     def test_angles_forbid_user_homework(self):
         blob = " ".join(p for _, p in _search_angles("Maria Silva", "person")).lower()
         self.assertIn("não diga ao usuário para procurar", blob)
@@ -60,11 +77,12 @@ class InvestigateRunTests(unittest.TestCase):
         result = run_name_investigation("  ")
         self.assertFalse(result["ok"])
 
+    @patch("Core.Support.Investigate._holmes_available", return_value={})
     @patch("Core.Support.Investigate.llm_bridge.chat")
     @patch("Core.Support.Investigate.llm_bridge.openai_web_search")
     @patch("Core.Support.Investigate._wikipedia")
     @patch("Core.Support.Investigate._github_users")
-    def test_person_uses_web_search_and_returns_dossier(self, gh, wiki, web, chat):
+    def test_person_uses_web_search_and_returns_dossier(self, gh, wiki, web, chat, _avail):
         wiki.return_value = {"ok": False, "hits": []}
         gh.return_value = {"ok": False, "users": []}
         web.return_value = {
@@ -86,6 +104,7 @@ class InvestigateRunTests(unittest.TestCase):
         self.assertGreaterEqual(web.call_count, 2)
         self.assertEqual(result.get("links") or [], [])
         self.assertNotIn("procure no", result["dossier"].lower())
+        self.assertTrue(any("GitHub" in t or "Wikipedia" in t for t in result.get("tools_used") or []))
         chat.assert_called_once()
 
 

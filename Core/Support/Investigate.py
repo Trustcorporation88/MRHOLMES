@@ -70,6 +70,31 @@ def looks_like_same_person(text: str, query: str) -> bool:
     return hits >= min(3, len(tokens))
 
 
+def handle_candidates(query: str) -> list[str]:
+    """Handles que o Maigret do Holmes consegue procurar a partir de um nome."""
+    tokens = name_tokens(query)
+    if not tokens:
+        slug = re.sub(r"[^A-Za-z0-9]", "", query or "")
+        return [slug.lower()] if len(slug) >= 3 else []
+    if len(tokens) == 1:
+        return tokens[:1]
+    first, last = tokens[0], tokens[-1]
+    out = []
+    for cand in (first + last, f"{first}.{last}", first[0] + last):
+        if cand not in out and 3 <= len(cand) <= 32:
+            out.append(cand)
+    return out[:2]
+
+
+def _holmes_available() -> dict:
+    try:
+        from Core.Support.OsintTools import tool_status
+
+        return tool_status()
+    except Exception:
+        return {}
+
+
 def _get_json(url: str, timeout: int = 8) -> Optional[dict | list]:
     try:
         resp = requests.get(url, headers=_UA, timeout=timeout)
@@ -177,6 +202,61 @@ def _username_pack(username: str) -> dict:
         return {"ok": False, "error": str(exc)[:200], "profiles": []}
 
 
+def _holehe_pack(email: str) -> dict:
+    try:
+        from Core.Support.OsintTools import run_holehe
+
+        return run_holehe(email)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200], "sites": []}
+
+
+def _domain_pack(domain: str) -> dict:
+    out = {"ok": False, "harvester": {}, "subdomains": {}}
+    try:
+        from Core.Support.OsintTools import run_subdomains, run_theharvester
+
+        out["harvester"] = run_theharvester(domain, limit=20)
+        out["subdomains"] = run_subdomains(domain)
+        out["ok"] = bool(out["harvester"].get("ok") or out["subdomains"].get("ok"))
+    except Exception as exc:
+        out["error"] = str(exc)[:200]
+    return out
+
+
+def _extract_emails(*blobs) -> list[str]:
+    text = json.dumps(blobs, ensure_ascii=False, default=str)
+    found = [m.lower() for m in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)]
+    return list(dict.fromkeys(found))[:3]
+
+
+def plan_holmes_tools(query: str, kind: str) -> list[dict]:
+    """Quais módulos nativos do site rodam para este alvo."""
+    avail = _holmes_available()
+    jobs = []
+    if kind == "email":
+        jobs.append({"id": "email_holmes", "label": "Email (MX/Gravatar/pastes)"})
+        if avail.get("holehe"):
+            jobs.append({"id": "holehe", "label": "Holehe", "arg": query})
+    elif kind == "phone":
+        jobs.append({"id": "phone_holmes", "label": "Telefone (libphonenumber)"})
+    elif kind == "domain":
+        if avail.get("theHarvester"):
+            jobs.append({"id": "harvester", "label": "theHarvester"})
+        jobs.append({"id": "subdomains", "label": "Subdomínios"})
+    elif kind == "username":
+        if avail.get("maigret") or avail.get("sherlock"):
+            jobs.append({"id": "maigret", "label": "Maigret", "arg": query.lstrip("@")})
+        jobs.append({"id": "github", "label": "GitHub"})
+    else:
+        jobs.append({"id": "github", "label": "GitHub (nome completo)"})
+        if avail.get("maigret") or avail.get("sherlock"):
+            for handle in handle_candidates(query):
+                jobs.append({"id": "maigret", "label": f"Maigret @{handle}", "arg": handle})
+    jobs.append({"id": "wikipedia", "label": "Wikipedia"})
+    return jobs
+
+
 def _evidence_blob(kind: str, packs: dict) -> str:
     return json.dumps({"kind": kind, **packs}, ensure_ascii=False, default=str)[:8000]
 
@@ -253,9 +333,11 @@ def _synthesize(query: str, kind: str, packs: dict, notes: list[dict], model: st
     text = llm_bridge.chat(
         model,
         (
+            "Priorize o que os MÓDULOS DO HOLMES já rodaram (Maigret, Holehe, email, telefone, domínio). "
+            "A busca web só completa o que o site não tem (LinkedIn, notícias). "
             "Você entrega o dossiê PRONTO. O usuário não vai sair clicando em buscadores. "
             "Português, Markdown:\n"
-            "## Resumo\n## Identificadores confirmados\n"
+            "## Resumo\n## Módulos Holmes usados\n## Identificadores confirmados\n"
             "## Presença pública (cada item com URL e o que foi visto)\n"
             "## Homônimos descartados\n## Lacunas (o que a busca NÃO achou)\n"
             "Proibido: 'procure no LinkedIn', 'considere buscar', 'próximos passos: pesquise em'. "
@@ -267,28 +349,30 @@ def _synthesize(query: str, kind: str, packs: dict, notes: list[dict], model: st
     return (text or "").strip()
 
 
-def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
-    q = (query or "").strip()
-    kind = classify_target(q)
-    if kind == "empty":
-        return {"ok": False, "error": "Informe um nome, username, email ou domínio."}
-
+def _execute_holmes_plan(query: str, kind: str, plan: list[dict]) -> dict:
     packs: dict = {}
-    jobs = {
-        "wikipedia": lambda: _wikipedia(q),
-    }
-    if kind in ("username", "person"):
-        jobs["github"] = lambda: _github_users(q, kind)
-    if kind == "email":
-        jobs["email"] = lambda: _email_pack(q)
-    elif kind == "phone":
-        jobs["phone"] = lambda: _phone_pack(q)
-    elif kind == "username":
-        jobs["maigret"] = lambda: _username_pack(q)
+    jobs = {}
+    for step in plan:
+        sid = step["id"]
+        arg = step.get("arg") or query
+        if sid == "wikipedia":
+            jobs["wikipedia"] = lambda: _wikipedia(query)
+        elif sid == "github":
+            jobs["github"] = lambda k=kind: _github_users(query, k)
+        elif sid == "email_holmes":
+            jobs["email"] = lambda: _email_pack(query)
+        elif sid == "holehe":
+            jobs[f"holehe:{arg}"] = lambda a=arg: _holehe_pack(a)
+        elif sid == "phone_holmes":
+            jobs["phone"] = lambda: _phone_pack(query)
+        elif sid in ("harvester", "subdomains"):
+            jobs["domain"] = lambda: _domain_pack(query)
+        elif sid == "maigret":
+            jobs[f"maigret:{arg}"] = lambda a=arg: _username_pack(a)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         futs = {pool.submit(fn): name for name, fn in jobs.items()}
-        done, pending = wait(futs, timeout=50)
+        done, pending = wait(futs, timeout=70)
         for fut in done:
             name = futs[fut]
             try:
@@ -297,6 +381,24 @@ def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
                 packs[name] = {"ok": False, "error": str(exc)[:160]}
         for fut in pending:
             packs[futs[fut]] = {"ok": False, "error": "timeout"}
+    return packs
+
+
+def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
+    q = (query or "").strip()
+    kind = classify_target(q)
+    if kind == "empty":
+        return {"ok": False, "error": "Informe um nome, username, email ou domínio."}
+
+    plan = plan_holmes_tools(q, kind)
+    packs = _execute_holmes_plan(q, kind, plan)
+
+    extra_emails = _extract_emails(packs)
+    avail = _holmes_available()
+    if extra_emails and avail.get("holehe") and kind != "email":
+        for em in extra_emails[:2]:
+            packs[f"holehe:{em}"] = _holehe_pack(em)
+            plan.append({"id": "holehe", "label": f"Holehe {em}", "arg": em})
 
     notes = _run_web_angles(q, kind, model)
     dossier = _synthesize(q, kind, packs, notes, model)
@@ -314,6 +416,12 @@ def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
     for user in (packs.get("github") or {}).get("users") or []:
         if user.get("url"):
             citations.append({"title": f"GitHub {user.get('login')}", "url": user["url"]})
+    for key, pack in packs.items():
+        if not str(key).startswith("maigret"):
+            continue
+        for prof in (pack or {}).get("profiles") or []:
+            if prof.get("url"):
+                citations.append({"title": f"Maigret {prof.get('site')}", "url": prof["url"]})
 
     try:
         from Core.Support.History import save_search
@@ -321,6 +429,9 @@ def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
         save_search("investigate", q, sites_found=len(citations))
     except Exception:
         pass
+
+    tools_used = [step.get("label") for step in plan if step.get("label")]
+    tools_used.append("OpenAI web_search")
 
     return {
         "ok": True,
@@ -335,6 +446,8 @@ def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
         "llm_error": llm_bridge.last_error(),
         "model": model,
         "angles": [n.get("angle") for n in notes],
+        "tools_used": tools_used,
+        "plan": plan,
     }
 
 

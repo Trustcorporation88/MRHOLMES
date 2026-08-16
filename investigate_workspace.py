@@ -12,7 +12,8 @@ from robin_workspace import render_llm_key_fields, sync_llm_keys_from_session
 def display_investigate_workspace() -> None:
     sync_llm_keys_from_session()
     st.markdown(
-        "**Cole o alvo e clique em Investigar.** A OpenAI (sua API key) busca LinkedIn, GitHub, notícias e devolve o dossiê aqui — você não precisa abrir Google."
+        "**Cole o alvo e clique em Investigar.** A chave OpenAI orquestra os módulos do Holmes "
+        "(Maigret, Holehe, email, domínio) e completa com busca web. Você não precisa abrir os serviços."
     )
 
     pending = st.session_state.pop("investigate_pending", None)
@@ -37,11 +38,11 @@ def display_investigate_workspace() -> None:
     else:
         model = "gpt-4o"
     oa = "●" if status.get("openai") else "○"
-    st.caption(f"OpenAI {oa} · `{model}` busca na web por você · alvos autorizados")
+    st.caption(f"OpenAI {oa} · `{model}` usa Maigret/Holehe/email do site + busca web · alvos autorizados")
 
     if run and (query or "").strip():
         kind = classify_target(query)
-        with st.spinner("A OpenAI está buscando o alvo (LinkedIn, GitHub, notícias)…"):
+        with st.spinner("Rodando módulos Holmes e busca OpenAI…"):
             result = run_name_investigation(query, model=model)
         if not result.get("ok"):
             st.error(result.get("error") or "Falha na investigação.")
@@ -63,18 +64,25 @@ def display_investigate_workspace() -> None:
 
     st.markdown(inv.get("dossier") or "_Sem dossiê._")
 
+    used = inv.get("tools_used") or []
+    if used:
+        st.caption("Módulos usados: " + " · ".join(used))
+
     cites = inv.get("citations") or []
     if cites:
         with st.expander(f"Fontes ({len(cites)})", expanded=False):
-            for item in cites[:30]:
+            for item in cites[:40]:
                 title = item.get("title") or item.get("url")
                 url = item.get("url") or ""
                 st.markdown(f"- [{title}]({url})" if url else f"- {title}")
 
     packs = inv.get("packs") or {}
-    profiles = (packs.get("maigret") or {}).get("profiles") or []
+    profiles = []
+    for key, pack in packs.items():
+        if str(key).startswith("maigret"):
+            profiles.extend((pack or {}).get("profiles") or [])
     if profiles:
-        with st.expander(f"Maigret ({len(profiles)} perfis)", expanded=False):
+        with st.expander(f"Maigret ({len(profiles)} perfis)", expanded=True):
             for p in profiles[:40]:
                 st.markdown(f"- {p.get('site')}: {p.get('url')}")
 
