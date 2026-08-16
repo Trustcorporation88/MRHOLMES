@@ -681,7 +681,7 @@ with st.sidebar:
         "LLM · "
         f"OpenAI {'●' if _prov.get('openai') else '○'} · "
         f"Claude {'●' if _prov.get('anthropic') else '○'} · "
-        "cole as chaves na aba Robin"
+        "cole a chave OpenAI na aba Investigar"
     )
     st.caption("Educacional · alvos autorizados")
 
