@@ -62,6 +62,15 @@ class OsintPremiumCatalogTests(unittest.TestCase):
         self.assertNotIn("mimikatz", blob)
         self.assertNotIn("phishing", blob)
 
+    def test_playbook_pessoa_opens_whatsmyname(self):
+        book = next(item for item in PLAYBOOKS if item["id"] == "pessoa")
+        self.assertTrue(any(step.get("osint_tool") == "whatsmyname" for step in book["steps"]))
+
+    def test_osintleak_featured_is_native_leaks_page(self):
+        item = next(x for x in FEATURED if x["id"] == "osintleak")
+        self.assertEqual(item.get("native_page"), "Leaks")
+        self.assertIn("OSINTLEAK_API_KEY", item.get("requires", ""))
+
     def test_playbooks_have_actionable_steps(self):
         for book in PLAYBOOKS:
             self.assertTrue(book["steps"])

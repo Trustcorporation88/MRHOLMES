@@ -795,7 +795,7 @@ elif page == "Telefone":
         st.markdown("### Portfólio de telefone")
         st.caption(
             "GitHub (PhoneInfoga, Ignorant…) e sites (Sync.me, Truecaller…). "
-            "Só atalhos externos — não rodam dentro do Mr.Holmes."
+            "Truecaller não tem API de busca reversa OSINT — o Holmes não raspa o site; o atalho abre a página oficial."
         )
         display_services_for_page("telefone", heading="Tools & serviços de número")
 
@@ -805,7 +805,8 @@ elif page == "Email":
     page_header("Lookup", "Email", "Validação de formato, MX, Gravatar e menções em pastes públicos.")
     st.caption(
         "Paralelo gratuito (parcial) à busca de email em breaches do OSINT Leak: "
-        "aqui usamos MX, Gravatar, Holehe e pastes públicos — sem base comercial de stealer logs."
+        "MX, Gravatar, Holehe (equivalente in-app ao Epieos para contas públicas) e pastes. "
+        "Epieos não é raspado. Leaks pagos só entram se `OSINTLEAK_API_KEY` estiver no Railway."
     )
     email = st.text_input("Endereço", placeholder="exemplo@dominio.com")
     if st.button("Investigar", type="primary") and email:
@@ -826,9 +827,9 @@ elif page == "Email":
                 for a in r.get("alertas", []):
                     st.info(a)
                 save_search("email", email.strip().lower(), country=r.get("dominio", ""), sites_found=r.get("total_fontes", 0))
-                st.markdown(
-                    f"[Abrir no OSINT Leak (leaks pagos)](https://app.osintleak.com/dashboard/search) "
-                    f"— cole `{email.strip().lower()}` como tipo email"
+                st.caption(
+                    "Contas públicas: use **OSINT Avançado → Holehe** (não é necessário abrir o Epieos). "
+                    "Breaches pagos: menu **Leaks** se `OSINTLEAK_API_KEY` estiver configurada."
                 )
                 st.session_state["last_email"] = email.strip().lower()
                 st.session_state["last_email_domain"] = (r.get("dominio") or "").strip()
@@ -899,7 +900,7 @@ elif page == "OSINT Avançado":
     page_header(
         "Suite",
         "OSINT Avançado",
-        "Holehe, Maigret, theHarvester, subdomínios, dnstwist, httpx e SpiderFoot.",
+        "Holehe, WhatsMyName, Maigret, theHarvester, subdomínios, dnstwist, httpx e SpiderFoot.",
     )
     from Core.Support.OsintTools import tool_status
     from Core.Support.History import save_search
@@ -907,6 +908,7 @@ elif page == "OSINT Avançado":
     status = tool_status()
     OSINT_NAV = [
         ("holehe", "Holehe", "holehe"),
+        ("whatsmyname", "WhatsMyName", None),
         ("maigret", "Maigret", "maigret"),
         ("theHarvester", "theHarvester", "theHarvester"),
         ("subdomains", "Subdomínios", None),
@@ -920,6 +922,8 @@ elif page == "OSINT Avançado":
             return bool(status.get("subfinder") or status.get("amass"))
         if tool_id == "maigret":
             return bool(status.get("maigret") or status.get("sherlock"))
+        if tool_id == "whatsmyname":
+            return True
         return bool(status.get(status_key)) if status_key else False
 
     if "osint_adv_tool" not in st.session_state:
@@ -962,7 +966,8 @@ elif page == "OSINT Avançado":
         st.html(
             f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
             '<p class="mh-osint-desc">Descobre em quais serviços um email possui conta. '
-            "Complemento gratuito à busca de email em leaks (OSINT Leak): contas públicas, não stealer logs.</p></div>"
+            "Equivalente in-app ao Epieos (contas públicas). O Holmes não raspa epieos.com. "
+            "Complemento à busca de email em leaks (OSINT Leak API, se houver chave).</p></div>"
         )
         email_h = st.text_input("Email", placeholder="usuario@dominio.com", key="holehe_email")
         if st.button("Executar Holehe", key="btn_holehe") and email_h:
@@ -983,11 +988,36 @@ elif page == "OSINT Avançado":
                         with st.expander("Saída bruta"):
                             st.code(r["raw"])
 
+    elif selected == "whatsmyname":
+        st.html(
+            f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
+            '<p class="mh-osint-desc">Checagem nativa com a lista aberta '
+            '<a href="https://github.com/WebBreacher/WhatsMyName">WebBreacher/WhatsMyName</a> '
+            "(CC BY-SA 4.0). O Holmes consulta as URLs públicas — não abre whatsmyname.app "
+            "e não usa APIs não oficiais.</p></div>"
+        )
+        user_w = st.text_input("Username", placeholder="joaosilva", key="wmn_user")
+        max_w = st.slider("Limite de sites", 20, 120, 60, key="wmn_n")
+        if st.button("Executar WhatsMyName", key="btn_wmn") and user_w:
+            with st.spinner("Checando perfis públicos…"):
+                from Core.Support.WhatsMyName import check_username
+                r = check_username(user_w, max_sites=max_w)
+                if r.get("profiles"):
+                    st.success(f"{len(r['profiles'])} perfis · {r.get('checked', 0)} sites checados")
+                    for p in r["profiles"]:
+                        st.markdown(
+                            f"- **{p.get('site', '')}** — [{p.get('url', '')}]({p.get('url', '')})"
+                        )
+                    save_search("username", user_w, sites_found=len(r["profiles"]))
+                else:
+                    st.info(r.get("error") or "Nenhum perfil encontrado nesta amostra de sites.")
+                    st.caption("Sites com captcha/Cloudflare agressivo são pulados de propósito.")
+
     elif selected == "maigret":
         st.html(
             f'<div class="mh-osint-panel"><h3>{selected_label}</h3>'
             '<p class="mh-osint-desc">Username em redes e plataformas (Maigret; Sherlock se disponível). '
-            "Equivalente open-source ao UserHunter do OSINT Leak — sem cota paga.</p></div>"
+            "Lista diferente do chip WhatsMyName. Equivalente open-source ao UserHunter do OSINT Leak — sem cota paga.</p></div>"
         )
         user_m = st.text_input("Username", placeholder="joaosilva", key="maigret_user")
         max_sites = st.slider("Limite de sites", 20, 100, 40, key="maigret_n")
@@ -1501,22 +1531,40 @@ elif page == "Dorks":
                         st.toast("Consulta pronta para copiar.")
 
 
-# ── Leaks (atalho OSINT Leak — sem API) ──────────────────────────────────────
+# ── Leaks (API oficial se houver chave; senão dashboard) ─────────────────────
 elif page == "Leaks":
+    from Core.Support.OsintLeak import apply_session_key, configured, search as ol_search
+
     page_header(
-        "Externo",
+        "API / Externo",
         "OSINT Leak",
-        "Atalho para busca em breaches/stealer logs. Sem API paga os resultados não são importados automaticamente.",
+        "Busca oficial no Holmes quando `OSINTLEAK_API_KEY` está no Railway. "
+        "Sem chave, só o atalho do dashboard — o Holmes não raspa o site.",
     )
-    st.info(
-        "Busca em leaks requer conta no OSINT Leak. "
-        "O Mr.Holmes não raspa nem armazena a base proprietária deles."
-    )
+
+    apply_session_key(st.session_state.get("ol_api_key"))
+    has_key = configured()
+    if has_key:
+        st.success("API OSINT Leak ativa neste processo. A busca roda aqui; senhas são omitidas; stealer logs desligados.")
+    else:
+        st.info(
+            "Sem `OSINTLEAK_API_KEY`. Cole a Variable no Railway (mesmo lugar de OPENAI_API_KEY), "
+            "faça Redeploy, ou use o campo abaixo só nesta sessão. Sem isso o Holmes não consulta a base paga."
+        )
+        st.text_input(
+            "OSINT Leak API key (sessão)",
+            type="password",
+            key="ol_api_key",
+            placeholder="só se quiser testar nesta sessão — não vai para o git",
+            help="Dashboard → Profile → API Settings. Opcional: whitelist do IP do Railway.",
+        )
+        apply_session_key(st.session_state.get("ol_api_key"))
+        has_key = configured()
 
     tipo_ol = st.selectbox(
         "Tipo de busca",
         ["email", "username", "phone", "domain", "ip", "name"],
-        help="Use o mesmo tipo no seletor do dashboard OSINT Leak.",
+        help="domain vira type=url na API oficial. type=password não é oferecido.",
     )
     query_ol = st.text_input(
         "Consulta",
@@ -1532,42 +1580,49 @@ elif page == "Leaks":
     )
 
     dash_url = "https://app.osintleak.com/dashboard/search"
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
-        st.link_button("Abrir dashboard OSINT Leak", dash_url, use_container_width=True)
+        run_ol = st.button("Buscar no Holmes", type="primary", use_container_width=True, disabled=not query_ol.strip())
     with c2:
-        if query_ol.strip():
-            st.link_button(
-                "Abrir PimEyes (imagem)",
-                "https://pimeyes.com",
-                use_container_width=True,
-            )
+        st.link_button("Abrir dashboard OSINT Leak", dash_url, use_container_width=True)
+    with c3:
+        st.link_button("PimEyes (imagem)", "https://pimeyes.com", use_container_width=True)
+
+    if run_ol and query_ol.strip():
+        if not configured():
+            st.warning("Ainda sem chave. A busca oficial não roda — use o dashboard ou cole OSINTLEAK_API_KEY.")
         else:
-            st.caption("Informe uma consulta para montar o bloco de cópia.")
+            with st.spinner("Consultando a API oficial OSINT Leak…"):
+                r = ol_search(query_ol.strip(), kind=tipo_ol)
+            from Core.Support.History import save_search
+            if r.get("ok"):
+                hits = r.get("hits") or []
+                st.success(f"{len(hits)} registros visíveis · total informado: {r.get('count', 0)} · senhas omitidas")
+                if r.get("censored"):
+                    st.caption("A API marcou a resposta como censored.")
+                for hit in hits:
+                    st.markdown("- " + " · ".join(f"**{k}:** {v}" for k, v in hit.items()))
+                if not hits:
+                    st.info("A API respondeu, mas não havia campos públicos para mostrar.")
+                save_search("osintleak", query_ol.strip(), country=tipo_ol, sites_found=len(hits))
+            else:
+                st.error(r.get("error") or "Falha na API OSINT Leak.")
+                st.caption("Confira quota, IP whitelist no painel deles, e o nome exato da Variable.")
 
-    if query_ol.strip():
-        bloco = f"tipo={tipo_ol}\nquery={query_ol.strip()}"
+    if query_ol.strip() and not configured():
         st.subheader("Copiar para o dashboard")
-        st.code(bloco, language=None)
-        st.caption(
-            "Cole a query no campo Search do OSINT Leak e escolha o seletor correspondente "
-            f"(`{tipo_ol}`). Monitoring exige plano Platinum+ e não está disponível aqui."
-        )
-        from Core.Support.History import save_search
-        if st.button("Registrar no histórico local"):
-            save_search("osintleak", query_ol.strip(), country=tipo_ol, sites_found=0)
-            st.success("Registrado no histórico local (sem resultados de leak).")
+        st.code(f"tipo={tipo_ol}\nquery={query_ol.strip()}", language=None)
 
-    st.subheader("O que usar no Holmes em vez disso")
+    st.subheader("O que o Holmes já faz sem a chave paga")
     st.markdown(
         """
-| Precisa de… | No Holmes (grátis) | No OSINT Leak |
+| Precisa de… | No Holmes (nativo) | Terceiro |
 |---|---|---|
-| Username em redes | **OSINT Avançado → Maigret** | UserHunter |
-| Email (contas / pastes) | **Email** + **Holehe** | Busca email em breaches |
-| Domínio / IP / WHOIS | **Domínio** + ViewDNS | WHOIS & IP tools |
-| Telefone (DDD BR) | **Telefone** | Phone selector (leaks) |
-| Reverse image | Link PimEyes em Ferramentas | AI Reverse Image (pago) |
+| Username em redes | **OSINT Avançado → WhatsMyName** e Maigret | WhatsMyName.app / UserHunter |
+| Email (contas públicas) | **Holehe** (≈ Epieos) | Epieos (pago; sem scrape) |
+| Email / telefone em breaches | **Leaks** com `OSINTLEAK_API_KEY` | Dashboard OSINT Leak |
+| Telefone (DDD BR) | **Telefone** | Truecaller (só link; sem API reversa) |
+| Reverse image | Link PimEyes | AI Reverse Image (pago) |
 | Monitoring contínuo | — | Platinum / Enterprise |
 """
     )
@@ -1628,7 +1683,7 @@ elif page == "Ferramentas":
         {
             "num": "",
             "name": "OSINT Leak",
-            "desc": "Breaches e stealer logs (conta externa; sem import automático).",
+            "desc": "Breaches via API oficial se OSINTLEAK_API_KEY existir; senão dashboard.",
             "url": "https://app.osintleak.com/dashboard/search",
             "cat": "leaks",
         },
@@ -2335,8 +2390,8 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 - **OSINT Premium** — Robin embutido (busca + relatório) e atalhos para as suites nativas
 - Telefone, email, domínio
 - **Dorks Workbench** — catálogo curado (WebDorks MIT + listas Holmes), tokens, filtros, abrir busca
-- Suite OSINT (Holehe, Maigret, theHarvester, dnstwist, httpx…)
-- Atalho **Leaks** → OSINT Leak (conta externa)
+- Suite OSINT (Holehe, WhatsMyName, Maigret, theHarvester, dnstwist, httpx…)
+- **Leaks** — API oficial OSINT Leak se `OSINTLEAK_API_KEY` estiver no Railway (senhas omitidas; sem stealer logs)
 - **Ferramentas** — catálogo externo (Robin, Maltego, Amass, SpiderFoot, theHarvester, FOCA…)
 - **Aprenda com Mr Holmes** — 20 serviços de estudo e produtividade web
 - Rede, gráfico, histórico
@@ -2350,11 +2405,11 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 - Layout e catálogo de técnicas inspirados em [WebDorks](https://webdorks.vercel.app/) (© root-Manas, MIT).
 - **Diferenciais Holmes:** links diretos para engines, token `PHONE`, fusão com `Site_lists/`, prefill a partir de Telefone/Email/Domínio.
 
-**Mr.Holmes vs OSINT Leak**
-- **Holmes (grátis/local):** DDD BR, MX/Gravatar/Holehe, Maigret (≈ UserHunter), DNS/WHOIS/ViewDNS, grafo, dorks, sem cota paga.
-- **OSINT Leak (pago):** busca em breaches/stealer logs, similar search, monitoring Platinum+, reverse image AI, API.
-- **Sem API:** resultados de leaks **não** são importados automaticamente; use o menu Leaks para abrir o dashboard e colar a query.
-- Monitoring contínuo e export massivo de leaks ficam no lado OSINT Leak (planos pagos).
+**Mr.Holmes vs OSINT Leak / Epieos / Truecaller / WhatsMyName**
+- **WhatsMyName:** nativo no Holmes (lista WebBreacher). Não abre whatsmyname.app.
+- **Epieos:** não há scrape. Contas de email no Holmes = **Holehe**. API Pro só se vocês tiverem chave oficial no futuro.
+- **Truecaller:** a API oficial é Caller ID comercial / SDK, não busca reversa OSINT. O Holmes não raspa o site; o atalho permanece.
+- **OSINT Leak:** com `OSINTLEAK_API_KEY` a busca oficial roda no menu Leaks e na caixa Investigar. Sem chave, só o dashboard. Stealer logs desligados; senhas não aparecem na tela.
 
 **Aviso** — uso educacional e em alvos autorizados. Não raspe bases comerciais.
 O autor não se responsabiliza por uso indevido.

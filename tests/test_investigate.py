@@ -42,12 +42,28 @@ class HolmesPlanTests(unittest.TestCase):
     def test_person_plan_includes_maigret(self, _avail):
         labels = " ".join(step["label"] for step in plan_holmes_tools("Thiago Augusto Pinto Gomes", "person"))
         self.assertIn("Maigret", labels)
+        self.assertIn("WhatsMyName", labels)
+
+    @patch("Core.Support.OsintLeak.configured", return_value=False)
+    @patch("Core.Support.Investigate._holmes_available", return_value={})
+    def test_username_plan_always_runs_whatsmyname(self, _avail, _leak):
+        ids = [step["id"] for step in plan_holmes_tools("joaosilva", "username")]
+        self.assertIn("whatsmyname", ids)
+        self.assertNotIn("osintleak", ids)
+
+    @patch("Core.Support.OsintLeak.configured", return_value=True)
+    @patch("Core.Support.Investigate._holmes_available", return_value={"holehe": True})
+    def test_email_plan_includes_osintleak_when_keyed(self, _avail, _leak):
+        ids = [step["id"] for step in plan_holmes_tools("ana@exemplo.com", "email")]
+        self.assertIn("osintleak", ids)
+        self.assertIn("holehe", ids)
 
     @patch("Core.Support.Investigate._holmes_available", return_value={"holehe": True})
     def test_email_plan_includes_holehe(self, _avail):
         ids = [step["id"] for step in plan_holmes_tools("ana@exemplo.com", "email")]
         self.assertIn("holehe", ids)
         self.assertIn("email_holmes", ids)
+
     def test_angles_forbid_user_homework(self):
         blob = " ".join(p for _, p in _search_angles("Maria Silva", "person")).lower()
         self.assertIn("não diga ao usuário para procurar", blob)
@@ -82,7 +98,8 @@ class InvestigateRunTests(unittest.TestCase):
     @patch("Core.Support.Investigate.llm_bridge.openai_web_search")
     @patch("Core.Support.Investigate._wikipedia")
     @patch("Core.Support.Investigate._github_users")
-    def test_person_uses_web_search_and_returns_dossier(self, gh, wiki, web, chat, _avail):
+    @patch("Core.Support.Investigate._wmn_pack", return_value={"ok": False, "profiles": []})
+    def test_person_uses_web_search_and_returns_dossier(self, _wmn, gh, wiki, web, chat, _avail):
         wiki.return_value = {"ok": False, "hits": []}
         gh.return_value = {"ok": False, "users": []}
         web.return_value = {
