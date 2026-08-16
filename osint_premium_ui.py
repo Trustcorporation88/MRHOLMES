@@ -109,8 +109,9 @@ def display_osint_premium() -> None:
 
     if view == "partners":
         display_investigate_workspace()
-        with st.expander("Flowsint e Arsenal (atalhos)", expanded=False):
-            _render_partners()
+        if not st.session_state.get("investigate_active"):
+            with st.expander("Flowsint e Arsenal (atalhos)", expanded=False):
+                _render_partners()
     elif view == "robin":
         display_robin_workspace()
     elif view == "playbooks":

@@ -52,6 +52,49 @@ def official_links(query: str, kind: str) -> list[dict]:
     return links
 
 
+_STOP = {"da", "de", "do", "dos", "das", "e", "the", "of"}
+
+
+def name_tokens(query: str) -> list[str]:
+    return [t.lower() for t in re.findall(r"[A-Za-zÀ-ÿ0-9]+", query or "") if t.lower() not in _STOP and len(t) > 2]
+
+
+def looks_like_same_person(text: str, query: str) -> bool:
+    tokens = name_tokens(query)
+    blob = (text or "").lower()
+    if not tokens:
+        return False
+    if len(tokens) == 1:
+        return tokens[0] in blob
+    hits = sum(1 for t in tokens if t in blob)
+    return hits >= min(3, len(tokens))
+
+
+def handle_candidates(query: str) -> list[str]:
+    """Handles que o Maigret do Holmes consegue procurar a partir de um nome."""
+    tokens = name_tokens(query)
+    if not tokens:
+        slug = re.sub(r"[^A-Za-z0-9]", "", query or "")
+        return [slug.lower()] if len(slug) >= 3 else []
+    if len(tokens) == 1:
+        return tokens[:1]
+    first, last = tokens[0], tokens[-1]
+    out = []
+    for cand in (first + last, f"{first}.{last}", first[0] + last):
+        if cand not in out and 3 <= len(cand) <= 32:
+            out.append(cand)
+    return out[:2]
+
+
+def _holmes_available() -> dict:
+    try:
+        from Core.Support.OsintTools import tool_status
+
+        return tool_status()
+    except Exception:
+        return {}
+
+
 def _get_json(url: str, timeout: int = 8) -> Optional[dict | list]:
     try:
         resp = requests.get(url, headers=_UA, timeout=timeout)
@@ -73,6 +116,8 @@ def _wikipedia(query: str) -> dict:
             continue
         titles, descs, urls = data[1], data[2], data[3]
         for title, desc, url in zip(titles, descs, urls):
+            if not looks_like_same_person(f"{title} {desc}", query):
+                continue
             out["hits"].append({"title": title, "desc": desc, "url": url, "lang": lang})
             out["ok"] = True
         if out["hits"]:
@@ -80,20 +125,25 @@ def _wikipedia(query: str) -> dict:
     return out
 
 
-def _github_users(query: str) -> dict:
-    token = query.strip().lstrip("@").split()[0]
-    data = _get_json(f"https://api.github.com/search/users?q={quote_plus(token)}&per_page=5")
+def _github_users(query: str, kind: str = "username") -> dict:
+    q = (query or "").strip().lstrip("@")
+    if kind == "person" and " " in q:
+        search = f"{q} in:fullname"
+    else:
+        search = q.split()[0]
+    data = _get_json(f"https://api.github.com/search/users?q={quote_plus(search)}&per_page=8")
     items = (data or {}).get("items") if isinstance(data, dict) else None
     users = []
     for item in items or []:
-        users.append(
-            {
-                "login": item.get("login"),
-                "url": item.get("html_url"),
-                "type": item.get("type"),
-            }
-        )
-    return {"ok": bool(users), "users": users}
+        login = item.get("login") or ""
+        url = item.get("html_url") or ""
+        detail = _get_json(f"https://api.github.com/users/{quote(login)}") if login else None
+        display = (detail or {}).get("name") or login
+        hay = f"{login} {display} {url}"
+        if kind == "person" and not looks_like_same_person(hay, q):
+            continue
+        users.append({"login": login, "name": display, "url": url, "type": item.get("type")})
+    return {"ok": bool(users), "users": users[:5]}
 
 
 def _ddg(query: str) -> dict:
@@ -152,45 +202,177 @@ def _username_pack(username: str) -> dict:
         return {"ok": False, "error": str(exc)[:200], "profiles": []}
 
 
+def _holehe_pack(email: str) -> dict:
+    try:
+        from Core.Support.OsintTools import run_holehe
+
+        return run_holehe(email)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200], "sites": []}
+
+
+def _domain_pack(domain: str) -> dict:
+    out = {"ok": False, "harvester": {}, "subdomains": {}}
+    try:
+        from Core.Support.OsintTools import run_subdomains, run_theharvester
+
+        out["harvester"] = run_theharvester(domain, limit=20)
+        out["subdomains"] = run_subdomains(domain)
+        out["ok"] = bool(out["harvester"].get("ok") or out["subdomains"].get("ok"))
+    except Exception as exc:
+        out["error"] = str(exc)[:200]
+    return out
+
+
+def _extract_emails(*blobs) -> list[str]:
+    text = json.dumps(blobs, ensure_ascii=False, default=str)
+    found = [m.lower() for m in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)]
+    return list(dict.fromkeys(found))[:3]
+
+
+def plan_holmes_tools(query: str, kind: str) -> list[dict]:
+    """Quais módulos nativos do site rodam para este alvo."""
+    avail = _holmes_available()
+    jobs = []
+    if kind == "email":
+        jobs.append({"id": "email_holmes", "label": "Email (MX/Gravatar/pastes)"})
+        if avail.get("holehe"):
+            jobs.append({"id": "holehe", "label": "Holehe", "arg": query})
+    elif kind == "phone":
+        jobs.append({"id": "phone_holmes", "label": "Telefone (libphonenumber)"})
+    elif kind == "domain":
+        if avail.get("theHarvester"):
+            jobs.append({"id": "harvester", "label": "theHarvester"})
+        jobs.append({"id": "subdomains", "label": "Subdomínios"})
+    elif kind == "username":
+        if avail.get("maigret") or avail.get("sherlock"):
+            jobs.append({"id": "maigret", "label": "Maigret", "arg": query.lstrip("@")})
+        jobs.append({"id": "github", "label": "GitHub"})
+    else:
+        jobs.append({"id": "github", "label": "GitHub (nome completo)"})
+        if avail.get("maigret") or avail.get("sherlock"):
+            for handle in handle_candidates(query):
+                jobs.append({"id": "maigret", "label": f"Maigret @{handle}", "arg": handle})
+    jobs.append({"id": "wikipedia", "label": "Wikipedia"})
+    return jobs
+
+
 def _evidence_blob(kind: str, packs: dict) -> str:
     return json.dumps({"kind": kind, **packs}, ensure_ascii=False, default=str)[:8000]
 
 
-def _web_prompt(query: str, kind: str, packs: dict) -> str:
-    return (
-        "Investigação OSINT educacional de alvo autorizado. "
-        "Busque apenas fontes abertas (perfis públicos, notícias, registros, GitHub, Wikipedia). "
-        "Não invente dados. Não oriente hacking, phishing, acesso não autorizado ou compra de leaks.\n\n"
-        f"Tipo detectado: {kind}\nAlvo: {query}\n\n"
-        f"Evidências locais já coletadas (JSON):\n{_evidence_blob(kind, packs)}\n\n"
-        "Responda em português, Markdown:\n"
-        "## Resumo\n## Identificadores\n## Presença pública (URLs)\n"
-        "## O que NÃO foi confirmado\n## Próximos passos lícitos\n"
+def _search_angles(query: str, kind: str) -> list[tuple[str, str]]:
+    quoted = f'"{query.strip()}"'
+    rules = (
+        "Você É o investigador. A chave OpenAI já está buscando a web. "
+        "NÃO diga ao usuário para procurar no Google, LinkedIn, Twitter ou Facebook. "
+        "NÃO invente perfis. Homônimos (só o primeiro nome) devem ser descartados. "
+        "Para cada achado: URL, o que a página mostra, e confiança alta/média/baixa. "
+        "Se a plataforma não aparecer, escreva 'não encontrado nesta busca'. Português.\n\n"
+        f"Alvo EXATO: {query}\nTipo: {kind}\n"
     )
-
-
-def run_name_investigation(query: str, model: str = "gpt-4o-mini") -> dict:
-    q = (query or "").strip()
-    kind = classify_target(q)
-    if kind == "empty":
-        return {"ok": False, "error": "Informe um nome, username, email ou domínio."}
-
-    packs: dict = {}
-    jobs = {
-        "wikipedia": lambda: _wikipedia(q),
-        "github": lambda: _github_users(q),
-        "ddg": lambda: _ddg(q),
-    }
     if kind == "email":
-        jobs["email"] = lambda: _email_pack(q)
-    elif kind == "phone":
-        jobs["phone"] = lambda: _phone_pack(q)
-    elif kind == "username":
-        jobs["maigret"] = lambda: _username_pack(q)
+        return [
+            ("email", rules + f"Busque menções públicas deste email: {query}. Gravatar, GitHub, pastes, páginas pessoais."),
+        ]
+    if kind == "username":
+        return [
+            ("handle", rules + f"Busque o handle {quoted} em GitHub, GitLab, redes e sites pessoais."),
+        ]
+    if kind == "domain":
+        return [
+            ("dominio", rules + f"Busque o domínio {quoted}: empresa, WHOIS público, notícias, redes sociais oficiais."),
+        ]
+    return [
+        ("identidade", rules + f"Busque {quoted} (Brasil). Quem é, cidade, empresa, notícias, currículo público."),
+        ("linkedin", rules + f"Busque o perfil LinkedIn público de {quoted}. Se não houver, diga não encontrado."),
+        ("codigo-midia", rules + f"Busque {quoted} no GitHub/GitLab e em notícias/imprensa. Só perfis do nome completo."),
+    ]
+
+
+def _web_prompt(query: str, kind: str, packs: dict) -> str:
+    return _search_angles(query, kind)[0][1] + f"\nEvidências locais:\n{_evidence_blob(kind, packs)}"
+
+
+def _run_web_angles(query: str, kind: str, model: str) -> list[dict]:
+    notes = []
+    angles = _search_angles(query, kind)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futs = {
+            pool.submit(llm_bridge.openai_web_search, prompt, model): label
+            for label, prompt in angles
+        }
+        done, pending = wait(futs, timeout=110)
+        for fut in done:
+            label = futs[fut]
+            try:
+                notes.append({"angle": label, **(fut.result() or {})})
+            except Exception as exc:
+                notes.append({"angle": label, "ok": False, "error": str(exc)[:200], "text": "", "citations": []})
+        for fut in pending:
+            notes.append({"angle": futs[fut], "ok": False, "error": "timeout", "text": "", "citations": []})
+    return notes
+
+
+def _synthesize(query: str, kind: str, packs: dict, notes: list[dict], model: str) -> str:
+    found = "\n\n".join(
+        f"### Busca {n.get('angle')}\n{(n.get('text') or n.get('error') or '').strip()}"
+        for n in notes
+        if (n.get("text") or n.get("error"))
+    )
+    cites = []
+    for n in notes:
+        for c in n.get("citations") or []:
+            cites.append(f"- {c.get('title')}: {c.get('url')}")
+    user = (
+        f"Alvo: {query} ({kind})\n\n"
+        f"Notas das buscas (já feitas pela API, não pelo usuário):\n{found[:14000]}\n\n"
+        f"Citações:\n" + "\n".join(cites[:40]) + "\n\n"
+        f"Evidências locais filtradas:\n{_evidence_blob(kind, packs)}\n"
+    )
+    text = llm_bridge.chat(
+        model,
+        (
+            "Priorize o que os MÓDULOS DO HOLMES já rodaram (Maigret, Holehe, email, telefone, domínio). "
+            "A busca web só completa o que o site não tem (LinkedIn, notícias). "
+            "Você entrega o dossiê PRONTO. O usuário não vai sair clicando em buscadores. "
+            "Português, Markdown:\n"
+            "## Resumo\n## Módulos Holmes usados\n## Identificadores confirmados\n"
+            "## Presença pública (cada item com URL e o que foi visto)\n"
+            "## Homônimos descartados\n## Lacunas (o que a busca NÃO achou)\n"
+            "Proibido: 'procure no LinkedIn', 'considere buscar', 'próximos passos: pesquise em'. "
+            "Se não achou LinkedIn, escreva 'LinkedIn: não encontrado nesta busca'. "
+            "Descarte gente que só compartilha o primeiro nome. Não invente."
+        ),
+        user,
+    )
+    return (text or "").strip()
+
+
+def _execute_holmes_plan(query: str, kind: str, plan: list[dict]) -> dict:
+    packs: dict = {}
+    jobs = {}
+    for step in plan:
+        sid = step["id"]
+        arg = step.get("arg") or query
+        if sid == "wikipedia":
+            jobs["wikipedia"] = lambda: _wikipedia(query)
+        elif sid == "github":
+            jobs["github"] = lambda k=kind: _github_users(query, k)
+        elif sid == "email_holmes":
+            jobs["email"] = lambda: _email_pack(query)
+        elif sid == "holehe":
+            jobs[f"holehe:{arg}"] = lambda a=arg: _holehe_pack(a)
+        elif sid == "phone_holmes":
+            jobs["phone"] = lambda: _phone_pack(query)
+        elif sid in ("harvester", "subdomains"):
+            jobs["domain"] = lambda: _domain_pack(query)
+        elif sid == "maigret":
+            jobs[f"maigret:{arg}"] = lambda a=arg: _username_pack(a)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         futs = {pool.submit(fn): name for name, fn in jobs.items()}
-        done, pending = wait(futs, timeout=50)
+        done, pending = wait(futs, timeout=70)
         for fut in done:
             name = futs[fut]
             try:
@@ -199,24 +381,47 @@ def run_name_investigation(query: str, model: str = "gpt-4o-mini") -> dict:
                 packs[name] = {"ok": False, "error": str(exc)[:160]}
         for fut in pending:
             packs[futs[fut]] = {"ok": False, "error": "timeout"}
+    return packs
 
-    web = llm_bridge.openai_web_search(_web_prompt(q, kind, packs), model=model)
-    dossier = (web.get("text") or "").strip()
+
+def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
+    q = (query or "").strip()
+    kind = classify_target(q)
+    if kind == "empty":
+        return {"ok": False, "error": "Informe um nome, username, email ou domínio."}
+
+    plan = plan_holmes_tools(q, kind)
+    packs = _execute_holmes_plan(q, kind, plan)
+
+    extra_emails = _extract_emails(packs)
+    avail = _holmes_available()
+    if extra_emails and avail.get("holehe") and kind != "email":
+        for em in extra_emails[:2]:
+            packs[f"holehe:{em}"] = _holehe_pack(em)
+            plan.append({"id": "holehe", "label": f"Holehe {em}", "arg": em})
+
+    notes = _run_web_angles(q, kind, model)
+    dossier = _synthesize(q, kind, packs, notes, model)
+    web_ok = any(n.get("ok") and n.get("text") for n in notes)
     if not dossier:
-        dossier = llm_bridge.chat(
-            model,
-            "Analista OSINT. Só use as evidências. Português. Markdown. Sem conselhos ilegais.",
-            _web_prompt(q, kind, packs),
-        )
+        dossier = "\n\n".join((n.get("text") or "") for n in notes if n.get("text")).strip()
     if not dossier:
         dossier = _fallback_dossier(q, kind, packs)
 
-    citations = list(web.get("citations") or [])
+    citations = []
+    for n in notes:
+        citations.extend(n.get("citations") or [])
     for hit in (packs.get("wikipedia") or {}).get("hits") or []:
         citations.append({"title": hit.get("title") or "Wikipedia", "url": hit.get("url")})
     for user in (packs.get("github") or {}).get("users") or []:
         if user.get("url"):
             citations.append({"title": f"GitHub {user.get('login')}", "url": user["url"]})
+    for key, pack in packs.items():
+        if not str(key).startswith("maigret"):
+            continue
+        for prof in (pack or {}).get("profiles") or []:
+            if prof.get("url"):
+                citations.append({"title": f"Maigret {prof.get('site')}", "url": prof["url"]})
 
     try:
         from Core.Support.History import save_search
@@ -225,6 +430,9 @@ def run_name_investigation(query: str, model: str = "gpt-4o-mini") -> dict:
     except Exception:
         pass
 
+    tools_used = [step.get("label") for step in plan if step.get("label")]
+    tools_used.append("OpenAI web_search")
+
     return {
         "ok": True,
         "query": q,
@@ -232,11 +440,14 @@ def run_name_investigation(query: str, model: str = "gpt-4o-mini") -> dict:
         "dossier": dossier,
         "packs": packs,
         "citations": citations,
-        "links": official_links(q, kind),
-        "web_ok": bool(web.get("ok")),
-        "web_error": web.get("error"),
+        "links": [],
+        "web_ok": web_ok,
+        "web_error": next((n.get("error") for n in notes if n.get("error") and not n.get("ok")), None),
         "llm_error": llm_bridge.last_error(),
         "model": model,
+        "angles": [n.get("angle") for n in notes],
+        "tools_used": tools_used,
+        "plan": plan,
     }
 
 
@@ -244,17 +455,23 @@ def answer_followup(model: str | None, question: str, inv: dict, history=None) -
     q = (question or "").strip()
     if not q:
         return ""
-    context = (
-        f"Alvo: {inv.get('query')}\nTipo: {inv.get('kind')}\n\n"
-        f"Dossiê:\n{(inv.get('dossier') or '')[:6000]}\n"
+    mid = model or "gpt-4o"
+    prompt = (
+        "Continue a investigação OSINT. Você busca; o usuário não. "
+        "Português. Sem 'vá procurar no Google'.\n"
+        f"Alvo: {inv.get('query')}\n"
+        f"Dossiê já entregue:\n{(inv.get('dossier') or '')[:5000]}\n\n"
+        f"Pergunta: {q}"
     )
-    text = llm_bridge.chat(
-        model or "gpt-4o-mini",
-        "Analista OSINT. Responda só com base no dossiê. Sem conselhos ilegais. Português.",
-        f"{context}\nPergunta: {q}",
+    web = llm_bridge.openai_web_search(prompt, model=mid)
+    if web.get("text"):
+        return web["text"]
+    return llm_bridge.chat(
+        mid,
+        "Analista OSINT. Responda com o dossiê. Sem mandar o usuário pesquisar. Português.",
+        prompt,
         history=history,
-    )
-    return text or "Sem resposta do modelo. Confira OPENAI_API_KEY."
+    ) or "Sem resposta do modelo. Confira OPENAI_API_KEY."
 
 
 def _fallback_dossier(query: str, kind: str, packs: dict) -> str:
@@ -273,5 +490,5 @@ def _fallback_dossier(query: str, kind: str, packs: dict) -> str:
         lines.append(f"- DuckDuckGo: {ddg['abstract'][:400]}")
     if len(lines) == 2:
         lines.append("- Nada confirmado nas APIs públicas desta rodada.")
-    lines.append("## Próximos passos lícitos\nUse os atalhos oficiais abaixo (WhatsMyName, Epieos, HIBP).")
+    lines.append("## Lacunas\nA busca local não achou mais fontes. A OpenAI web_search não respondeu nesta rodada.")
     return "\n".join(lines)

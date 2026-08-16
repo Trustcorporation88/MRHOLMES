@@ -211,31 +211,58 @@ def chat(model_id: Optional[str], system: str, user: str, history=None) -> str:
     return ""
 
 
-def openai_web_search(prompt: str, model: str = "gpt-4o-mini") -> dict:
-    """Responses API + ferramenta web_search. Sem chave → ok=False."""
+def openai_web_search(
+    prompt: str,
+    model: str = "gpt-4o",
+    *,
+    search_context_size: str = "high",
+    country: str = "BR",
+    force: bool = True,
+) -> dict:
+    """Responses API + web_search. A chave faz a busca; o usuário não precisa clicar em Google."""
     global _LAST_ERROR
     _LAST_ERROR = None
     key = _clean("OPENAI_API_KEY")
     if not _is_set(key):
         return {"ok": False, "error": "OPENAI_API_KEY ausente", "text": "", "citations": []}
+
+    tool: dict = {"type": "web_search"}
+    if country:
+        tool["user_location"] = {"type": "approximate", "country": country}
+    if search_context_size:
+        tool["search_context_size"] = search_context_size
+
     payload = {
-        "model": model or "gpt-4o-mini",
-        "tools": [{"type": "web_search"}],
+        "model": model or "gpt-4o",
+        "tools": [tool],
         "input": prompt,
     }
-    try:
+    if force:
+        payload["tool_choice"] = {"type": "web_search"}
+
+    def _post(body: dict):
         resp = requests.post(
             "https://api.openai.com/v1/responses",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json=payload,
+            json=body,
             timeout=120,
         )
         if resp.status_code >= 400:
-            raise RuntimeError(f"OpenAI HTTP {resp.status_code}: {resp.text[:280]}")
-        data = resp.json()
+            raise RuntimeError(f"OpenAI HTTP {resp.status_code}: {resp.text[:320]}")
+        return resp.json()
+
+    try:
+        try:
+            data = _post(payload)
+        except RuntimeError:
+            payload.pop("tool_choice", None)
+            if isinstance(payload.get("tools"), list) and payload["tools"]:
+                payload["tools"][0].pop("search_context_size", None)
+                payload["tools"][0].pop("user_location", None)
+            data = _post(payload)
     except Exception as exc:
         _LAST_ERROR = str(exc)[:400]
-        return {"ok": False, "error": str(exc)[:280], "text": "", "citations": []}
+        return {"ok": False, "error": str(exc)[:320], "text": "", "citations": []}
 
     text = (data.get("output_text") or "").strip()
     citations = []
@@ -243,8 +270,11 @@ def openai_web_search(prompt: str, model: str = "gpt-4o-mini") -> dict:
         if item.get("type") != "message":
             continue
         for block in item.get("content") or []:
-            if not text and block.get("type") in ("output_text", "text"):
-                text = (block.get("text") or "").strip()
+            piece = (block.get("text") or "").strip()
+            if piece and not text:
+                text = piece
+            elif piece and piece not in text:
+                text = (text + "\n\n" + piece).strip()
             for ann in block.get("annotations") or []:
                 url = ann.get("url") or ""
                 if url:
