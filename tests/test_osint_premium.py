@@ -36,8 +36,31 @@ class OsintPremiumCatalogTests(unittest.TestCase):
 
     def test_search_featured_robin(self):
         hits = search_featured("robin")
-        self.assertEqual(len(hits), 1)
-        self.assertEqual(hits[0]["id"], "robin")
+        self.assertTrue(any(item["id"] == "robin" for item in hits))
+
+    def test_flowsint_and_arsenal_are_featured(self):
+        ids = {item["id"] for item in FEATURED}
+        self.assertIn("flowsint", ids)
+        self.assertIn("arsenal", ids)
+        self.assertIn("robin", ids)
+
+    def test_flowsint_playbook_maps_to_holmes(self):
+        book = next(item for item in PLAYBOOKS if item["id"] == "flowsint")
+        pages = {step.get("page") for step in book["steps"] if step.get("kind") == "native"}
+        self.assertIn("Gráfico", pages)
+        self.assertIn("OSINT Avançado", pages)
+        self.assertTrue(any(step.get("url", "").startswith("https://github.com/reconurge/flowsint") for step in book["steps"]))
+
+    def test_catalog_includes_flowsint(self):
+        hits = search_catalog("flowsint", "flowsint")
+        self.assertTrue(any(item.get("id") == "flowsint" for item in hits))
+
+    def test_catalog_includes_arsenal_osint_only(self):
+        hits = search_catalog("blackbird", "arsenal")
+        self.assertTrue(any(item.get("id") == "blackbird" for item in hits))
+        blob = " ".join(f"{h.get('name')} {h.get('description')}" for h in search_catalog("", "arsenal")).lower()
+        self.assertNotIn("mimikatz", blob)
+        self.assertNotIn("phishing", blob)
 
     def test_playbooks_have_actionable_steps(self):
         for book in PLAYBOOKS:
