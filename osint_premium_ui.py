@@ -16,6 +16,7 @@ from osint_premium import (
     search_featured,
     search_native,
 )
+from investigate_workspace import display_investigate_workspace
 from osint_partners import ARSENAL_PICKS, FLOWSINT_ENRICHERS, FLOWSINT_SITE, FLOWSINT_URL, ARSENAL_URL
 from external_services import get_all_categories
 from robin_workspace import display_robin_workspace
@@ -72,7 +73,7 @@ def display_osint_premium() -> None:
         st.session_state.premium_view = "partners"
     view = st.session_state.premium_view
 
-    if view != "robin":
+    if view not in ("robin", "partners"):
         st.html(
             f"""
             <div class="mh-premium-hero">
@@ -107,7 +108,9 @@ def display_osint_premium() -> None:
                 st.rerun()
 
     if view == "partners":
-        _render_partners()
+        display_investigate_workspace()
+        with st.expander("Flowsint e Arsenal (atalhos)", expanded=False):
+            _render_partners()
     elif view == "robin":
         display_robin_workspace()
     elif view == "playbooks":
@@ -147,9 +150,7 @@ def _render_step_row(prefix: str, i: int, step: dict) -> None:
 
 def _render_partners() -> None:
     st.markdown(
-        "O **Robin** responde com um resumo de busca .onion + LLM — curto e fácil de errar. "
-        "Para pessoa, domínio e relacionamento, use o fluxo **Flowsint** abaixo "
-        "(módulos Holmes) ou o app oficial em Docker."
+        "Atalhos se o dossiê não bastar: o app **Flowsint** (Docker) e a fatia OSINT do Arsenal."
     )
     c1, c2, c3 = st.columns(3)
     c1.link_button("Flowsint no GitHub →", FLOWSINT_URL, use_container_width=True)

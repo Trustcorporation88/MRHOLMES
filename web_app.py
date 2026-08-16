@@ -691,7 +691,7 @@ if page == "OSINT Premium":
     page_header(
         "Hub",
         "OSINT Premium",
-        "Robin investiga .onion com LLM. Flowsint (grafo) e o Arsenal OSINT abrem na aba Investigar. "
+        "Digite o nome na aba Investigar. A OpenAI busca na web e o Holmes consulta as fontes locais. "
         "Educacional · alvos autorizados.",
     )
     display_osint_premium()
