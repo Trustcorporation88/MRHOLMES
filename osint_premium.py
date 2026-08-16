@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from external_services import get_all_categories, get_all_services_flat
+from osint_partners import ARSENAL_URL, FLOWSINT_ENRICHERS, FLOWSINT_SITE, FLOWSINT_URL
 
 # page_id precisa coincidir com NAV_OPTIONS em web_app.py
 NATIVE_SUITES = [
@@ -104,6 +105,15 @@ NATIVE_SUITES = [
         "kind": "catalogo",
     },
     {
+        "id": "flowsint",
+        "page": "OSINT Premium",
+        "icon": "🕸️",
+        "title": "Flowsint",
+        "blurb": "Grafo + enrichers (Docker oficial). Neste console o fluxo abre os módulos Holmes.",
+        "kind": "tool",
+        "premium_view": "partners",
+    },
+    {
         "id": "aprenda",
         "page": "Aprenda",
         "icon": "📚",
@@ -115,11 +125,56 @@ NATIVE_SUITES = [
 
 FEATURED = [
     {
+        "id": "flowsint",
+        "name": "Flowsint",
+        "icon": "🕸️",
+        "tier": "Investigação",
+        "tagline": "Plataforma de grafo OSINT (enrichers). O produto completo é Docker local; o Holmes replica o fluxo.",
+        "delivers": [
+            "Grafo Neo4j com domínio, IP, email, telefone, org, wallet",
+            "Enrichers: DNS, WHOIS, subdomínios, Maigret, breaches, crawler",
+            "Neste site: os mesmos passos abrem os módulos nativos",
+            "Repo Apache-2.0 · ethics.md · https://flowsint.io",
+        ],
+        "complements": "Robin só faz briefing .onion com LLM. Flowsint é o grafo. Use o playbook Grafo / enrichers.",
+        "requires": "Produto oficial: Docker + Make. Holmes não sobe Neo4j no Railway.",
+        "license": "Apache-2.0",
+        "author": "reconurge",
+        "url": FLOWSINT_URL,
+        "docs": FLOWSINT_SITE,
+        "source": "github",
+        "premium_view": "partners",
+        "native_page": "Gráfico",
+        "tags": ["grafo", "enricher", "dominio", "pessoas"],
+    },
+    {
+        "id": "arsenal",
+        "name": "Awesome OSINT Arsenal",
+        "icon": "📚",
+        "tier": "Índice",
+        "tagline": "753+ tools. Neste console só a fatia OSINT — sem red team, phishing ou exploits.",
+        "delivers": [
+            "Username: Blackbird, Social Analyzer, NExfil, GitFive",
+            "Email: h8mail, GHunt (CLI no seu PC)",
+            "Corp/GEOINT: OpenCorporates, OCCRP Aleph, Bellingcat OSM",
+            "Instalador osint.sh no Kali — nunca redteam.sh neste site",
+        ],
+        "complements": "Holmes já tem Maigret/Holehe/HIBP. O Arsenal completa o que falta como atalho oficial.",
+        "requires": "Links oficiais. Não rodamos o install.sh de 753 tools no Railway.",
+        "license": "MIT",
+        "author": "rawfilejson",
+        "url": ARSENAL_URL,
+        "docs": ARSENAL_URL,
+        "source": "github",
+        "premium_view": "partners",
+        "tags": ["catalogo", "username", "email", "geoint"],
+    },
+    {
         "id": "robin",
         "name": "Robin",
         "icon": "🕵️",
         "tier": "Destaque",
-        "tagline": "Ferramenta embutida: query → busca → scrape → dossiê nesta tela.",
+        "tagline": "Briefing .onion com LLM nesta tela — não substitui grafo nem lookup de pessoa.",
         "delivers": [
             "Query refinada pelo modelo (máx. 5 palavras)",
             "Motores .onion via Tor + Ahmia clearnet se o proxy cair",
@@ -127,7 +182,7 @@ FEATURED = [
             "Relatório Markdown (artefatos, insights, próximos passos)",
             "JSON em investigations/ + chat de follow-up + pivôs",
         ],
-        "complements": "Holmes cobre clear web. Robin cobre o briefing .onion no mesmo console.",
+        "complements": "Holmes cobre clear web. Robin cobre um resumo .onion. Para relacionamento use Flowsint / Grafo.",
         "requires": "Opcional: Tor :9050 e chave de LLM / Ollama. Sem isso, busca Ahmia + relatório heurístico.",
         "license": "MIT",
         "author": "Apurv Singh Gautam",
@@ -227,6 +282,13 @@ FEATURED = [
 ]
 
 PLAYBOOKS = [
+    {
+        "id": "flowsint",
+        "title": "Grafo / enrichers (Flowsint)",
+        "icon": "🕸️",
+        "goal": "Mesmo encadeamento do Flowsint, nos módulos Holmes. O app completo (Neo4j) abre no GitHub oficial.",
+        "steps": list(FLOWSINT_ENRICHERS),
+    },
     {
         "id": "pessoa",
         "title": "Pessoa / username",

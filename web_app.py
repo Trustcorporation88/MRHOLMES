@@ -691,7 +691,7 @@ if page == "OSINT Premium":
     page_header(
         "Hub",
         "OSINT Premium",
-        "Robin investiga nesta tela. As outras suites abrem o módulo Holmes. "
+        "Robin investiga .onion com LLM. Flowsint (grafo) e o Arsenal OSINT abrem na aba Investigar. "
         "Educacional · alvos autorizados.",
     )
     display_osint_premium()
@@ -1660,6 +1660,22 @@ elif page == "Ferramentas":
             "desc": "Mapeamento de superfície / subdomínios (OWASP).",
             "url": "https://github.com/OWASP/Amass",
             "hint": "OSINT Avançado",
+            "cat": "frameworks",
+        },
+        {
+            "num": "",
+            "name": "Flowsint",
+            "desc": "Grafo OSINT + enrichers (Docker oficial Apache-2.0). No Holmes o fluxo abre os módulos nativos.",
+            "url": "https://github.com/reconurge/flowsint",
+            "hint": "OSINT Premium · Investigar",
+            "cat": "frameworks",
+        },
+        {
+            "num": "",
+            "name": "Awesome OSINT Arsenal",
+            "desc": "Índice 753+ tools. Neste site só a fatia OSINT — sem redteam.sh / phishing.",
+            "url": "https://github.com/rawfilejson/awesome-osint-arsenal",
+            "hint": "OSINT Premium · Investigar",
             "cat": "frameworks",
         },
         {
