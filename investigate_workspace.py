@@ -13,7 +13,8 @@ def display_investigate_workspace() -> None:
     sync_llm_keys_from_session()
     st.markdown(
         "**Cole o alvo e clique em Investigar.** A chave OpenAI orquestra os módulos do Holmes "
-        "(Maigret, Holehe, email, domínio) e completa com busca web. Você não precisa abrir os serviços."
+        "(WhatsMyName, Maigret, Holehe, email, domínio, OSINT Leak se houver chave) e completa com busca web. "
+        "Você não precisa abrir WhatsMyName.app / Epieos / o dashboard de leaks."
     )
 
     pending = st.session_state.pop("investigate_pending", None)
@@ -38,7 +39,7 @@ def display_investigate_workspace() -> None:
     else:
         model = "gpt-4o"
     oa = "●" if status.get("openai") else "○"
-    st.caption(f"OpenAI {oa} · `{model}` usa Maigret/Holehe/email do site + busca web · alvos autorizados")
+    st.caption(f"OpenAI {oa} · `{model}` usa WhatsMyName/Maigret/Holehe/email do site + busca web · alvos autorizados")
 
     if run and (query or "").strip():
         kind = classify_target(query)
@@ -78,13 +79,28 @@ def display_investigate_workspace() -> None:
 
     packs = inv.get("packs") or {}
     profiles = []
+    wmn_profiles = []
+    leak_hits = []
     for key, pack in packs.items():
         if str(key).startswith("maigret"):
             profiles.extend((pack or {}).get("profiles") or [])
+        elif str(key).startswith("wmn"):
+            wmn_profiles.extend((pack or {}).get("profiles") or [])
+        elif str(key).startswith("osintleak"):
+            leak_hits.extend((pack or {}).get("hits") or [])
+    if wmn_profiles:
+        with st.expander(f"WhatsMyName ({len(wmn_profiles)} perfis)", expanded=True):
+            for p in wmn_profiles[:40]:
+                st.markdown(f"- {p.get('site')}: {p.get('url')}")
     if profiles:
         with st.expander(f"Maigret ({len(profiles)} perfis)", expanded=True):
             for p in profiles[:40]:
                 st.markdown(f"- {p.get('site')}: {p.get('url')}")
+    if leak_hits:
+        with st.expander(f"OSINT Leak ({len(leak_hits)} registros, senhas omitidas)", expanded=False):
+            for hit in leak_hits[:20]:
+                line = " · ".join(f"{k}: {v}" for k, v in (hit or {}).items())
+                st.markdown(f"- {line}")
 
     st.divider()
     st.caption("Pergunte sobre este dossiê")

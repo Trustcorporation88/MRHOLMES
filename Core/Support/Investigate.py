@@ -37,7 +37,7 @@ def official_links(query: str, kind: str) -> list[dict]:
     links = [
         {"name": "Google", "url": f"https://www.google.com/search?q={q}"},
         {"name": "DuckDuckGo", "url": f"https://duckduckgo.com/?q={q}"},
-        {"name": "WhatsMyName", "url": f"https://whatsmyname.app/"},
+        {"name": "WhatsMyName (nativo no Holmes)", "url": "https://github.com/WebBreacher/WhatsMyName"},
         {"name": "OpenCorporates", "url": f"https://opencorporates.com/companies?q={q}"},
         {"name": "OCCRP Aleph", "url": f"https://aleph.occrp.org/search?q={q}"},
     ]
@@ -202,6 +202,24 @@ def _username_pack(username: str) -> dict:
         return {"ok": False, "error": str(exc)[:200], "profiles": []}
 
 
+def _wmn_pack(username: str) -> dict:
+    try:
+        from Core.Support.WhatsMyName import check_username
+
+        return check_username(username.lstrip("@"), max_sites=40, timeout=5.0, workers=10)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200], "profiles": []}
+
+
+def _osintleak_pack(query: str, kind: str) -> dict:
+    try:
+        from Core.Support.OsintLeak import search
+
+        return search(query, kind=kind, page_size=8)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200], "hits": []}
+
+
 def _holehe_pack(email: str) -> dict:
     try:
         from Core.Support.OsintTools import run_holehe
@@ -234,25 +252,45 @@ def plan_holmes_tools(query: str, kind: str) -> list[dict]:
     """Quais módulos nativos do site rodam para este alvo."""
     avail = _holmes_available()
     jobs = []
+    leak_on = False
+    try:
+        from Core.Support.OsintLeak import configured
+
+        leak_on = configured()
+    except Exception:
+        leak_on = False
     if kind == "email":
         jobs.append({"id": "email_holmes", "label": "Email (MX/Gravatar/pastes)"})
         if avail.get("holehe"):
-            jobs.append({"id": "holehe", "label": "Holehe", "arg": query})
+            jobs.append({"id": "holehe", "label": "Holehe (≈ Epieos contas)", "arg": query})
+        if leak_on:
+            jobs.append({"id": "osintleak", "label": "OSINT Leak API", "arg": query, "type": "email"})
     elif kind == "phone":
         jobs.append({"id": "phone_holmes", "label": "Telefone (libphonenumber)"})
+        if leak_on:
+            jobs.append({"id": "osintleak", "label": "OSINT Leak API", "arg": query, "type": "phone"})
     elif kind == "domain":
         if avail.get("theHarvester"):
             jobs.append({"id": "harvester", "label": "theHarvester"})
         jobs.append({"id": "subdomains", "label": "Subdomínios"})
+        if leak_on:
+            jobs.append({"id": "osintleak", "label": "OSINT Leak API", "arg": query, "type": "url"})
     elif kind == "username":
+        jobs.append({"id": "whatsmyname", "label": "WhatsMyName", "arg": query.lstrip("@")})
         if avail.get("maigret") or avail.get("sherlock"):
             jobs.append({"id": "maigret", "label": "Maigret", "arg": query.lstrip("@")})
         jobs.append({"id": "github", "label": "GitHub"})
+        if leak_on:
+            jobs.append({"id": "osintleak", "label": "OSINT Leak API", "arg": query.lstrip("@"), "type": "username"})
     else:
         jobs.append({"id": "github", "label": "GitHub (nome completo)"})
+        for handle in handle_candidates(query):
+            jobs.append({"id": "whatsmyname", "label": f"WhatsMyName @{handle}", "arg": handle})
         if avail.get("maigret") or avail.get("sherlock"):
             for handle in handle_candidates(query):
                 jobs.append({"id": "maigret", "label": f"Maigret @{handle}", "arg": handle})
+        if leak_on:
+            jobs.append({"id": "osintleak", "label": "OSINT Leak API", "arg": query, "type": "name"})
     jobs.append({"id": "wikipedia", "label": "Wikipedia"})
     return jobs
 
@@ -333,7 +371,7 @@ def _synthesize(query: str, kind: str, packs: dict, notes: list[dict], model: st
     text = llm_bridge.chat(
         model,
         (
-            "Priorize o que os MÓDULOS DO HOLMES já rodaram (Maigret, Holehe, email, telefone, domínio). "
+            "Priorize o que os MÓDULOS DO HOLMES já rodaram (WhatsMyName, Maigret, Holehe, email, telefone, OSINT Leak se houver chave). "
             "A busca web só completa o que o site não tem (LinkedIn, notícias). "
             "Você entrega o dossiê PRONTO. O usuário não vai sair clicando em buscadores. "
             "Português, Markdown:\n"
@@ -369,6 +407,10 @@ def _execute_holmes_plan(query: str, kind: str, plan: list[dict]) -> dict:
             jobs["domain"] = lambda: _domain_pack(query)
         elif sid == "maigret":
             jobs[f"maigret:{arg}"] = lambda a=arg: _username_pack(a)
+        elif sid == "whatsmyname":
+            jobs[f"wmn:{arg}"] = lambda a=arg: _wmn_pack(a)
+        elif sid == "osintleak":
+            jobs[f"osintleak:{arg}"] = lambda a=arg, t=step.get("type") or kind: _osintleak_pack(a, t)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         futs = {pool.submit(fn): name for name, fn in jobs.items()}
@@ -417,11 +459,12 @@ def run_name_investigation(query: str, model: str = "gpt-4o") -> dict:
         if user.get("url"):
             citations.append({"title": f"GitHub {user.get('login')}", "url": user["url"]})
     for key, pack in packs.items():
-        if not str(key).startswith("maigret"):
+        prefix = "Maigret" if str(key).startswith("maigret") else "WhatsMyName" if str(key).startswith("wmn") else ""
+        if not prefix:
             continue
         for prof in (pack or {}).get("profiles") or []:
             if prof.get("url"):
-                citations.append({"title": f"Maigret {prof.get('site')}", "url": prof["url"]})
+                citations.append({"title": f"{prefix} {prof.get('site')}", "url": prof["url"]})
 
     try:
         from Core.Support.History import save_search

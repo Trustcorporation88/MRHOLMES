@@ -252,7 +252,7 @@ def _render_featured() -> None:
             if item.get("author"):
                 st.caption(f"Autor / origem: {item['author']}")
 
-            if item.get("premium_view") == "robin" or item.get("in_app"):
+            if item.get("premium_view") == "robin":
                 if st.button("Usar ferramenta agora", key=f"feat_run_{item['id']}", use_container_width=True):
                     open_robin()
             elif item.get("premium_view") == "partners":

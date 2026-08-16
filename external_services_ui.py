@@ -55,9 +55,19 @@ def _render_service_cards(services: list[dict], cols: int = 3, key_prefix: str =
                     st.markdown(desc)
                 if use_for:
                     st.caption(f"Uso: {use_for}")
+                native_page = svc.get("native_page")
+                if native_page:
+                    from osint_premium_ui import go_to_page
+
+                    if st.button(
+                        "Usar no Holmes",
+                        use_container_width=True,
+                        key=f"{key_prefix}_native_{sid}_{i}",
+                    ):
+                        go_to_page(native_page, svc.get("osint_tool"))
                 if url:
                     st.link_button(
-                        "Abrir →",
+                        "Site oficial →" if native_page else "Abrir →",
                         url,
                         use_container_width=True,
                         key=f"{key_prefix}_{sid}_{i}",
