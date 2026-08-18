@@ -227,14 +227,84 @@ def test_findings_geram_pivo_com_motivo():
 
 
 def test_pivo_descarta_nome_lixo():
+    # Nome afirmado pela fonte (ex.: sócio na Receita) pivota; título de
+    # página não.
     achados = [
-        _f(FindingKind.NAME, "Login", "x"),
-        _f(FindingKind.NAME, "Perfil do Usuario", "x"),
-        _f(FindingKind.NAME, "Maria Aparecida Souza", "x"),
+        _f(FindingKind.NAME, "Login", "receita_cnpj", Confidence.CONFIRMED),
+        _f(FindingKind.NAME, "Perfil do Usuario", "receita_cnpj", Confidence.CONFIRMED),
+        _f(FindingKind.NAME, "Maria Aparecida Souza", "receita_cnpj", Confidence.CONFIRMED),
     ]
     valores = {p.entity.value for p in pivot_mod.from_findings(achados, hop=1)}
     assert "Maria Aparecida Souza" in valores
     assert "Login" not in valores
+    assert "Perfil do Usuario" not in valores
+
+
+# ── anti-deriva: o bug do "abjur" ───────────────────────────────────────────
+# Numa busca por "Benedita da Silva", o motor achou github.com/abjur (uma
+# associação de jurimetria que só MENCIONAVA a pessoa numa página), tratou o
+# handle como sendo dela e varreu 90 sites — 144 perfis de outra entidade
+# entraram no dossiê. Resultado de busca prova menção, não vínculo.
+
+def test_perfil_de_busca_sem_parentesco_nao_pivota():
+    alvo = detect("Benedita da Silva")
+    achado = _f(FindingKind.ACCOUNT, "GitHub: abjur", "serp:serper",
+                Confidence.LIKELY, url="https://github.com/abjur")
+    assert pivot_mod.from_findings([achado], hop=1, target=alvo) == []
+
+
+def test_perfil_de_busca_com_parentesco_pivota():
+    alvo = detect("Benedita da Silva")
+    achado = _f(FindingKind.ACCOUNT, "Instagram: blogdabenedita", "serp:serper",
+                Confidence.LIKELY, url="https://instagram.com/blogdabenedita")
+    pivos = pivot_mod.from_findings([achado], hop=1, target=alvo)
+    assert [p.entity.value for p in pivos] == ["blogdabenedita"]
+
+
+def test_perfil_confirmado_pela_plataforma_pivota_sempre():
+    # WhatsMyName/GitHub confirmam o handle na origem: não precisa parentesco.
+    alvo = detect("qualquercoisa")
+    achado = _f(FindingKind.ACCOUNT, "GitHub: xyz", "github",
+                Confidence.CONFIRMED, url="https://github.com/xyz")
+    assert pivot_mod.from_findings([achado], hop=1, target=alvo)
+
+
+def test_email_de_snippet_sem_parentesco_nao_pivota():
+    alvo = detect("Benedita da Silva")
+    # E-mail de contato do site que menciona o alvo — não é o e-mail dela.
+    ruido = _f(FindingKind.EMAIL, "contato@abj.org.br", "serp:serper")
+    assert pivot_mod.from_findings([ruido], hop=1, target=alvo) == []
+    # Já um e-mail com o nome dela dentro, sim.
+    bom = _f(FindingKind.EMAIL, "benedita.silva@camara.leg.br", "serp:serper")
+    assert pivot_mod.from_findings([bom], hop=1, target=alvo)
+
+
+def test_dominio_de_busca_nao_pivota():
+    alvo = detect("Benedita da Silva")
+    achado = _f(FindingKind.DOMAIN, "abj.org.br", "serp:serper", Confidence.LIKELY)
+    assert pivot_mod.from_findings([achado], hop=1, target=alvo) == []
+    # Domínio afirmado como do alvo (MX do e-mail dele) continua pivotando.
+    ok = _f(FindingKind.DOMAIN, "empresa.com.br", "email_infra", Confidence.CONFIRMED)
+    assert pivot_mod.from_findings([ok], hop=1, target=alvo)
+
+
+def test_telefone_de_snippet_nao_pivota():
+    alvo = detect("Benedita da Silva")
+    achado = _f(FindingKind.PHONE, "+5511999998888", "serp:serper")
+    assert pivot_mod.from_findings([achado], hop=1, target=alvo) == []
+
+
+def test_parentesco_reconhece_abreviacao_e_rejeita_estranho():
+    alvo = detect("Benedita da Silva")
+    for relacionado in ("blogdabenedita", "instadabene", "beneditasilva", "silvabene"):
+        assert pivot_mod._parentesco(relacionado, alvo), relacionado
+    for estranho in ("abjur", "torvalds", "nubank", "xpto"):
+        assert not pivot_mod._parentesco(estranho, alvo), estranho
+
+
+def test_parentesco_sem_alvo_e_conservador():
+    # Sem alvo de referência não há como medir parentesco: nega.
+    assert not pivot_mod._parentesco("qualquer", None)
 
 
 def test_pivo_nao_repete_alvo_ja_investigado():

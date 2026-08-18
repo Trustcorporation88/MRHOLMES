@@ -112,7 +112,7 @@ def investigate(
     hop = 1
     pending = pivot_mod.dedupe_and_rank(
         pivot_mod.from_entity(entity)
-        + pivot_mod.from_findings([f for r in results for f in r.findings], hop),
+        + pivot_mod.from_findings([f for r in results for f in r.findings], hop, entity),
         seen,
         limit=cfg.max_pivots_per_hop,
     )
@@ -151,7 +151,7 @@ def investigate(
 
         hop += 1
         pending = pivot_mod.dedupe_and_rank(
-            pivot_mod.from_findings(new_findings, hop), seen, limit=cfg.max_pivots_per_hop
+            pivot_mod.from_findings(new_findings, hop, entity), seen, limit=cfg.max_pivots_per_hop
         )
 
     # ── consolidação ────────────────────────────────────────────────────────

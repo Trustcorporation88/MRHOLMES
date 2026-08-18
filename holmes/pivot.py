@@ -13,8 +13,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .entity import Entity, EntityType, detect
-from .findings import Finding, FindingKind
+from .entity import Entity, EntityType, detect, strip_accents
+from .findings import Confidence, Finding, FindingKind
 
 # Quantos alvos derivados aceitar por salto — trava contra explosão combinatória.
 MAX_PIVOTS_PER_HOP = 6
@@ -31,6 +31,55 @@ class Pivot:
     @property
     def key(self) -> str:
         return f"{self.entity.type.value}:{self.entity.value.lower()}"
+
+
+def _tokens_alvo(entity: Entity | None) -> list[str]:
+    """Radicais do alvo que servem para medir parentesco de um handle."""
+    if entity is None:
+        return []
+    brutos: list[str] = []
+    if entity.type is EntityType.NAME:
+        brutos = list(entity.get("tokens") or [])
+    elif entity.type is EntityType.EMAIL:
+        brutos = [entity.get("username_guess") or "", entity.get("local") or ""]
+    elif entity.type is EntityType.USERNAME:
+        brutos = [entity.get("handle") or entity.value]
+    elif entity.type is EntityType.DOMAIN:
+        brutos = [(entity.get("root") or entity.value).split(".")[0]]
+    else:
+        brutos = [entity.value]
+
+    saida: list[str] = []
+    for t in brutos:
+        t = re.sub(r"[^a-z0-9]", "", strip_accents(str(t)).lower())
+        if len(t) >= 4:
+            saida.append(t)
+    return saida
+
+
+def _parentesco(handle: str, entity: Entity | None) -> bool:
+    """
+    O handle tem alguma relação com o alvo?
+
+    Sem esta trava, um resultado de busca que só MENCIONA o alvo faz o motor
+    varrer 90 sites com o handle de outra entidade — foi exatamente o que
+    aconteceu com `github.com/abjur` numa busca por "Benedita da Silva":
+    144 perfis de uma associação sem nenhum vínculo com a pessoa.
+    """
+    alvo = _tokens_alvo(entity)
+    if not alvo:
+        return False
+    h = re.sub(r"[^a-z0-9]", "", strip_accents(handle or "").lower())
+    if len(h) < 3:
+        return False
+    for token in alvo:
+        # Nome inteiro dentro do handle: "blogdabenedita" ⊃ "benedita".
+        if token in h or h in token:
+            return True
+        # Abreviação plausível: "instadabene" contém "bene", prefixo de "benedita".
+        if len(token) >= 6 and token[:4] in h:
+            return True
+    return False
 
 
 def _name_looks_real(value: str) -> bool:
@@ -110,30 +159,49 @@ def from_entity(entity: Entity) -> list[Pivot]:
     return fn(entity) if fn else []
 
 
-def from_findings(findings: list[Finding], hop: int) -> list[Pivot]:
+def from_findings(
+    findings: list[Finding], hop: int, target: Entity | None = None
+) -> list[Pivot]:
     """
     Pivôs derivados do que as fontes acharam. Aqui está o ganho real: um
     e-mail confirmado no Gravatar ou um sócio na Receita viram alvo novo.
+
+    A trava central: achado que veio de resultado de busca só vira alvo novo
+    se tiver parentesco com o alvo original. Resultado de busca prova que uma
+    página MENCIONA o alvo — não prova que aquele perfil é dele.
     """
     out: list[Pivot] = []
 
     for f in findings:
+        confirmado = f.confidence is Confidence.CONFIRMED
+        # "serp:serper", "serp:brave"… — associação por menção, não por vínculo.
+        de_busca = f.source.startswith("serp")
+
         if f.kind is FindingKind.EMAIL and "@" in f.value:
+            local = f.value.split("@")[0]
+            if de_busca and not _parentesco(local, target):
+                continue  # e-mail de contato da página, não do alvo
             out.append(Pivot(
                 entity=detect(f.value), origin=f.source, hop=hop,
                 reason=f"E-mail encontrado por {f.source_label}",
-                score=0.7 if f.confidence.value == "confirmada" else 0.45,
+                score=0.7 if confirmado else 0.45,
             ))
 
         elif f.kind is FindingKind.NAME and _name_looks_real(f.value):
+            # Nome só pivota se a fonte afirmou o vínculo (sócio na Receita,
+            # perfil do próprio alvo). Nome tirado de página é homônimo em potencial.
+            if not confirmado and not _parentesco(f.value.replace(" ", ""), target):
+                continue
             out.append(Pivot(
                 entity=detect(f.value), origin=f.source, hop=hop,
                 reason=f.detail or f"Nome informado por {f.source_label}",
-                score=0.65 if f.confidence.value == "confirmada" else 0.4,
+                score=0.65 if confirmado else 0.4,
             ))
 
         elif f.kind is FindingKind.PHONE:
             digits = re.sub(r"\D", "", f.value)
+            if de_busca and not confirmado:
+                continue  # telefone que aparece na página não é o do alvo
             if 10 <= len(digits) <= 15:
                 out.append(Pivot(
                     entity=detect(f.value), origin=f.source, hop=hop,
@@ -142,18 +210,27 @@ def from_findings(findings: list[Finding], hop: int) -> list[Pivot]:
                 ))
 
         elif f.kind is FindingKind.ACCOUNT and f.url:
-            # Perfil achado vira handle a ser testado nas outras plataformas.
+            # Perfil achado vira handle a ser testado nas outras plataformas —
+            # mas só se o handle puxar para o alvo. É aqui que o motor derrapava.
             ent = detect(f.url)
-            if ent.type is EntityType.PROFILE_URL and ent.get("handle"):
-                handle_ent = detect(ent.get("handle"))
-                if handle_ent.type is EntityType.USERNAME:
-                    out.append(Pivot(
-                        entity=handle_ent, origin=f.source, hop=hop,
-                        reason=f"Handle @{ent.get('handle')} extraído de perfil em {ent.get('platform')}",
-                        score=0.55,
-                    ))
+            handle = ent.get("handle") if ent.type is EntityType.PROFILE_URL else None
+            if not handle:
+                continue
+            if not confirmado and not _parentesco(handle, target):
+                continue
+            handle_ent = detect(handle)
+            if handle_ent.type is EntityType.USERNAME:
+                out.append(Pivot(
+                    entity=handle_ent, origin=f.source, hop=hop,
+                    reason=f"Handle @{handle} extraído de perfil em {ent.get('platform')}",
+                    score=0.55 if confirmado else 0.45,
+                ))
 
         elif f.kind is FindingKind.DOMAIN and hop <= 1:
+            # Domínio só pivota quando a fonte o amarra ao alvo (MX do e-mail
+            # dele, titular do .br). Domínio de resultado de busca é ruído.
+            if de_busca or not confirmado:
+                continue
             ent = detect(f.value)
             if ent.type is EntityType.DOMAIN:
                 out.append(Pivot(
