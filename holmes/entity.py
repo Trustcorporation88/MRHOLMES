@@ -25,6 +25,7 @@ class EntityType(str, Enum):
     IP = "ip"
     CPF = "cpf"
     CNPJ = "cnpj"
+    PROCESSO = "processo"
     PROFILE_URL = "perfil"
     UNKNOWN = "desconhecido"
 
@@ -38,6 +39,7 @@ ENTITY_LABEL = {
     EntityType.IP: "IP",
     EntityType.CPF: "CPF",
     EntityType.CNPJ: "CNPJ",
+    EntityType.PROCESSO: "Processo judicial",
     EntityType.PROFILE_URL: "URL de perfil",
     EntityType.UNKNOWN: "Indefinido",
 }
@@ -353,6 +355,30 @@ def detect(raw: str) -> Entity:
 
     digits = only_digits(text)
     non_digit = re.sub(r"[\d\s().+\-/]", "", text)
+
+    # 2.5. Número de processo CNJ — 20 dígitos, antes de qualquer outro teste
+    #      numérico, porque nenhum outro documento brasileiro tem esse tamanho.
+    if len(digits) == 20 and not re.sub(r"[\d\s.\-/]", "", text):
+        from .cnj import parse as _cnj_parse
+
+        info = _cnj_parse(text)
+        if info:
+            ent = Entity(
+                raw=text, type=EntityType.PROCESSO, value=info["formatado"],
+                variants={
+                    "cnj": info,
+                    "digits": info["digits"],
+                    "formatado": info["formatado"],
+                    "tribunal": info["sigla"],
+                    "quoted": f'"{info["formatado"]}"',
+                },
+            )
+            if not info["dv_valido"]:
+                ent.notes.append(
+                    "O dígito verificador deste número de processo não confere — "
+                    "confira a digitação."
+                )
+            return ent
 
     # 3. Documentos BR — só se o dígito verificador fechar.
     if not non_digit:

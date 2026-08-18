@@ -26,6 +26,7 @@ I = EntityType.IP
 CPF = EntityType.CPF
 CNPJ = EntityType.CNPJ
 PROF = EntityType.PROFILE_URL
+PROC = EntityType.PROCESSO
 
 
 def _fmt(template: str, entity: Entity) -> str | None:
@@ -318,6 +319,7 @@ def register_br_catalog() -> None:
 
     specs = {
         N: br.br_deeplinks,
+        PROC: br.br_deeplinks,
         CNPJ: br.br_deeplinks,
         CPF: br.br_deeplinks,
         P: br.br_deeplinks,
@@ -335,6 +337,10 @@ def register_br_catalog() -> None:
 
     samples = {
         N: _E(raw="a b", type=N, value="a b", variants={"ascii": "a b"}),
+        PROC: _E(raw="0000133-39.2025.8.26.0334", type=PROC,
+                 value="0000133-39.2025.8.26.0334",
+                 variants={"digits": "00001333920258260334",
+                           "cnj": {"sigla": "TJSP", "digits": "00001333920258260334"}}),
         CNPJ: _E(raw="00000000000191", type=CNPJ, value="00.000.000/0001-91",
                  variants={"digits": "00000000000191"}),
         CPF: _E(raw="00000000191", type=CPF, value="000.000.001-91",

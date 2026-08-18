@@ -1,7 +1,7 @@
 # Motor de investigação (`holmes/`)
 
-Uma caixa. Você digita **nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio
-ou link de perfil**. O motor detecta o tipo, consulta todas as fontes que se
+Uma caixa. Você digita **nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio,
+link de perfil ou número de processo judicial**. O motor detecta o tipo, consulta todas as fontes que se
 aplicam em paralelo, investiga sozinho o que encontrou e devolve **um dossiê**
 com fonte e nível de confiança em cada fato.
 
@@ -21,10 +21,10 @@ Na interface: menu **🔎 INVESTIGAR — caixa única** (primeira opção).
 | Antes | Agora |
 |---|---|
 | 13 páginas por tipo de dado; você escolhia o menu | Uma caixa; o tipo é detectado sozinho |
-| 89 serviços abrindo a **home** — você redigitava o alvo | 67 deeplinks que abrem **já pesquisados** no alvo |
+| 89 serviços abrindo a **home** — você redigitava o alvo | 88 deeplinks que abrem **já pesquisados** no alvo |
 | Cada módulo imprimia seu resultado e morria ali | Pivô automático: e-mail → username → perfil → nome → telefone |
 | Nenhuma busca clearnet estruturada | Bateria de 10–15 dorks por alvo, com resultado classificado |
-| Sem fontes brasileiras | Receita/CNPJ com quadro societário, DDD, Escavador, JusBrasil, Lattes, TSE, Transparência |
+| Sem fontes brasileiras | 44 fontes BR: Receita com quadro societário, DataJud/CNJ, PEP no Congresso, Querido Diário, sanções da CGU, Escavador, JusBrasil, Lattes |
 | Resultados soltos, sem conferência | Dossiê consolidado, deduplicado, com score por corroboração |
 | Ferramenta que falha, falha calada | Toda falha aparece em «fontes que não responderam», com o motivo |
 
@@ -39,8 +39,8 @@ alvo digitado
    │                      (E.164, local-part, raiz do domínio, CPF limpo…)
    │
    ├─ connectors/ ....... todas as fontes aplicáveis, em paralelo
-   │     auto ........... executa e traz o dado (16 fontes)
-   │     deeplink ....... monta a URL já pesquisada (67 fontes)
+   │     auto ........... executa e traz o dado (23 fontes)
+   │     deeplink ....... monta a URL já pesquisada (88 fontes)
    │     manual ......... exige login/captcha — declarado, não fingido (14)
    │
    ├─ pivot.py .......... cada achado vira o próximo alvo
@@ -69,7 +69,8 @@ Profundidade 2 é o padrão (o alvo + um salto). Exemplos reais de cadeia:
 
 - `fulano@empresa.com.br` → local-part vira `fulano` → WhatsMyName acha 12 perfis
   → GitHub entrega o nome real → o nome vira alvo de busca e de Escavador.
-- `CNPJ` → Receita entrega 8 sócios → cada sócio vira alvo de nome.
+- `CNPJ` → Receita entrega os sócios → cada sócio vira alvo de nome → Congresso
+  e Querido Diário rodam em cima de cada um.
 - `@handle` → GitHub expõe e-mail de commit → o e-mail vira alvo e abre novas contas.
 
 Cada pivô registra **por que foi criado**, e a cadeia aparece no dossiê.
@@ -87,6 +88,7 @@ Só uma é realmente decisiva:
 | `HIBP_API_KEY` | Vazamento fica só como link | Lista os vazamentos do e-mail |
 | `HUNTER_API_KEY` | — | E-mails e padrão de e-mail de um domínio |
 | `NUMVERIFY_API_KEY` | — | Operadora atual e tipo de linha |
+| `PORTAL_TRANSPARENCIA_KEY` | PEP fica só via Câmara/Senado | PEP oficial, CEIS, CNEP e servidor federal (grátis) |
 
 Configure no Railway em **Variables**, ou cole na própria página (vale só na sessão).
 
@@ -100,12 +102,80 @@ Configure no Railway em **Variables**, ou cole na própria página (vale só na 
 | Username | WhatsMyName (~90 sites, HTTP puro), GitHub API, Maigret¹, busca+dorks |
 | Telefone | libphonenumber, numeração BR (DDD, tipo de linha, WhatsApp), NumVerify², busca+dorks |
 | Domínio | RDAP/WHOIS, crt.sh (todos os subdomínios), Hunter², busca+dorks |
-| CNPJ | Receita Federal via BrasilAPI/ReceitaWS — razão social, endereço, contatos, **quadro societário** |
+| CNPJ | Receita Federal (razão social, endereço, contatos, **quadro societário**), Querido Diário, Portal da Transparência² |
+| CPF | Portal da Transparência² — PEP e listas de sanção |
+| Nome | busca+dorks, Câmara e Senado (detecção de PEP), Querido Diário, Portal da Transparência² |
+| **Processo judicial** | **DataJud (CNJ)** — decodifica o número e traz a movimentação oficial |
+| Domínio .br | Registro.br — titular e CPF/CNPJ do dono |
 | IP | ip-api (geo, ISP, rDNS, detecção de VPN/datacenter) |
-| Nome | busca+dorks, e os pivôs para username |
 
 ¹ só se o binário existir no ambiente — detectado e informado na tela
 ² requer chave
+
+---
+
+## Camada Brasil
+
+É onde o ganho sobre o Google é maior, e quase tudo é de graça.
+
+### Número de processo é um tipo de alvo
+
+Cole `0000133-39.2025.8.26.0334` na caixa. O motor:
+
+1. **Decodifica o número** (offline, sem consultar nada): segmento da Justiça,
+   tribunal, unidade de origem e ano. O padrão CNJ carrega tudo isso.
+2. **Valida o dígito verificador** (ISO 7064, módulo 97). Número inventado ou
+   digitado errado é pego antes de sair consultando tribunal à toa.
+3. **Consulta o DataJud do CNJ** — API pública oficial, cobre TJ, TRF, TRT, STJ
+   e TST. Devolve classe, assunto, órgão julgador e a **movimentação completa**,
+   destacando marcos como sentença, trânsito em julgado e arquivamento.
+4. **Abre a consulta do tribunal certo**, deduzida do próprio número — você não
+   precisa saber onde o processo corre.
+
+O DataJud não expõe nome das partes (é assim por desenho, por privacidade).
+Para partes e advogados, os deeplinks do Escavador e do JusBrasil vão junto.
+
+### Quadro societário como pivô
+
+Um CNPJ na Receita devolve razão social, endereço, telefone, e-mail e **todos
+os sócios** com qualificação e faixa etária. Cada sócio vira alvo novo
+automaticamente. Num teste real, um único CNPJ produziu 46 achados.
+
+### Pessoa politicamente exposta
+
+O motor cruza o nome com **Câmara dos Deputados** e **Senado** (dados abertos,
+sem chave) e, com a chave da CGU, com a **lista oficial de PEP** do Portal da
+Transparência. Achar aqui muda o caso: passa a existir declaração de bens,
+votação e despesa de gabinete, tudo público. O casamento de nome é conservador
+— exige primeiro nome e último sobrenome iguais, para não encher o dossiê de
+homônimo.
+
+### Diários oficiais municipais
+
+**Querido Diário** (Open Knowledge Brasil) cobre mais de 3.000 municípios, sem
+chave. É onde saem nomeação, licitação vencida, contrato com prefeitura e
+sanção administrativa — conteúdo que raramente está indexado no Google. Cada
+menção traz município, data e link do PDF original.
+
+### Sanções oficiais
+
+Com `PORTAL_TRANSPARENCIA_KEY` (grátis, cadastro por e-mail), o motor consulta
+**CEIS** (inidôneas e suspensas), **CNEP** (Lei Anticorrupção), **PEP** e
+**servidores federais**, por nome, CPF ou CNPJ.
+
+### Fontes com deeplink
+
+Escavador, JusBrasil, Lattes, Consulta Sócio, Econodata, Reclame Aqui,
+Querido Diário, **TJSP por nome de parte** (o maior tribunal do país aceita a
+busca na URL), Portal da Transparência.
+
+### Fontes que só funcionam no formulário
+
+Declaradas como manuais, porque exigem captcha ou são SPA: Sintegra (SP, MG,
+PR — não existe portal nacional), Receita (cartão CNPJ e situação de CPF),
+CADE, INPI, CVM, Diário Oficial da União, TSE, e os PJe de TRT e TRF. O
+console leva você à página certa e diz o que preencher, em vez de fingir que
+consulta.
 
 ---
 
@@ -138,7 +208,7 @@ instalado e o que não está.
 ## Testes
 
 ```bash
-python -m pytest tests/ -q     # 90 testes
+python -m pytest tests/ -q     # 111 testes
 ```
 
 Cobrem detecção de alvo, geração de deeplink, pivô, deduplicação, score por

@@ -218,6 +218,35 @@ def _fallback_summary(dossier: Dossier) -> str:
             f"O alvo aparece em {len(vaz)} vazamento(s) conhecido(s): "
             f"{', '.join(v.value for v in vaz[:6])}."
         )
+
+    # Camada Brasil: o que muda o nível de diligência do caso vem primeiro.
+    notas = dossier.section(FindingKind.NOTE)
+    pep = [n for n in notas if "POLITICAMENTE EXPOSTA" in n.value.upper()]
+    if pep:
+        linhas.append(
+            "ATENÇÃO: o alvo consta como pessoa politicamente exposta — "
+            + "; ".join(p.value for p in pep[:2])
+            + ". Isso eleva o nível de diligência exigido."
+        )
+
+    juridico = dossier.section(FindingKind.LEGAL)
+    if juridico:
+        sancoes = [j for j in juridico if "SANÇÃO" in j.value.upper()]
+        diarios = [j for j in juridico if "Diário Oficial" in j.value]
+        processos = [j for j in juridico if j not in sancoes and j not in diarios]
+        partes = []
+        if sancoes:
+            partes.append(f"{len(sancoes)} sanção(ões) em base oficial")
+        if processos:
+            partes.append(f"{len(processos)} registro(s) processual(is)")
+        if diarios:
+            partes.append(f"{len(diarios)} menção(ões) em diário oficial municipal")
+        if partes:
+            linhas.append("No âmbito jurídico e administrativo: " + ", ".join(partes) + ".")
+
+    empresas = dossier.section(FindingKind.COMPANY)
+    if empresas and ent.type is not EntityType.CNPJ:
+        linhas.append(f"Vínculo empresarial: {', '.join(e.value for e in empresas[:4])}.")
     if dossier.pivots_run:
         linhas.append(
             f"O motor executou {len(dossier.pivots_run)} pivô(s) automático(s) a partir dos achados."

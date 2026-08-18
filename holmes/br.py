@@ -217,6 +217,65 @@ def phone_br_findings(entity: Entity) -> Iterable[Finding]:
 
 # ── deeplinks BR (o que o Google não monta sozinho) ─────────────────────────
 
+# Consulta processual por tribunal. Só entram aqui os que aceitam o termo
+# na própria URL; PJe e sistemas com captcha ficam como página de busca.
+TRIBUNAL_CONSULTA = {
+    "TJSP": "https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC"
+            "&dadosConsulta.valorConsulta={num}&cdForo=-1",
+    "TJSC": "https://esaj.tjsc.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC"
+            "&dadosConsulta.valorConsulta={num}&cdForo=-1",
+    "TJAM": "https://consultasaj.tjam.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC"
+            "&dadosConsulta.valorConsulta={num}&cdForo=-1",
+    "TJCE": "https://esaj.tjce.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC"
+            "&dadosConsulta.valorConsulta={num}&cdForo=-1",
+    "TJMS": "https://esaj.tjms.jus.br/cpopg5/search.do?conversationId=&cbPesquisa=NUMPROC"
+            "&dadosConsulta.valorConsulta={num}&cdForo=-1",
+    "TJAL": "https://www2.tjal.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC"
+            "&dadosConsulta.valorConsulta={num}&cdForo=-1",
+}
+
+
+def tribunal_link(sigla: str | None, numero: str) -> tuple[str, str] | None:
+    """
+    (url, observação) da consulta processual do tribunal certo.
+    Deriva do próprio número CNJ — você não precisa saber onde o processo corre.
+    """
+    if not sigla:
+        return None
+    modelo = TRIBUNAL_CONSULTA.get(sigla)
+    if modelo:
+        return modelo.format(num=only_digits(numero)), "abre já consultado pelo número"
+
+    s = sigla.upper()
+    if s.startswith("TRT"):
+        n = s[3:]
+        return (f"https://pje.trt{n}.jus.br/consultaprocessual/",
+                "PJe do TRT — cole o número no formulário (a interface não aceita link direto)")
+    if s.startswith("TRF"):
+        n = s[3:]
+        if n == "1":
+            return ("https://pje1g-consultapublica.trf1.jus.br/consultapublica/ConsultaPublica/listView.seam",
+                    "PJe do TRF1 — cole o número no formulário")
+        if n == "4":
+            return ("https://www2.trf4.jus.br/trf4/processos/pesquisa.php",
+                    "Consulta processual do TRF4 — cole o número no formulário")
+        if n == "3":
+            return ("https://web.trf3.jus.br/consultas/Internet/consultaprocessual",
+                    "Consulta do TRF3 — aceita número e nome de parte no formulário")
+        return (f"https://pje.trf{n}.jus.br/consultapublica/ConsultaPublica/listView.seam",
+                f"PJe do TRF{n} — cole o número no formulário")
+    if s.startswith("TJ"):
+        return (f"https://www.google.com/search?q=consulta+processual+{s}+%22{only_digits(numero)}%22",
+                "Tribunal sem link direto conhecido — busca pelo número")
+    if s == "STJ":
+        return ("https://processo.stj.jus.br/processo/pesquisa/",
+                "Consulta processual do STJ")
+    if s == "TST":
+        return ("https://consultaprocessual.tst.jus.br/consultaProcessual/consultaTstNumUnica.do",
+                "Consulta processual do TST")
+    return None
+
+
 def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
     """(rótulo, url, descrição) — cada um abre já pesquisado no alvo."""
     from urllib.parse import quote_plus
@@ -237,16 +296,49 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Servidor público, benefício, sanção e contrato federal"),
             ("Consulta Sócio", f"https://www.consultasocio.com/busca?q={nome}",
              "Participação societária em empresas"),
-            ("TSE — candidaturas", f"https://divulgacandcontas.tse.jus.br/divulga/#/candidato?nome={nome}",
-             "Candidatura, bens declarados e prestação de contas"),
+            ("TJSP — processos por parte",
+             f"https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NMPARTE"
+             f"&dadosConsulta.valorConsulta={nome}&cdForo=-1",
+             "Maior tribunal do país — busca por nome da parte, já preenchida"),
+            ("Querido Diário", f"https://queridodiario.ok.org.br/pesquisa?term={nome}",
+             "Diários oficiais de mais de 3.000 municípios"),
+            ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={nome}",
+             "Se o alvo atua como empresa ou prestador"),
+            ("TSE — candidaturas", "https://divulgacandcontas.tse.jus.br/divulga/",
+             "Candidatura e bens declarados (busca no formulário — o site é SPA)"),
+            ("CVM — cadastro geral", "https://sistemas.cvm.gov.br/?CadGeral=",
+             "Administrador, gestor ou consultor autorizado (formulário)"),
+            ("INPI — marcas por titular", "https://busca.inpi.gov.br/pePI/",
+             "Marcas registradas em nome do alvo (entrar como anônimo)"),
+            ("CADE", "https://pesquisaavancada.cade.gov.br/consulta",
+             "Processos antitruste — busca por interessado (formulário)"),
+            ("Diário Oficial da União", "https://in.gov.br/consulta",
+             "Nomeação, portaria e contrato federal (formulário)"),
         ]
     elif t is EntityType.CNPJ:
         digits = only_digits(entity.value)
+        formatado = quote_plus(entity.value)
         links += [
             ("Consulta Sócio", f"https://www.consultasocio.com/q/sa/{digits}", "Quadro societário e coligadas"),
             ("Econodata", f"https://www.econodata.com.br/consulta-empresa/{digits}", "Porte, faturamento estimado e contatos"),
             ("JusBrasil", f"https://www.jusbrasil.com.br/busca?q={digits}", "Processos da pessoa jurídica"),
             ("Portal da Transparência", f"https://portaldatransparencia.gov.br/busca?termo={digits}", "Contratos e sanções federais"),
+            ("Querido Diário", f"https://queridodiario.ok.org.br/pesquisa?term={formatado}",
+             "Contrato e licitação com prefeituras"),
+            ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={formatado}",
+             "Reputação, volume de reclamação e resposta da empresa"),
+            ("Cartão CNPJ (Receita)", "https://servicos.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp",
+             "Comprovante oficial de inscrição (captcha)"),
+            ("Sintegra SP", "https://www.sintegra.fazenda.sp.gov.br/",
+             "Inscrição estadual de ICMS em SP (captcha)"),
+            ("Sintegra MG", "https://www.sintegra.fazenda.mg.gov.br/",
+             "Inscrição estadual de ICMS em MG (captcha)"),
+            ("Cadastro ICMS PR", "https://www.fazenda.pr.gov.br/Servicos/Consultar-cadastro-ICMS",
+             "Inscrição estadual no Paraná (captcha)"),
+            ("CADE", "https://pesquisaavancada.cade.gov.br/consulta",
+             "Ato de concentração e processo antitruste"),
+            ("INPI — marcas", "https://busca.inpi.gov.br/pePI/",
+             "Marcas registradas pelo CNPJ"),
         ]
     elif t is EntityType.CPF:
         digits = only_digits(entity.value)
@@ -255,6 +347,23 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Vínculo com programa social, servidor ou sanção"),
             ("Situação cadastral (Receita)", "https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp",
              "Consulta oficial — exige data de nascimento e captcha"),
+            ("Escavador", f"https://www.escavador.com/busca?q={digits}",
+             "Processos vinculados ao documento"),
+        ]
+    elif t is EntityType.PROCESSO:
+        info = entity.get("cnj") or {}
+        numero = entity.value
+        digits = only_digits(numero)
+        alvo = tribunal_link(info.get("sigla"), digits)
+        if alvo:
+            links.append((f"{info.get('sigla')} — consulta processual", alvo[0], alvo[1]))
+        links += [
+            ("Escavador", f"https://www.escavador.com/busca?q={quote_plus(numero)}",
+             "Partes, advogados e movimentações do processo"),
+            ("JusBrasil", f"https://www.jusbrasil.com.br/busca?q={quote_plus(numero)}",
+             "Publicações e peças ligadas ao número"),
+            ("Google — número exato", f"https://www.google.com/search?q=%22{quote_plus(numero)}%22",
+             "Menções ao processo em qualquer lugar da web"),
         ]
     elif t is EntityType.PHONE and entity.get("country") == "BR":
         e164 = entity.get("e164", entity.value)
@@ -263,5 +372,7 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
             ("Quem Perturba", f"https://www.quemperturba.com.br/numero/{digits}", "Reputação e denúncia de spam"),
             ("Telelistas", f"https://www.telelistas.net/busca?q={quote_plus(e164)}", "Listagem comercial"),
             ("Sync.me", f"https://sync.me/search/?number={quote_plus(e164)}", "Caller ID colaborativo"),
+            ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={digits}",
+             "Número usado por empresa reclamada"),
         ]
     return links

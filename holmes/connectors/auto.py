@@ -690,6 +690,52 @@ def register_auto_connectors() -> None:
         accepts=(EntityType.CNPJ,), category="brasil", run=br.cnpj_findings,
         description="Razão social, endereço, contatos e quadro societário",
     ))
+
+    # ── Brasil: fontes oficiais e abertas ──────────────────────────────────
+    from .. import br_auto
+    from ..cnj import processo_findings
+
+    register(Connector(
+        id="datajud", label="DataJud (CNJ)", mode=Mode.AUTO,
+        accepts=(EntityType.PROCESSO,), category="brasil", run=processo_findings,
+        timeout=40,
+        description="Decodifica o número e traz a movimentação oficial do processo",
+    ))
+    register(Connector(
+        id="congresso", label="Câmara e Senado (PEP)", mode=Mode.AUTO,
+        accepts=(EntityType.NAME,), category="brasil", run=br_auto.congresso_findings,
+        timeout=35,
+        description="Detecta se o alvo é deputado federal ou senador",
+    ))
+    register(Connector(
+        id="querido_diario", label="Querido Diário", mode=Mode.AUTO,
+        accepts=(EntityType.NAME, EntityType.CNPJ), category="brasil",
+        run=br_auto.querido_diario_findings, timeout=40,
+        description="Diários oficiais de 3.000+ municípios",
+    ))
+    register(Connector(
+        id="registrobr", label="Registro.br", mode=Mode.AUTO,
+        accepts=(D,), category="brasil", run=br_auto.registrobr_findings,
+        description="Titular e documento de domínio .br",
+    ))
+    register(Connector(
+        id="portal_nome", label="Portal da Transparência (nome)", mode=Mode.AUTO,
+        accepts=(EntityType.NAME,), category="brasil", run=br_auto.portal_nome_findings,
+        requires_key="portal_transparencia", cost="chave", timeout=45,
+        description="PEP, sanção (CEIS/CNEP) e servidor público federal",
+    ))
+    register(Connector(
+        id="portal_cpf", label="Portal da Transparência (CPF)", mode=Mode.AUTO,
+        accepts=(EntityType.CPF,), category="brasil", run=br_auto.portal_cpf_findings,
+        requires_key="portal_transparencia", cost="chave", timeout=35,
+        description="Cruza o CPF com PEP e listas de sanção",
+    ))
+    register(Connector(
+        id="portal_cnpj", label="Portal da Transparência (CNPJ)", mode=Mode.AUTO,
+        accepts=(EntityType.CNPJ,), category="brasil", run=br_auto.portal_cnpj_findings,
+        requires_key="portal_transparencia", cost="chave", timeout=35,
+        description="Sanções federais da pessoa jurídica",
+    ))
     register(Connector(
         id="rdap", label="RDAP / WHOIS", mode=Mode.AUTO, accepts=(D,),
         category="dominio", run=_rdap_domain,

@@ -24,16 +24,20 @@
 Esta instalação tem um motor próprio de investigação, na primeira opção do
 menu do console web: **🔎 INVESTIGAR — caixa única**.
 
-Você digita **nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio ou link de
-perfil** — o tipo é detectado sozinho, todas as fontes aplicáveis rodam em
+Você digita **nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio, link de
+perfil ou número de processo judicial** — o tipo é detectado sozinho, todas as fontes aplicáveis rodam em
 paralelo, os achados viram novos alvos automaticamente (pivô) e o resultado é
 **um dossiê** com fonte e nível de confiança em cada fato, exportável em
 HTML, Markdown e JSON.
 
-- **97 fontes registradas:** 16 automáticas, 67 abrindo **já pesquisadas** no
+- **125 fontes registradas:** 23 automáticas, 88 abrindo **já pesquisadas** no
   alvo (não mais na página inicial do serviço) e 14 declaradas como manuais.
-- **Camada Brasil:** Receita Federal por CNPJ com **quadro societário**, DDD,
-  Escavador, JusBrasil, Lattes, TSE, Portal da Transparência, Consulta Sócio.
+- **Camada Brasil (44 fontes):** Receita Federal com **quadro societário**;
+  **DataJud do CNJ** (movimentação oficial de processo em TJ, TRF, TRT, STJ e
+  TST); detecção de **pessoa politicamente exposta** na Câmara e no Senado;
+  **Querido Diário** (diários oficiais de 3.000+ municípios); sanções da CGU
+  (CEIS/CNEP/PEP); Escavador, JusBrasil, Lattes, Consulta Sócio, Reclame Aqui,
+  TJSP por nome de parte.
 - **Pivô automático:** e-mail → username → perfil → nome real → telefone → empresa.
 - **Confiança por corroboração:** duas fontes independentes concordando pesam
   mais que uma fonte forte sozinha.
