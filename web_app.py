@@ -9,6 +9,7 @@ from external_services_ui import display_external_services, display_services_for
 from osint_premium import apply_pending_navigation
 from osint_premium_ui import display_osint_premium
 from robin_workspace import sync_llm_keys_from_session
+from holmes_ui import display_investigar
 
 try:
     from dotenv import load_dotenv
@@ -613,6 +614,7 @@ def send_to_dorks(**kwargs):
 # ── Navigation (lista única, rótulos claros — sem menus aninhados) ────────────
 # page_id interno permanece estável para o resto do app
 NAV_OPTIONS = [
+    "Investigar",
     "OSINT Premium",
     "Telefone",
     "Email",
@@ -629,6 +631,7 @@ NAV_OPTIONS = [
     "Sobre",
 ]
 NAV_LABEL = {
+    "Investigar": "🔎 INVESTIGAR — caixa única",
     "OSINT Premium": "★ OSINT Premium",
     "Telefone": "1 · Telefone",
     "Email": "2 · Email",
@@ -660,7 +663,7 @@ with st.sidebar:
         </div>
         """
     )
-    st.caption("Hub ★ · Busca 1–4 · Análise 5–8 · Catálogo 9–11")
+    st.caption("🔎 Investigar = tudo em uma caixa · 1–13 = modo manual/avançado")
     apply_pending_navigation(st.session_state, NAV_OPTIONS)
     page = st.radio(
         "Menu",
@@ -686,8 +689,20 @@ with st.sidebar:
     st.caption("Educacional · alvos autorizados")
 
 
+# ── Investigar (caixa única — motor holmes/) ─────────────────────────────────
+if page == "Investigar":
+    page_header(
+        "Motor",
+        "Investigar",
+        "Digite qualquer alvo. O tipo é detectado sozinho, todas as fontes aplicáveis "
+        "rodam em paralelo, os pivôs são automáticos e o resultado é um dossiê único. "
+        "Educacional · alvos autorizados.",
+    )
+    display_investigar()
+
+
 # ── OSINT Premium ────────────────────────────────────────────────────────────
-if page == "OSINT Premium":
+elif page == "OSINT Premium":
     page_header(
         "Hub",
         "OSINT Premium",
