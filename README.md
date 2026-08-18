@@ -17,6 +17,38 @@
 **Mr.Holmes is a information gathering tool (OSINT). The main purpose is to gain information about domains,username and phone numbers with the help of public source avaiable on the internet also it use the google dorks attack for specific researchers. It also use proxies for make your requests completley anonymous and a WhoIS Api for getting more information about a domain.**
 <br>
 
+---
+
+## 🔎 Motor de investigação — caixa única
+
+Esta instalação tem um motor próprio de investigação, na primeira opção do
+menu do console web: **🔎 INVESTIGAR — caixa única**.
+
+Você digita **nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio ou link de
+perfil** — o tipo é detectado sozinho, todas as fontes aplicáveis rodam em
+paralelo, os achados viram novos alvos automaticamente (pivô) e o resultado é
+**um dossiê** com fonte e nível de confiança em cada fato, exportável em
+HTML, Markdown e JSON.
+
+- **97 fontes registradas:** 16 automáticas, 67 abrindo **já pesquisadas** no
+  alvo (não mais na página inicial do serviço) e 14 declaradas como manuais.
+- **Camada Brasil:** Receita Federal por CNPJ com **quadro societário**, DDD,
+  Escavador, JusBrasil, Lattes, TSE, Portal da Transparência, Consulta Sócio.
+- **Pivô automático:** e-mail → username → perfil → nome real → telefone → empresa.
+- **Confiança por corroboração:** duas fontes independentes concordando pesam
+  mais que uma fonte forte sozinha.
+
+⚠️ **Configure `SERPER_API_KEY`** (serper.dev, 2.500 buscas grátis). Sem uma
+SERP API a busca de superfície não funciona a partir do servidor — Google,
+DuckDuckGo e Mojeek bloqueiam IP de datacenter. É essa chave que faz o Holmes
+encontrar o que o Google encontra, só que em 15 consultas de uma vez.
+
+📖 **Documentação completa: [MOTOR.md](MOTOR.md)** · chaves: [.env.example](.env.example)
+
+As 13 páginas anteriores continuam funcionando, como modo manual/avançado.
+
+---
+
 # :heavy_exclamation_mark: DISCLAIMER
 **This Tool is Not 100% Accurate so it can fail somtimes. Also this tool is made for educational and research purposes only, i do not assume any kind of responsibility for any imprope use of this tool.**
 <br>

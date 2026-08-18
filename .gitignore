@@ -116,3 +116,6 @@ Temp/
 Configuration/Configuration.ini
 Configuration/Agreement.txt
 *.db
+
+# Motor de investigação — cache local de respostas HTTP
+.holmes_cache/
