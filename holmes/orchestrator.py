@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass
 from typing import Callable
 
@@ -52,9 +53,15 @@ def _run_batch(
     done = 0
     total = len(conns)
 
-    with ThreadPoolExecutor(max_workers=min(config.max_workers, max(1, total))) as pool:
-        futures = {pool.submit(c.execute, entity): c for c in conns}
-        for fut in as_completed(futures):
+    # Teto de espera do lote: o conector mais lento manda, com folga. Sem isto
+    # o `timeout` declarado em cada conector era decorativo e uma fonte travada
+    # segurava a investigação inteira.
+    limite_lote = max((c.timeout for c in conns), default=30) + 15
+
+    pool = ThreadPoolExecutor(max_workers=min(config.max_workers, max(1, total)))
+    futures = {pool.submit(c.execute, entity): c for c in conns}
+    try:
+        for fut in as_completed(futures, timeout=limite_lote):
             conn = futures[fut]
             try:
                 results.append(fut.result())
@@ -69,6 +76,18 @@ def _run_batch(
                     f"{entity.value} · {conn.label} ({done}/{total})",
                     progress_base + progress_span * (done / total),
                 )
+    except FuturesTimeout:
+        # Quem não voltou dentro do teto vira linha de "não respondeu" — a
+        # investigação continua com o que chegou.
+        for fut, conn in futures.items():
+            if not fut.done():
+                results.append(ConnectorResult(
+                    connector_id=conn.id, connector_label=conn.label, ok=False,
+                    error=f"excedeu o tempo limite de {limite_lote}s",
+                ))
+    finally:
+        # Não espera as threads penduradas: elas morrem sozinhas.
+        pool.shutdown(wait=False, cancel_futures=True)
     return results
 
 

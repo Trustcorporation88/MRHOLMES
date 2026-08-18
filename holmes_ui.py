@@ -24,7 +24,7 @@ _BADGE_COLOR = {
 
 _ICON = {
     "Nomes": "🪪", "Contas e perfis": "👤", "E-mails": "✉️", "Telefones": "📱",
-    "Empresas": "🏢", "Localização": "📍", "Documentos": "📄", "Vazamentos": "🩸",
+    "Empresas": "🏢", "Endereços de cripto": "₿", "Localização": "📍", "Documentos": "📄", "Vazamentos": "🩸",
     "Domínios": "🌐", "Imagens": "🖼️", "Jurídico": "⚖️",
     "Resultados na web": "🔎", "Observações técnicas": "🔧", "Fontes para abrir": "🔗",
 }
@@ -64,6 +64,63 @@ def _key_sidebar() -> None:
                     import os
 
                     os.environ["OPENAI_API_KEY"] = val
+
+
+def _crawler_controls(alvo: str) -> None:
+    """
+    Rastreamento é opt-in: é a única fonte que faz muitas requisições ao alvo.
+    Só aparece quando o alvo é um endereço web, porque é o único caso em que
+    faz sentido.
+    """
+    from holmes import crawler
+    from holmes.entity import EntityType
+
+    tipo = detect(alvo).type if alvo.strip() else None
+    aplicavel = tipo in (EntityType.URL, EntityType.DOMAIN)
+
+    with st.expander("🕸️ Rastrear o site (opcional)", expanded=False):
+        if not aplicavel:
+            st.caption(
+                "Disponível quando o alvo é um endereço web (domínio ou URL). "
+                "Digite algo como `site.com.br` ou `https://site.com.br/pagina`."
+            )
+            crawler.set_enabled(False)
+            return
+
+        ligado = st.checkbox(
+            "Percorrer o site e extrair contatos", value=False, key="crawl_on",
+            help="Visita as páginas do site e extrai e-mail, telefone, endereço "
+                 "de cripto e perfis sociais. O conteúdo das páginas não é armazenado.",
+        )
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            depth = st.slider("Profundidade", 0, 3, 1, key="crawl_depth",
+                              help="0 = só a página informada")
+        with c2:
+            max_pages = st.slider("Máx. de páginas", 5, 120, 25, step=5, key="crawl_max")
+        with c3:
+            same_site = st.checkbox("Só o mesmo site", value=True, key="crawl_same",
+                                    help="Desmarcar faz o rastreamento sair do domínio.")
+
+        crawler.set_enabled(ligado)
+        crawler.configure(depth=depth, max_pages=max_pages, same_site=same_site)
+
+        entidade = detect(alvo)
+        if entidade.get("is_onion"):
+            if crawler.tor_disponivel():
+                st.success("Endereço .onion e Tor disponível — o acesso será via Tor.", icon="🧅")
+            else:
+                st.error(
+                    "Endereço .onion, mas o Tor não está escutando em 127.0.0.1:9050. "
+                    "O rastreamento será pulado.",
+                    icon="🧅",
+                )
+            st.caption(
+                "Em dark web, rastrear domínio arbitrário faz o servidor baixar o "
+                "conteúdo daquelas páginas. Aqui nada do corpo é gravado — só "
+                "e-mail, telefone, cripto e perfis. Use em alvo escolhido, "
+                "não em varredura ampla."
+            )
 
 
 def _render_fact(fact) -> None:
@@ -269,6 +326,7 @@ def display_investigar() -> None:
         if indisponiveis:
             st.caption("Não instalado neste ambiente: " + ", ".join(indisponiveis))
 
+        _crawler_controls(alvo)
         _key_sidebar()
 
     if rodar and alvo.strip():

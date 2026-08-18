@@ -25,6 +25,7 @@ SECTION_ORDER = [
     (FindingKind.COMPANY, "Empresas"),
     (FindingKind.ADDRESS, "Localização"),
     (FindingKind.DOCUMENT, "Documentos"),
+    (FindingKind.CRYPTO, "Endereços de cripto"),
     (FindingKind.BREACH, "Vazamentos"),
     (FindingKind.DOMAIN, "Domínios"),
     (FindingKind.IMAGE, "Imagens"),

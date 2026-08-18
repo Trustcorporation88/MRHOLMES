@@ -751,3 +751,33 @@ def register_auto_connectors() -> None:
         category="rede", run=_ip_info,
         description="Geolocalização, ISP, rDNS e detecção de VPN/datacenter",
     ))
+
+    # ── Rastreamento de site (clearnet e .onion) ───────────────────────────
+    # Opt-in: é a única fonte que gera muitas requisições ao alvo, então só
+    # roda quando você liga nos ajustes. Fora disso aparece como "pulado".
+    from .. import crawler
+
+    class _CrawlConnector(Connector):
+        def availability(self):
+            if not crawler.is_enabled():
+                return False, "rastreamento desligado (ative em «Ajustes da investigação»)"
+            return super().availability()
+
+    register(_CrawlConnector(
+        id="crawler", label="Rastreamento do site", mode=Mode.AUTO,
+        accepts=(EntityType.URL, D), category="rastreamento",
+        run=crawler.crawl_findings, timeout=300,
+        description="Percorre o site e extrai e-mail, telefone, cripto e perfis",
+    ))
+
+    # URL com caminho também merece as fontes de domínio e a busca.
+    for cid in ("rdap", "crtsh", "registrobr", "hunter"):
+        conn = _REGISTRY_GET(cid)
+        if conn and EntityType.URL not in conn.accepts:
+            conn.accepts = conn.accepts + (EntityType.URL,)
+
+
+def _REGISTRY_GET(cid: str):
+    from .base import get_connector
+
+    return get_connector(cid)

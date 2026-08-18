@@ -27,6 +27,7 @@ class EntityType(str, Enum):
     CNPJ = "cnpj"
     PROCESSO = "processo"
     PROFILE_URL = "perfil"
+    URL = "url"
     UNKNOWN = "desconhecido"
 
 
@@ -40,6 +41,7 @@ ENTITY_LABEL = {
     EntityType.CPF: "CPF",
     EntityType.CNPJ: "CNPJ",
     EntityType.PROCESSO: "Processo judicial",
+    EntityType.URL: "Endereço web",
     EntityType.PROFILE_URL: "URL de perfil",
     EntityType.UNKNOWN: "Indefinido",
 }
@@ -62,6 +64,8 @@ _GTLDS = {
     "network", "center", "company", "global", "team", "works", "zone", "link",
     "click", "page", "wiki", "art", "fun", "top", "vip", "one", "run", "sh",
     "gg", "so", "to", "ly", "am", "fm", "gl", "im", "is", "it", "la", "ms",
+    # Redes anônimas: sem isto, um endereço .onion cai como "nome de pessoa".
+    "onion", "i2p",
 }
 
 
@@ -272,13 +276,19 @@ def _norm_domain(raw: str) -> Entity:
         root = ".".join(parts[-3:])
     else:
         root = ".".join(parts[-2:])
+    onion = value.endswith(".onion")
     variants = {
         "root": root,
         "www": f"www.{value}",
-        "url": f"https://{value}",
+        # .onion não tem TLS: forçar https quebraria o acesso via Tor.
+        "url": f"http://{value}" if onion else f"https://{value}",
         "site_dork": f"site:{root}",
+        "is_onion": onion,
     }
-    return Entity(raw=raw, type=EntityType.DOMAIN, value=value, variants=variants)
+    ent = Entity(raw=raw, type=EntityType.DOMAIN, value=value, variants=variants)
+    if onion:
+        ent.notes.append("Endereço .onion — o acesso exige Tor.")
+    return ent
 
 
 def _norm_name(raw: str) -> Entity:
@@ -310,6 +320,41 @@ def _norm_name(raw: str) -> Entity:
         "plus": cleaned.replace(" ", "+"),
     }
     return Entity(raw=raw, type=EntityType.NAME, value=cleaned, variants=variants)
+
+
+def _norm_url(raw: str) -> Entity:
+    """
+    URL com caminho. Diferente de domínio: aqui o caminho importa, porque é
+    dele que um rastreamento começa. `site.com/vendor/joao` não é `site.com`.
+    """
+    url = raw.strip() if "://" in raw else f"https://{raw.strip()}"
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    bare = host[4:] if host.startswith("www.") else host
+
+    parts = bare.split(".")
+    if len(parts) > 2 and parts[-2] in {"com", "net", "org", "gov", "edu", "co"} and len(parts[-1]) == 2:
+        root = ".".join(parts[-3:])
+    else:
+        root = ".".join(parts[-2:])
+
+    variants = {
+        "url": url,
+        "host": host,
+        "domain": bare,
+        "root": root,
+        "scheme": parsed.scheme,
+        "path": parsed.path or "/",
+        "is_onion": bare.endswith(".onion"),
+        "site_dork": f"site:{root}",
+    }
+    ent = Entity(raw=raw, type=EntityType.URL, value=url, variants=variants)
+    if variants["is_onion"]:
+        ent.notes.append(
+            "Endereço .onion — o acesso exige Tor. Nada do conteúdo da página é "
+            "armazenado; só os artefatos extraídos (e-mail, telefone, cripto)."
+        )
+    return ent
 
 
 def _norm_profile_url(raw: str) -> Entity:
@@ -346,11 +391,16 @@ def detect(raw: str) -> Entity:
     if _EMAIL_RE.match(text):
         return _norm_email(text)
 
-    # 2. URL — se for host de perfil conhecido, extrai o handle; senão é domínio.
+    # 2. URL — host de perfil conhecido vira handle; URL com caminho preserva o
+    #    caminho (para rastreamento); host puro vira domínio.
     if "://" in text or text.startswith("www."):
-        host = (urlparse(text if "://" in text else f"https://{text}").netloc or "").lower()
+        parsed = urlparse(text if "://" in text else f"https://{text}")
+        host = (parsed.netloc or "").lower()
         if host in _PROFILE_HOSTS:
             return _norm_profile_url(text)
+        caminho = (parsed.path or "").strip("/")
+        if caminho or parsed.query:
+            return _norm_url(text)
         return _norm_domain(text)
 
     digits = only_digits(text)

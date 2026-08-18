@@ -1,7 +1,8 @@
 # Motor de investigação (`holmes/`)
 
 Uma caixa. Você digita **nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio,
-link de perfil ou número de processo judicial**. O motor detecta o tipo, consulta todas as fontes que se
+link de perfil, número de processo judicial ou URL (inclusive `.onion`)**.
+O motor detecta o tipo, consulta todas as fontes que se
 aplicam em paralelo, investiga sozinho o que encontrou e devolve **um dossiê**
 com fonte e nível de confiança em cada fato.
 
@@ -39,7 +40,7 @@ alvo digitado
    │                      (E.164, local-part, raiz do domínio, CPF limpo…)
    │
    ├─ connectors/ ....... todas as fontes aplicáveis, em paralelo
-   │     auto ........... executa e traz o dado (23 fontes)
+   │     auto ........... executa e traz o dado (24 fontes)
    │     deeplink ....... monta a URL já pesquisada (88 fontes)
    │     manual ......... exige login/captcha — declarado, não fingido (14)
    │
@@ -107,6 +108,7 @@ Configure no Railway em **Variables**, ou cole na própria página (vale só na 
 | Nome | busca+dorks, Câmara e Senado (detecção de PEP), Querido Diário, Portal da Transparência² |
 | **Processo judicial** | **DataJud (CNJ)** — decodifica o número e traz a movimentação oficial |
 | Domínio .br | Registro.br — titular e CPF/CNPJ do dono |
+| URL / domínio | Rastreamento do site (opt-in) — e-mail, telefone, cripto, perfis |
 | IP | ip-api (geo, ISP, rDNS, detecção de VPN/datacenter) |
 
 ¹ só se o binário existir no ambiente — detectado e informado na tela
@@ -179,6 +181,45 @@ consulta.
 
 ---
 
+## Rastreamento de site (opt-in)
+
+Quando você **já tem a URL**, o motor percorre o site e extrai os artefatos de
+cada página: e-mail, telefone, **endereço de cripto**, perfil social divulgado
+e domínio externo referenciado. Funciona em clearnet e em `.onion` (via Tor).
+
+Ligue em **«Rastrear o site»** na página Investigar. É a única fonte que faz
+muitas requisições ao alvo, então nunca roda sozinha — fora disso aparece como
+«pulado» no dossiê.
+
+Controles: profundidade (0–3), teto de páginas, e se pode sair do domínio.
+
+### O que este módulo aprendeu com o TorBot
+
+Avaliei o [TorBot](https://github.com/DedSecInside/TorBot) (OWASP, 4.6k ★) para
+esta função. O código é limpo, mas encontrei problemas que tornavam a adoção
+direta ruim — e cada um virou uma decisão de projeto aqui:
+
+| TorBot | Aqui |
+|---|---|
+| `_build_tree` chama `parse_links()` **sem** `base_url` → perde **todo** link relativo (verificado: 3 de 4 links) | `urljoin` sempre; link relativo é resolvido |
+| Sem conjunto de visitados | Visitados global e normalizado — sem revisita, sem laço |
+| Sequencial | Paralelo, com teto de workers |
+| Sem rate limit | Intervalo mínimo por host |
+| Classificador ML treinado em site comercial (Booking, Expedia) aplicado a `.onion` | Nenhum rótulo inventado — o motor não chuta categoria |
+| Telefone só de `href="tel:"` | `tel:` **e** corpo do texto, validado por libphonenumber |
+| Guardava o HTML | Só o artefato extraído; o corpo é descartado |
+| Puxa scikit-learn, scipy, numpy (~200 MB) | Nenhuma dependência nova |
+
+**Endereço de cripto** (BTC, ETH, XMR) é extraído porque, em investigação de
+mercado `.onion`, é o artefato que amarra vendedor, pagamento e — via exchange
+— identidade.
+
+**Por que o corpo da página não é gravado:** em dark web, rastrear domínio
+arbitrário faria o servidor materializar conteúdo cuja simples posse é crime.
+Aqui só os artefatos sobrevivem à extração.
+
+---
+
 ## Deeplink: a mudança mais prática
 
 Antes, `Sync.me` levava para `https://sync.me/pt-br/`. Agora leva para
@@ -208,7 +249,7 @@ instalado e o que não está.
 ## Testes
 
 ```bash
-python -m pytest tests/ -q     # 111 testes
+python -m pytest tests/ -q     # 140 testes
 ```
 
 Cobrem detecção de alvo, geração de deeplink, pivô, deduplicação, score por

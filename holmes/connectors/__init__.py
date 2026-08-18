@@ -50,6 +50,7 @@ def _serp_connector():
             EntityType.NAME, EntityType.EMAIL, EntityType.PHONE,
             EntityType.USERNAME, EntityType.DOMAIN, EntityType.CPF,
             EntityType.CNPJ, EntityType.IP, EntityType.PROFILE_URL,
+            EntityType.URL,
         ),
         category="busca", timeout=90, run=_run,
         description="Roda a bateria de dorks e classifica cada resultado",

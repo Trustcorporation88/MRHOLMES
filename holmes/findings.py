@@ -46,6 +46,7 @@ class FindingKind(str, Enum):
     DOCUMENT = "documento"      # CPF / CNPJ
     COMPANY = "empresa"
     BREACH = "vazamento"
+    CRYPTO = "cripto"
     IMAGE = "imagem"
     WEB_RESULT = "resultado_web"
     LEGAL = "juridico"

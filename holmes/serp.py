@@ -454,6 +454,21 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
     elif t is EntityType.IP:
         q += [f'"{v}"', f'"{v}" (abuse OR blacklist OR malware)']
 
+    elif t is EntityType.URL:
+        root = entity.get("root") or ""
+        q.append(f'"{v}"')
+        if root and not entity.get("is_onion"):
+            q += [
+                f"site:{root}",
+                f'"{root}" (contato OR email OR telefone)',
+                f"site:{root} (filetype:pdf OR filetype:xlsx)",
+            ]
+            if deep:
+                q += [f"site:*.{root} -www", f'"@{root}" -site:{root}']
+        elif root:
+            # .onion não é indexado por buscador comum: procura pela menção.
+            q += [f'"{root}"', f'"{root}" (mirror OR vendor OR review)']
+
     elif t is EntityType.PROFILE_URL:
         handle = entity.get("handle")
         q.append(f'"{v}"')

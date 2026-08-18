@@ -72,9 +72,16 @@ def test_linkedin_pega_handle_no_segundo_segmento():
 
 
 def test_dominio_com_br_tem_raiz_de_tres_rotulos():
-    e = detect("https://blog.empresa.com.br/post/1")
+    e = detect("https://blog.empresa.com.br")
     assert e.type is EntityType.DOMAIN
     assert e.get("root") == "empresa.com.br"
+
+    # Com caminho o alvo é URL (o caminho importa para o rastreamento), mas a
+    # raiz continua sendo extraída corretamente.
+    u = detect("https://blog.empresa.com.br/post/1")
+    assert u.type is EntityType.URL
+    assert u.get("root") == "empresa.com.br"
+    assert u.get("path") == "/post/1"
 
 
 def test_cpf_e_cnpj_so_valem_com_digito_verificador():

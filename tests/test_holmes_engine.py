@@ -101,6 +101,48 @@ def test_conector_sem_chave_e_pulado_com_motivo_explicito():
     assert "chave" in (res.skipped_reason or "")
 
 
+def test_conector_travado_nao_segura_a_investigacao(monkeypatch):
+    """
+    O campo `timeout` do conector era decorativo: o orquestrador esperava para
+    sempre. Uma fonte pendurada travava a investigação inteira.
+    """
+    import time as _time
+
+    from holmes import orchestrator
+    from holmes.orchestrator import InvestigationConfig, _run_batch
+
+    def _pendura(_entity):
+        _time.sleep(30)
+        return []
+
+    travado_conn = Connector(
+        id="teste_travado", label="Fonte pendurada", mode=Mode.AUTO,
+        accepts=(EntityType.NAME,), run=_pendura, timeout=1,
+    )
+    rapido_conn = Connector(
+        id="teste_rapido", label="Fonte rápida", mode=Mode.AUTO,
+        accepts=(EntityType.NAME,), run=lambda e: [], timeout=1,
+    )
+    # Isola o lote: sem rede, só os dois conectores do teste.
+    monkeypatch.setattr(
+        orchestrator, "connectors_for", lambda ent, modes: [travado_conn, rapido_conn]
+    )
+
+    inicio = _time.time()
+    resultados = _run_batch(
+        detect("Fulano de Tal"), {Mode.AUTO},
+        InvestigationConfig(use_llm=False), None, 0.0, 1.0,
+    )
+    decorrido = _time.time() - inicio
+
+    # Voltou muito antes dos 30s do sleep.
+    assert decorrido < 25
+    por_id = {r.connector_id: r for r in resultados}
+    assert por_id["teste_rapido"].ok
+    assert not por_id["teste_travado"].ok
+    assert "tempo limite" in (por_id["teste_travado"].error or "")
+
+
 def test_conector_ignora_alvo_de_tipo_errado():
     conn = Connector(
         id="teste_tipo", label="Só e-mail", mode=Mode.AUTO,
