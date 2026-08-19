@@ -173,6 +173,21 @@ def investigate(
             pivot_mod.from_findings(new_findings, hop, entity), seen, limit=cfg.max_pivots_per_hop
         )
 
+    # ── busca reversa de foto ────────────────────────────────────────────────
+    # Toda imagem encontrada vira link de busca reversa (Yandex, Lens, TinEye).
+    from .facesearch import face_findings
+    from .findings import ConnectorResult, FindingKind
+
+    imagens = [f.value for r in dossier.results for f in r.findings
+               if f.kind is FindingKind.IMAGE and f.value.startswith("http")]
+    if imagens:
+        links = face_findings(imagens)
+        if links:
+            dossier.add_results([ConnectorResult(
+                connector_id="facesearch", connector_label="Busca reversa de foto",
+                ok=True, findings=links,
+            )])
+
     # ── consolidação ────────────────────────────────────────────────────────
     if progress:
         progress("Consolidando dossiê…", 0.92)

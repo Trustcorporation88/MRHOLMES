@@ -8,6 +8,8 @@ pivôs e monta o dossiê. Sem escolher menu, sem redigitar o alvo.
 
 from __future__ import annotations
 
+import json
+
 import streamlit as st
 
 from holmes import InvestigationConfig, investigate
@@ -264,6 +266,84 @@ def _render_chat(dossier) -> None:
             st.markdown(llm.answer_question(dossier, pergunta))
 
 
+def display_historico() -> None:
+    """Página de histórico: reabrir dossiês antigos e comparar dois do mesmo alvo."""
+    from holmes import history
+
+    st.markdown(
+        "<div style='font-size:11px;letter-spacing:.16em;text-transform:uppercase;"
+        "color:#94a3b8;font-weight:700'>Histórico do motor</div>"
+        "<div style='font-size:22px;font-weight:700;margin:4px 0 2px'>Investigações salvas</div>"
+        "<div style='color:#94a3b8;font-size:14px'>Cada investigação feita na aba "
+        "Investigar fica guardada aqui. Compare duas do mesmo alvo para ver o que mudou.</div>",
+        unsafe_allow_html=True,
+    )
+
+    busca = st.text_input("Filtrar por alvo", key="hist_q", placeholder="parte do nome, e-mail, telefone…")
+    entradas = history.list_entries(busca)
+
+    if not entradas:
+        st.info("Nenhuma investigação salva ainda. Rode uma na aba **Investigar**.")
+        return
+
+    st.caption(f"{len(entradas)} investigação(ões) salva(s).")
+
+    # ── comparar duas ─────────────────────────────────────────────────────────
+    rotulo_por_id = {
+        e["id"]: f"{e['alvo']} · {(e.get('quando') or '')[:16].replace('T', ' ')}"
+        for e in entradas
+    }
+    with st.expander("🔀 Comparar duas investigações (o que mudou)"):
+        st.caption("Escolha a mais antiga e a mais nova — de preferência do mesmo alvo.")
+        ids = list(rotulo_por_id.keys())
+        c1, c2 = st.columns(2)
+        with c1:
+            antigo = st.selectbox("Antiga", ids, format_func=lambda i: rotulo_por_id[i],
+                                  index=min(1, len(ids) - 1), key="hist_old")
+        with c2:
+            novo = st.selectbox("Nova", ids, format_func=lambda i: rotulo_por_id[i],
+                                index=0, key="hist_new")
+        if st.button("Comparar", key="hist_diff") and antigo and novo:
+            if antigo == novo:
+                st.warning("Escolha duas investigações diferentes.")
+            else:
+                d = history.diff(antigo, novo)
+                if not d or not d["mudancas"]:
+                    st.success("Nada mudou entre as duas — mesmos fatos.")
+                else:
+                    if d["tem_novidade"]:
+                        st.success("Há novidades desde a investigação anterior:")
+                    for secao, m in d["mudancas"].items():
+                        st.markdown(f"**{secao}**")
+                        for v in m["novos"]:
+                            st.markdown(f"- 🟢 novo: {v}")
+                        for v in m["sumidos"]:
+                            st.markdown(f"- ⚪ sumiu: {v}")
+
+    st.markdown("---")
+
+    # ── lista ─────────────────────────────────────────────────────────────────
+    for e in entradas:
+        s = e.get("stats") or {}
+        quando = (e.get("quando") or "")[:16].replace("T", " ")
+        with st.expander(f"🔎 {e['alvo']}  ·  {e.get('tipo_label')}  ·  {quando}"):
+            st.caption(
+                f"{s.get('fatos_consolidados', 0)} fatos · "
+                f"{s.get('fontes_consultadas', 0)} fontes · "
+                f"{s.get('pivos', 0)} pivôs"
+            )
+            if e.get("resumo"):
+                st.write(e["resumo"][:600])
+            registro = history.load(e["id"])
+            if registro:
+                st.download_button(
+                    "🧾 Baixar JSON deste dossiê",
+                    json.dumps(registro.get("dossie") or {}, ensure_ascii=False, indent=2),
+                    file_name=f"dossie_{e['id']}.json", mime="application/json",
+                    key=f"dl_{e['id']}",
+                )
+
+
 def display_investigar() -> None:
     ensure_registered()
     from holmes import serp
@@ -357,6 +437,14 @@ def display_investigar() -> None:
                 results=f"{dossier.stats['fatos_consolidados']} fatos de "
                         f"{dossier.stats['fontes_consultadas']} fontes",
             )
+        except Exception:
+            pass
+
+        # Histórico do motor: salva o dossiê inteiro para comparar depois.
+        try:
+            from holmes import history
+
+            history.save(dossier)
         except Exception:
             pass
 

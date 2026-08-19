@@ -119,3 +119,6 @@ Configuration/Agreement.txt
 
 # Motor de investigação — cache local de respostas HTTP
 .holmes_cache/
+
+# Histórico de dossiês (local)
+.holmes_history/

@@ -9,7 +9,7 @@ from external_services_ui import display_external_services, display_services_for
 from osint_premium import apply_pending_navigation
 from osint_premium_ui import display_osint_premium
 from robin_workspace import sync_llm_keys_from_session
-from holmes_ui import display_investigar
+from holmes_ui import display_investigar, display_historico
 
 try:
     from dotenv import load_dotenv
@@ -664,7 +664,7 @@ with st.sidebar:
         """
     )
     st.caption("🔎 Investigar = tudo em uma caixa · 1–13 = modo manual/avançado")
-    apply_pending_navigation(st.session_state, NAV_OPTIONS)
+    apply_pending_navigation(st.session_state, NAV_OPTIONS, default="Investigar")
     page = st.radio(
         "Menu",
         NAV_OPTIONS,
@@ -2376,7 +2376,10 @@ elif page == "Serviços Externos":
 
 # ── Histórico ────────────────────────────────────────────────────────────────
 elif page == "Histórico":
-    page_header("Registro", "Histórico", "Consultas recentes salvas localmente.")
+    page_header("Registro", "Histórico", "Dossiês do motor e consultas recentes.")
+    display_historico()
+    st.markdown("---")
+    st.subheader("Consultas rápidas (páginas manuais)")
     try:
         from Core.Support.History import get_history, get_stats
         stats = get_stats()
