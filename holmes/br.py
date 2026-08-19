@@ -235,6 +235,19 @@ TRIBUNAL_CONSULTA = {
 }
 
 
+# e-SAJ estaduais que aceitam busca por NOME DA PARTE na URL. Só entram os
+# hosts confirmados — tribunal de PJe (sem link direto) fica de fora de propósito.
+_ESAJ_POR_NOME = {
+    "TJSP": "https://esaj.tjsp.jus.br",
+    "TJSC": "https://esaj.tjsc.jus.br",
+    "TJCE": "https://esaj.tjce.jus.br",
+    "TJBA": "https://esaj.tjba.jus.br",
+    "TJMS": "https://esaj.tjms.jus.br",
+    "TJAM": "https://consultasaj.tjam.jus.br",
+    "TJAL": "https://www2.tjal.jus.br",
+}
+
+
 def tribunal_link(sigla: str | None, numero: str) -> tuple[str, str] | None:
     """
     (url, observação) da consulta processual do tribunal certo.
@@ -296,14 +309,22 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Servidor público, benefício, sanção e contrato federal"),
             ("Consulta Sócio", f"https://www.consultasocio.com/busca?q={nome}",
              "Participação societária em empresas"),
-            ("TJSP — processos por parte",
-             f"https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NMPARTE"
-             f"&dadosConsulta.valorConsulta={nome}&cdForo=-1",
-             "Maior tribunal do país — busca por nome da parte, já preenchida"),
             ("Querido Diário", f"https://queridodiario.ok.org.br/pesquisa?term={nome}",
              "Diários oficiais de mais de 3.000 municípios"),
             ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={nome}",
              "Se o alvo atua como empresa ou prestador"),
+        ]
+        # Tribunais estaduais (e-SAJ) que aceitam busca por nome da parte na
+        # própria URL — já abrem preenchidos. Cobre os maiores estados.
+        for sigla, base in _ESAJ_POR_NOME.items():
+            cpopg = "cpopg5" if sigla == "TJMS" else "cpopg"
+            links.append((
+                f"{sigla} — processos por parte",
+                f"{base}/{cpopg}/search.do?conversationId=&cbPesquisa=NMPARTE"
+                f"&dadosConsulta.valorConsulta={nome}&cdForo=-1",
+                f"Tribunal de {sigla[2:]} — busca por nome da parte, já preenchida",
+            ))
+        links += [
             ("TSE — candidaturas", "https://divulgacandcontas.tse.jus.br/divulga/",
              "Candidatura e bens declarados (busca no formulário — o site é SPA)"),
             ("CVM — cadastro geral", "https://sistemas.cvm.gov.br/?CadGeral=",
