@@ -304,7 +304,7 @@ def _render_dossier(dossier) -> None:
         g = _graph.stats(dossier)
         if g["nos"] > 1:
             with st.expander(f"🕸️ Grafo de conexões ({g['nos']} nós, {g['conexoes']} ligações)",
-                             expanded=True):
+                             expanded=False):
                 _components.html(_graph.to_html(dossier), height=580, scrolling=False)
     except Exception:
         pass
@@ -335,7 +335,7 @@ def _render_dossier(dossier) -> None:
                 )
 
     if dossier.next_steps:
-        with st.expander("➡️ Próximos passos", expanded=True):
+        with st.expander("➡️ Próximos passos", expanded=False):
             for step in dossier.next_steps:
                 st.markdown(f"- {step}")
 
@@ -500,154 +500,160 @@ def display_investigar() -> None:
         unsafe_allow_html=True,
     )
 
-    health = serp.search_health()
-    if not health["ok"]:
-        st.error(health["message"], icon="🔑")
-    elif health["provider"] == "duckduckgo":
-        st.warning(health["message"], icon="⚠️")
+    # Duas ferramentas separadas em abas: buscar por um dado, ou analisar uma
+    # foto. Antes tudo ficava empilhado abaixo da caixa e confundia.
+    aba_busca, aba_foto = st.tabs(["🔎 Investigar", "📷 Analisar foto"])
 
-    col_in, col_btn = st.columns([4, 1])
-    with col_in:
-        alvo = st.text_input(
-            "Alvo", key="holmes_target", label_visibility="collapsed",
-            placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, domínio ou link de perfil…",
-        )
-    with col_btn:
-        rodar = st.button("🔎 Investigar", type="primary", use_container_width=True)
+    with aba_foto:
+        _render_foto()
 
-    if alvo.strip():
-        preview = detect(alvo)
-        st.caption(f"Detectado: **{preview.label}** → `{preview.value}`")
+    with aba_busca:
+        health = serp.search_health()
+        if not health["ok"]:
+            st.error(health["message"], icon="🔑")
+        elif health["provider"] == "duckduckgo":
+            st.warning(health["message"], icon="⚠️")
 
-    with st.expander("⚙️ Ajustes da investigação"):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            depth = st.slider(
-                "Profundidade de pivô", 1, 3, 2,
-                help="1 = só o alvo. 2 = investiga o que achou. 3 = dois saltos (mais lento e mais ruído).",
+        col_in, col_btn = st.columns([4, 1])
+        with col_in:
+            alvo = st.text_input(
+                "Alvo", key="holmes_target", label_visibility="collapsed",
+                placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, placa, domínio ou link…",
             )
-            max_pivots = st.slider("Pivôs por salto", 1, 8, 4)
-        with c2:
-            incluir_links = st.checkbox("Incluir deeplinks", value=True)
-            incluir_manual = st.checkbox("Incluir fontes manuais", value=True)
-        with c3:
-            usar_llm = st.checkbox("Analisar com IA", value=True)
-            timeout = st.slider("Tempo máximo (s)", 60, 600, 300, step=30)
+        with col_btn:
+            rodar = st.button("🔎 Investigar", type="primary", use_container_width=True)
+
+        linha1, linha2 = st.columns([3, 2])
+        with linha1:
+            if alvo.strip():
+                preview = detect(alvo)
+                st.caption(f"Detectado: **{preview.label}** → `{preview.value}`")
+        with linha2:
             modo_rapido = st.checkbox(
-                "⚡ Modo rápido", value=False,
-                help="Só o alvo, sem pivôs. Bem mais rápido — use para uma primeira "
-                     "olhada. Desmarque para a investigação completa.",
+                "⚡ Modo rápido (só o alvo, bem mais veloz)", value=False, key="modo_rapido",
+                help="Sem pivôs — ótimo para uma primeira olhada. Desmarque para a busca completa.",
             )
 
-        env = environment_report()
-        indisponiveis = [k for k, v in env.items() if not v]
-        if indisponiveis:
-            st.caption("Não instalado neste ambiente: " + ", ".join(indisponiveis))
+        with st.expander("⚙️ Ajustes da busca"):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                depth = st.slider(
+                    "Profundidade de pivô", 1, 3, 2,
+                    help="1 = só o alvo. 2 = investiga o que achou. 3 = dois saltos (mais lento e mais ruído).",
+                )
+                max_pivots = st.slider("Pivôs por salto", 1, 8, 4)
+            with c2:
+                timeout = st.slider("Tempo máximo (s)", 60, 600, 300, step=30)
+                usar_llm = st.checkbox("Analisar com IA", value=True)
+            with c3:
+                incluir_links = st.checkbox("Incluir deeplinks", value=True)
+                incluir_manual = st.checkbox("Incluir fontes manuais", value=True)
 
-        _crawler_controls(alvo)
-        _key_sidebar()
+        with st.expander("🔧 Avançado — rastrear site e chaves de API"):
+            _crawler_controls(alvo)
+            _key_sidebar()
+            env = environment_report()
+            indisponiveis = [k for k, v in env.items() if not v]
+            if indisponiveis:
+                st.caption("Não instalado neste ambiente: " + ", ".join(indisponiveis))
 
-    if rodar and alvo.strip():
-        cfg = InvestigationConfig(
-            depth=1 if modo_rapido else depth,
-            include_deeplinks=incluir_links, include_manual=incluir_manual,
-            max_pivots_per_hop=max_pivots, use_llm=usar_llm, global_timeout=timeout,
-        )
-        barra = st.progress(0.0)
-        status = st.empty()
-
-        def _progress(msg: str, pct: float) -> None:
-            barra.progress(min(1.0, max(0.0, pct)))
-            status.caption(msg)
-
-        with st.spinner("Investigando…"):
-            dossier = investigate(alvo, cfg, progress=_progress)
-
-        barra.empty()
-        status.empty()
-        st.session_state["holmes_dossier"] = dossier
-
-        try:
-            from Core.Support.History import save_search
-
-            save_search(
-                search_type=dossier.entity.type.value,
-                query=dossier.entity.value,
-                results=f"{dossier.stats['fatos_consolidados']} fatos de "
-                        f"{dossier.stats['fontes_consultadas']} fontes",
+        if rodar and alvo.strip():
+            cfg = InvestigationConfig(
+                depth=1 if modo_rapido else depth,
+                include_deeplinks=incluir_links, include_manual=incluir_manual,
+                max_pivots_per_hop=max_pivots, use_llm=usar_llm, global_timeout=timeout,
             )
-        except Exception:
-            pass
+            barra = st.progress(0.0)
+            status = st.empty()
 
-        # Histórico do motor: salva o dossiê inteiro para comparar depois.
-        try:
-            from holmes import history
+            def _progress(msg: str, pct: float) -> None:
+                barra.progress(min(1.0, max(0.0, pct)))
+                status.caption(msg)
 
-            history.save(dossier)
-        except Exception:
-            pass
+            with st.spinner("Investigando…"):
+                dossier = investigate(alvo, cfg, progress=_progress)
 
-    dossier = st.session_state.get("holmes_dossier")
-    if dossier:
-        st.markdown("---")
-        st.markdown(f"## Dossiê — {dossier.entity.value}")
-        _render_dossier(dossier)
-        st.markdown("---")
-        _render_export(dossier)
-        st.markdown("---")
-        _render_chat(dossier)
-    elif not rodar:
-        st.caption(
-            "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
-            "cole só o dado principal — o motor extrai o resto sozinho pelos pivôs."
-        )
+            barra.empty()
+            status.empty()
+            st.session_state["holmes_dossier"] = dossier
 
-    st.markdown("---")
-    _render_foto()
+            try:
+                from Core.Support.History import save_search
+
+                save_search(
+                    search_type=dossier.entity.type.value,
+                    query=dossier.entity.value,
+                    results=f"{dossier.stats['fatos_consolidados']} fatos de "
+                            f"{dossier.stats['fontes_consultadas']} fontes",
+                )
+            except Exception:
+                pass
+
+            # Histórico do motor: salva o dossiê inteiro para comparar depois.
+            try:
+                from holmes import history
+
+                history.save(dossier)
+            except Exception:
+                pass
+
+        dossier = st.session_state.get("holmes_dossier")
+        if dossier:
+            st.markdown("---")
+            st.markdown(f"## Dossiê — {dossier.entity.value}")
+            _render_dossier(dossier)
+            st.markdown("---")
+            _render_export(dossier)
+            st.markdown("---")
+            _render_chat(dossier)
+        elif not rodar:
+            st.caption(
+                "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
+                "cole só o dado principal — o motor extrai o resto sozinho pelos pivôs."
+            )
 
 
 def _render_foto() -> None:
     """Análise de foto: EXIF (GPS, câmera, data) + busca reversa por rosto."""
-    from holmes import facesearch, photo
+    from holmes import photo
 
-    with st.expander("📷 Analisar uma foto (EXIF + busca reversa)"):
-        st.caption(
-            "Suba uma foto **original** (não baixada de rede social) para extrair "
-            "GPS, câmera e data embutidos. Rede social apaga esses dados."
-        )
-        arquivo = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "tiff", "webp"],
-                                   key="foto_up", label_visibility="collapsed")
-        if not arquivo:
-            return
+    st.caption(
+        "Suba uma foto **original** (não baixada de rede social) para extrair "
+        "GPS, câmera e data embutidos. Rede social apaga esses dados."
+    )
+    arquivo = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "tiff", "webp"],
+                               key="foto_up", label_visibility="collapsed")
+    if not arquivo:
+        return
 
-        dados = arquivo.getvalue()
-        st.image(dados, width=260)
+    dados = arquivo.getvalue()
+    st.image(dados, width=260)
 
-        info = photo.analisar_bytes(dados)
-        linhas = photo.resumo_texto(info)
-        if linhas:
-            st.markdown("**Metadados encontrados:**")
-            for l in linhas:
-                st.markdown(f"- {l}")
-            if info.get("gps"):
-                g = info["gps"]
-                st.success(f"📍 Esta foto tem GPS: {g['lat']}, {g['lon']}", icon="📍")
-                st.link_button("Abrir no Google Maps", g["maps"])
-        if info.get("aviso"):
-            st.info(info["aviso"])
+    info = photo.analisar_bytes(dados)
+    linhas = photo.resumo_texto(info)
+    if linhas:
+        st.markdown("**Metadados encontrados:**")
+        for l in linhas:
+            st.markdown(f"- {l}")
+        if info.get("gps"):
+            g = info["gps"]
+            st.success(f"📍 Esta foto tem GPS: {g['lat']}, {g['lon']}", icon="📍")
+            st.link_button("Abrir no Google Maps", g["maps"])
+    if info.get("aviso"):
+        st.info(info["aviso"])
 
-        st.markdown("**Busca reversa (para achar o rosto em outros lugares):**")
-        st.caption(
-            "Estes buscadores acham a mesma foto na web, mas exigem que você "
-            "**arraste o arquivo** na página deles (não aceitam upload automático)."
-        )
-        for rotulo, url, _desc in [
-            ("Google Lens", "https://lens.google.com/"),
-            ("Yandex Imagens", "https://yandex.com/images/"),
-            ("TinEye", "https://tineye.com/"),
-            ("PimEyes (rosto)", "https://pimeyes.com/en"),
-        ]:
-            st.markdown(f"- [{rotulo}]({url})")
+    st.markdown("**Busca reversa (para achar o rosto em outros lugares):**")
+    st.caption(
+        "Estes buscadores acham a mesma foto na web, mas exigem que você "
+        "**arraste o arquivo** na página deles (não aceitam upload automático)."
+    )
+    for rotulo, url, _desc in [
+        ("Google Lens", "https://lens.google.com/"),
+        ("Yandex Imagens", "https://yandex.com/images/"),
+        ("TinEye", "https://tineye.com/"),
+        ("PimEyes (rosto)", "https://pimeyes.com/en"),
+    ]:
+        st.markdown(f"- [{rotulo}]({url})")
 
 
 def display_monitoramento() -> None:
