@@ -126,32 +126,42 @@ def _crawler_controls(alvo: str) -> None:
 
 
 def _render_fact(fact) -> None:
+    import html as _html
+
     color = _BADGE_COLOR.get(fact.label, "#9aa5b1")
     url = fact.urls[0] if fact.urls else ""
+    # Escapa tudo: valor/detalhe podem conter HTML (ex.: fragmento vazado de
+    # raspagem). Sem isso, uma tag solta quebra o layout do card.
+    valor = _html.escape(fact.value or "")
+    detalhe = _html.escape(fact.detail or "")
+    fontes = _html.escape(", ".join(fact.sources[:6]))
+    url_attr = _html.escape(url, quote=True)
+    url_txt = _html.escape(url)
+
     link_html = (
-        f"<div style='margin-top:6px'><a href='{url}' target='_blank' "
-        f"rel='noopener noreferrer' style='font-size:12px;word-break:break-all'>{url}</a></div>"
+        f"<div style='margin-top:6px'><a href='{url_attr}' target='_blank' "
+        f"rel='noopener noreferrer' style='font-size:12px;word-break:break-all'>{url_txt}</a></div>"
         if url else ""
     )
     detail_html = (
-        f"<div style='color:#64748b;font-size:13.5px;margin-top:3px'>{fact.detail}</div>"
-        if fact.detail else ""
+        f"<div style='color:#64748b;font-size:13.5px;margin-top:3px'>{detalhe}</div>"
+        if detalhe else ""
     )
-    st.markdown(
-        f"""<div style="background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.18);
-             border-left:4px solid {color};border-radius:8px;padding:11px 13px;margin-bottom:7px">
-          <span style="display:inline-block;font-size:9.5px;font-weight:800;text-transform:uppercase;
-                letter-spacing:.08em;padding:2px 7px;border-radius:99px;background:{color}22;
-                color:{color};margin-right:8px">{fact.label}</span>
-          <span style="font-weight:600">{fact.value}</span>
-          {detail_html}
-          <div style="color:#94a3b8;font-size:11.5px;margin-top:5px">
-            fontes: {', '.join(fact.sources[:6])}
-          </div>
-          {link_html}
-        </div>""",
-        unsafe_allow_html=True,
+    # HTML numa linha só: linha indentada vira "bloco de código" no Streamlit
+    # e faz a tag final aparecer como texto (o bug do </div>).
+    bloco = (
+        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.18);'
+        f'border-left:4px solid {color};border-radius:8px;padding:11px 13px;margin-bottom:7px">'
+        f'<span style="display:inline-block;font-size:9.5px;font-weight:800;text-transform:uppercase;'
+        f'letter-spacing:.08em;padding:2px 7px;border-radius:99px;background:{color}22;'
+        f'color:{color};margin-right:8px">{_html.escape(fact.label)}</span>'
+        f'<span style="font-weight:600">{valor}</span>'
+        f'{detail_html}'
+        f'<div style="color:#94a3b8;font-size:11.5px;margin-top:5px">fontes: {fontes}</div>'
+        f'{link_html}'
+        f'</div>'
     )
+    st.markdown(bloco, unsafe_allow_html=True)
 
 
 def _render_links(facts) -> None:
