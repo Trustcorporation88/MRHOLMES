@@ -602,6 +602,67 @@ img { border-radius: 8px; border: 1px solid var(--line); }
 div[data-testid="stAlert"] { border-radius: 8px !important; background: var(--panel) !important; }
 hr { border-color: var(--line) !important; }
 a { color: var(--accent) !important; }
+
+/* ── Menu lateral: vira NAVEGAÇÃO, não formulário ──────────────────────────── */
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] { gap: 3px !important; }
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] > label {
+  width: 100% !important; margin: 0 !important;
+  padding: 0.5rem 0.7rem !important; border-radius: 9px !important;
+  border: 1px solid transparent !important;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+/* esconde a bolinha do radio — vira item de menu */
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] > label > div:first-child {
+  display: none !important;
+}
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:hover {
+  background: #131b25 !important;
+}
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:has(input:checked) {
+  background: rgba(95, 214, 189, 0.12) !important;
+  border-color: rgba(95, 214, 189, 0.32) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important;
+}
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:has(input:checked) p {
+  color: #eafff8 !important; font-weight: 600 !important;
+}
+
+/* ── Hero de comando (tela Investigar) ─────────────────────────────────────── */
+.mh-hero {
+  position: relative; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: linear-gradient(150deg, #18212d 0%, #0e141c 72%);
+  padding: 1.7rem 1.9rem; margin-bottom: 1.15rem;
+  box-shadow: var(--shadow);
+}
+.mh-hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(640px 220px at 92% -25%, rgba(95, 214, 189, 0.20), transparent 60%);
+}
+.mh-hero > * { position: relative; }
+.mh-hero-eyebrow {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--accent);
+}
+.mh-hero-title {
+  font-family: var(--display); font-size: 2.15rem !important; font-weight: 800;
+  letter-spacing: -0.04em; margin: 0.4rem 0 0 !important; color: var(--ink); line-height: 1.05;
+}
+.mh-hero-sub {
+  color: var(--ink-soft); font-size: 0.96rem; line-height: 1.55;
+  margin: 0.6rem 0 0 !important; max-width: 47rem;
+}
+.mh-hero-stats { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.1rem; }
+.mh-hero-stats span {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--ink-soft);
+  border: 1px solid var(--line); background: rgba(0, 0, 0, 0.22);
+  padding: 0.32rem 0.65rem; border-radius: 999px;
+}
+.mh-hero-stats strong { color: var(--accent); font-weight: 600; }
+.mh-hero-badge { color: var(--accent-warm) !important; border-color: rgba(255, 168, 124, 0.3) !important; }
+
+/* Caixa de busca principal: maior e com mais presença */
+.stTextInput input { min-height: 2.9rem !important; }
 """
 
 _components.html(
@@ -705,7 +766,7 @@ with st.sidebar:
         </div>
         """
     )
-    st.caption("🔎 Investigar = tudo em uma caixa · 1–13 = modo manual/avançado")
+    st.caption("Comece por **Investigar** · os itens 1–13 são o modo manual/avançado")
     apply_pending_navigation(st.session_state, NAV_OPTIONS, default="Investigar")
     page = st.radio(
         "Menu",
@@ -733,13 +794,6 @@ with st.sidebar:
 
 # ── Investigar (caixa única — motor holmes/) ─────────────────────────────────
 if page == "Investigar":
-    page_header(
-        "Motor",
-        "Investigar",
-        "Digite qualquer alvo. O tipo é detectado sozinho, todas as fontes aplicáveis "
-        "rodam em paralelo, os pivôs são automáticos e o resultado é um dossiê único. "
-        "Educacional · alvos autorizados.",
-    )
     display_investigar()
 
 

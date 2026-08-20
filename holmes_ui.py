@@ -485,17 +485,21 @@ def display_investigar() -> None:
 
     stats = registry_stats()
 
+    _total = stats["total"]
+    _auto = stats["por_modo"].get("auto", 0)
+    _deep = stats["por_modo"].get("deeplink", 0)
     st.markdown(
-        f"""<div style="background:linear-gradient(135deg,rgba(95,214,189,.10),rgba(95,214,189,.02));
-             border:1px solid rgba(95,214,189,.24);border-radius:12px;padding:16px 18px;margin-bottom:16px">
-          <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;
-               color:#5fd6bd;font-weight:700">Motor de investigação</div>
-          <div style="font-size:22px;font-weight:700;margin-top:4px">Uma caixa. Todas as fontes.</div>
-          <div style="color:#94a3b8;font-size:14px;margin-top:6px">
-            Nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio ou link de perfil —
-            o tipo é detectado sozinho. {stats['total']} fontes registradas
-            ({stats['por_modo'].get('auto', 0)} automáticas,
-            {stats['por_modo'].get('deeplink', 0)} abrindo já pesquisadas).
+        f"""<div class="mh-hero">
+          <div class="mh-hero-eyebrow">Mr.Holmes · Console OSINT</div>
+          <h1 class="mh-hero-title">Uma caixa. Todas as fontes.</h1>
+          <p class="mh-hero-sub">Nome, e-mail, telefone, @usuário, CPF, CNPJ, placa, domínio ou
+          link de perfil — o tipo é detectado sozinho, todas as fontes rodam em paralelo e o
+          resultado é um dossiê único.</p>
+          <div class="mh-hero-stats">
+            <span><strong>{_total}</strong> fontes</span>
+            <span><strong>{_auto}</strong> automáticas</span>
+            <span><strong>{_deep}</strong> já pesquisadas</span>
+            <span class="mh-hero-badge">Educacional · alvos autorizados</span>
           </div>
         </div>""",
         unsafe_allow_html=True,
