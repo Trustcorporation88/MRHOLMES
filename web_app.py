@@ -9,7 +9,7 @@ from external_services_ui import display_external_services, display_services_for
 from osint_premium import apply_pending_navigation
 from osint_premium_ui import display_osint_premium
 from robin_workspace import sync_llm_keys_from_session
-from holmes_ui import display_investigar, display_historico
+from holmes_ui import display_investigar, display_historico, display_monitoramento
 
 try:
     from dotenv import load_dotenv
@@ -615,6 +615,7 @@ def send_to_dorks(**kwargs):
 # page_id interno permanece estável para o resto do app
 NAV_OPTIONS = [
     "Investigar",
+    "Monitoramento",
     "OSINT Premium",
     "Telefone",
     "Email",
@@ -632,6 +633,7 @@ NAV_OPTIONS = [
 ]
 NAV_LABEL = {
     "Investigar": "🔎 INVESTIGAR — caixa única",
+    "Monitoramento": "🔔 Monitoramento",
     "OSINT Premium": "★ OSINT Premium",
     "Telefone": "1 · Telefone",
     "Email": "2 · Email",
@@ -699,6 +701,13 @@ if page == "Investigar":
         "Educacional · alvos autorizados.",
     )
     display_investigar()
+
+
+# ── Monitoramento ────────────────────────────────────────────────────────────
+elif page == "Monitoramento":
+    page_header("Vigilância", "Monitoramento",
+                "Reinvestiga alvos e avisa quando surge algo novo.")
+    display_monitoramento()
 
 
 # ── OSINT Premium ────────────────────────────────────────────────────────────
