@@ -30,27 +30,36 @@ st.set_page_config(
 import streamlit.components.v1 as _components
 
 _CSS = r"""
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@600;700;800&display=swap');
 :root {
-  --ink: #ecf1f7;
-  --ink-soft: #9aa7b7;
-  --paper: #11161d;
-  --panel: #1b232d;
-  --panel-2: #151c25;
-  --sidebar: #0d1218;
-  --sidebar-text: #c5ced9;
-  --accent: #6fd4be;
-  --accent-hover: #4fc4ab;
-  --accent-warm: #ff9b6a;
-  --line: #334355;
-  --ok: #6fd4be;
+  --ink: #eef3f9;
+  --ink-soft: #98a6b8;
+  --paper: #0b0f15;
+  --panel: #161d27;
+  --panel-2: #121822;
+  --sidebar: #0a0e14;
+  --sidebar-text: #c8d2df;
+  --accent: #5fd6bd;
+  --accent-hover: #7fe6d0;
+  --accent-warm: #ffa87c;
+  --line: #26313f;
+  --line-soft: #1b232e;
+  --ok: #5fd6bd;
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+  --radius: 12px;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --display: 'Sora', 'IBM Plex Sans', system-ui, sans-serif;
 }
 html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-  background: radial-gradient(circle at top right, #1f2c3b 0%, var(--paper) 48%) !important;
+  background:
+    radial-gradient(1200px 620px at 88% -8%, rgba(95, 214, 189, 0.10), transparent 55%),
+    radial-gradient(900px 520px at -5% 105%, rgba(255, 168, 124, 0.06), transparent 52%),
+    var(--paper) !important;
   color: var(--ink) !important;
   font-family: var(--sans) !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 .main, [data-testid="stMain"] {
   background: transparent !important;
@@ -88,6 +97,7 @@ section[data-testid="stSidebar"] > div {
 .mh-panel {
   border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
   padding: 1rem 1.1rem; margin-bottom: 0.9rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
 }
 .mh-panel h3 {
   margin: 0 0 0.35rem 0 !important; font-size: 0.95rem !important;
@@ -114,22 +124,33 @@ section[data-testid="stSidebar"] > div {
   text-transform: uppercase; color: var(--accent) !important; margin-bottom: 0.35rem;
 }
 .mh-brand .name {
-  font-size: 1.35rem; font-weight: 700; color: #f8fafc !important;
-  letter-spacing: -0.02em; line-height: 1.2;
+  font-family: var(--display); font-size: 1.45rem; font-weight: 800; color: #f8fafc !important;
+  letter-spacing: -0.03em; line-height: 1.15;
+  background: linear-gradient(92deg, #f8fafc 30%, var(--accent));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
-.mh-brand .tag { font-size: 0.78rem; color: #8b9aab !important; margin-top: 0.25rem; }
+.mh-brand .tag { font-size: 0.78rem; color: #8b9aab !important; margin-top: 0.35rem; }
+.mh-brand-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.15rem; }
+.mh-brand-badge {
+  width: 2.15rem; height: 2.15rem; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  background: linear-gradient(150deg, rgba(95, 214, 189, 0.22), rgba(95, 214, 189, 0.05));
+  border: 1px solid rgba(95, 214, 189, 0.35);
+  box-shadow: 0 0 22px rgba(95, 214, 189, 0.16);
+}
 .mh-page { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
 .mh-page .eyebrow {
   font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--accent); margin-bottom: 0.35rem;
 }
 .mh-page h1 {
-  font-size: 1.75rem !important; font-weight: 700 !important; color: var(--ink) !important;
-  letter-spacing: -0.03em; margin: 0 !important; padding: 0 !important; line-height: 1.25 !important;
+  font-family: var(--display) !important;
+  font-size: 1.85rem !important; font-weight: 800 !important; color: var(--ink) !important;
+  letter-spacing: -0.035em; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important;
 }
 .mh-page .desc { margin-top: 0.4rem; color: var(--ink-soft); font-size: 0.95rem; max-width: 40rem; }
-h1, h2, h3 { font-family: var(--sans) !important; color: var(--ink) !important; }
-h2 { font-size: 1.15rem !important; font-weight: 600 !important; margin-top: 1.25rem !important; }
+h1, h2, h3 { font-family: var(--display) !important; color: var(--ink) !important; letter-spacing: -0.02em; }
+h2 { font-size: 1.15rem !important; font-weight: 700 !important; margin-top: 1.25rem !important; }
 p, label, .stMarkdown, [data-testid="stMarkdownContainer"],
 [data-testid="stWidgetLabel"] { color: var(--ink) !important; font-family: var(--sans) !important; }
 /* Expander/chevron icons are Material ligatures (_arrow_right). Do not put font-family on `span`. */
@@ -151,11 +172,18 @@ span[class*="material-icons"] {
   color: var(--ink-soft) !important;
 }
 .stButton > button {
-  background: var(--accent) !important; color: #0d1218 !important; border: none !important;
-  border-radius: 6px !important; font-family: var(--sans) !important; font-weight: 600 !important;
-  padding: 0.5rem 1rem !important; box-shadow: none !important;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent)) !important;
+  color: #06231d !important; border: none !important;
+  border-radius: 8px !important; font-family: var(--sans) !important; font-weight: 650 !important;
+  padding: 0.55rem 1.05rem !important;
+  box-shadow: 0 6px 16px rgba(95, 214, 189, 0.16) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
 }
-.stButton > button:hover { background: var(--accent-hover) !important; color: #0d1218 !important; }
+.stButton > button:hover {
+  filter: brightness(1.04) !important; transform: translateY(-1px) !important;
+  box-shadow: 0 9px 22px rgba(95, 214, 189, 0.26) !important; color: #06231d !important;
+}
+.stButton > button:active { transform: translateY(0) !important; }
 /* link_button (cards externos) */
 [data-testid="stLinkButton"] > a,
 .stLinkButton > a {
@@ -184,9 +212,17 @@ input, textarea, .stTextInput input, .stTextArea textarea,
   border-color: var(--line) !important; border-radius: 6px !important;
 }
 .stTextInput input, .stTextArea textarea { font-family: var(--mono) !important; font-size: 0.9rem !important; }
+/* anel de foco no campo ativo — dá acabamento e mostra onde você está digitando */
+.stTextInput input:focus, .stTextArea textarea:focus,
+[data-baseweb="input"]:focus-within, [data-baseweb="select"] > div:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(95, 214, 189, 0.18) !important;
+}
 .stMetric, [data-testid="stMetric"] {
-  background: var(--panel) !important; border: 1px solid var(--line) !important;
-  border-radius: 8px !important; padding: 0.85rem 1rem !important;
+  background: linear-gradient(165deg, #1a222d 0%, var(--panel) 60%) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important; padding: 0.85rem 1rem !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.20) !important;
 }
 [data-testid="stMetricLabel"] {
   font-family: var(--mono) !important; font-size: 0.68rem !important;
@@ -196,9 +232,10 @@ input, textarea, .stTextInput input, .stTextArea textarea,
   font-family: var(--mono) !important; font-size: 1.15rem !important;
   color: var(--ink) !important; font-weight: 500 !important;
 }
-button[data-baseweb="tab"] { font-family: var(--sans) !important; font-weight: 500 !important; color: var(--ink-soft) !important; }
+button[data-baseweb="tab"] { font-family: var(--sans) !important; font-weight: 600 !important; color: var(--ink-soft) !important; }
 button[data-baseweb="tab"][aria-selected="true"] { color: var(--accent) !important; }
-div[data-baseweb="tab-list"] { border-bottom-color: var(--line) !important; }
+div[data-baseweb="tab-list"] { border-bottom-color: var(--line) !important; gap: 0.25rem !important; }
+div[data-baseweb="tab-highlight"] { background: var(--accent) !important; height: 3px !important; border-radius: 3px !important; }
 .stCheckbox label, .stRadio label { color: var(--ink) !important; }
 .stSlider [data-baseweb="slider"] div[role="slider"] { background: var(--accent) !important; }
 .stAlert { background: var(--panel) !important; }
@@ -660,7 +697,10 @@ with st.sidebar:
         """
         <div class="mh-brand">
           <div class="mark">OSINT Console</div>
-          <div class="name">Mr.Holmes</div>
+          <div class="mh-brand-row">
+            <div class="mh-brand-badge">🔎</div>
+            <div class="name">Mr.Holmes</div>
+          </div>
           <div class="tag">OSINT Premium · hub unificado</div>
         </div>
         """
