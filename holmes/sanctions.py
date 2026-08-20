@@ -2,13 +2,20 @@
 Sanções e pessoas politicamente expostas — cobertura internacional.
 
 A camada Brasil (br_auto.py, Portal da Transparência) só enxerga listas
-nacionais. Aqui é o mundo todo, via OpenSanctions: agrega OFAC (EUA), ONU,
-União Europeia, INTERPOL red notices, e listas de PEP de dezenas de países
-num índice só, com busca por nome.
+nacionais. Aqui é o mundo todo: OFAC (EUA), ONU, União Europeia, INTERPOL
+red notices, e listas de PEP de dezenas de países.
 
-Chave gratuita (com limite de uso) — cadastro em opensanctions.org/api.
-Sem chave, o conector fica listado como pulado, igual a qualquer outra
-fonte do motor que depende de chave.
+Dois caminhos, nesta ordem de preferência:
+
+1. Índice local gratuito (holmes.opensanctions_bulk) — mesmos dados,
+   baixados uma vez e indexados em SQLite. Sem custo, sem chave, sem limite
+   de consulta. Precisa rodar `python -m holmes.opensanctions_bulk --update`
+   antes (uma vez, depois periodicamente).
+2. API paga do OpenSanctions, só se `OPENSANCTIONS_API_KEY` estiver
+   configurada — cai aqui quando o índice local ainda não foi baixado.
+
+Sem nenhum dos dois, o conector fica listado como pulado, igual a qualquer
+outra fonte do motor que depende de configuração prévia.
 """
 
 from __future__ import annotations
@@ -59,10 +66,49 @@ def buscar(termo: str, limit: int = 5) -> list[dict]:
     return data.get("results") or []
 
 
-def opensanctions_findings(entity: Entity) -> Iterable[Finding]:
-    if entity.type not in (EntityType.NAME, EntityType.CNPJ):
+def _local_findings(entity: Entity) -> list[Finding]:
+    """Índice local gratuito — sem chave, sem rede, sem custo por consulta."""
+    from . import opensanctions_bulk as bulk
+
+    if not bulk.disponivel():
         return []
 
+    out: list[Finding] = []
+    for r in bulk.search(entity.value):
+        nome = r.get("nome") or entity.value
+        datasets = [d for d in (r.get("datasets") or "").split(";") if d]
+        url = f"https://www.opensanctions.org/entities/{r['id']}/" if r.get("id") else "https://www.opensanctions.org/"
+        confianca = Confidence.CONFIRMED if r.get("nivel_match") == "exato" else Confidence.LIKELY
+        detalhe_base = f"Índice local OpenSanctions · fontes: {', '.join(datasets[:4]) or 'n/d'}"
+        if r.get("nivel_match") != "exato":
+            detalhe_base += " · nome parcial — confirme antes de usar"
+
+        if r.get("eh_sancao"):
+            out.append(Finding(
+                kind=FindingKind.LEGAL,
+                value=f"SANÇÃO internacional: {nome} — {r.get('sancoes') or 'ver detalhe'}",
+                source="opensanctions_local", source_label="OpenSanctions (índice local)",
+                url=url, confidence=confianca, detail=detalhe_base, raw=r,
+            ))
+        elif r.get("eh_pep"):
+            out.append(Finding(
+                kind=FindingKind.NOTE,
+                value=f"Consta como PESSOA POLITICAMENTE EXPOSTA (internacional): {nome}",
+                source="opensanctions_local", source_label="OpenSanctions (índice local)",
+                url=url, confidence=confianca, detail=detalhe_base, raw=r,
+            ))
+        else:
+            out.append(Finding(
+                kind=FindingKind.LEGAL,
+                value=f"{nome} — registro em base internacional de risco",
+                source="opensanctions_local", source_label="OpenSanctions (índice local)",
+                url=url, confidence=confianca, detail=detalhe_base, raw=r,
+            ))
+    return out
+
+
+def _api_findings(entity: Entity) -> list[Finding]:
+    """API paga do OpenSanctions — usada só quando não há índice local baixado."""
     termo = entity.value
     resultados = buscar(termo)
     out: list[Finding] = []
@@ -116,3 +162,15 @@ def opensanctions_findings(entity: Entity) -> Iterable[Finding]:
                 url=url, confidence=confianca, detail=detalhe, raw=r,
             ))
     return out
+
+
+def opensanctions_findings(entity: Entity) -> Iterable[Finding]:
+    """Ponto de entrada do conector: índice local primeiro, API como reserva."""
+    if entity.type not in (EntityType.NAME, EntityType.CNPJ):
+        return []
+
+    from . import opensanctions_bulk as bulk
+
+    if bulk.disponivel():
+        return _local_findings(entity)
+    return _api_findings(entity)
