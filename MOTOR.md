@@ -40,7 +40,7 @@ alvo digitado
    │                      (E.164, local-part, raiz do domínio, CPF limpo…)
    │
    ├─ connectors/ ....... todas as fontes aplicáveis, em paralelo
-   │     auto ........... executa e traz o dado (24 fontes)
+   │     auto ........... executa e traz o dado (25 fontes)
    │     deeplink ....... monta a URL já pesquisada (88 fontes)
    │     manual ......... exige login/captcha — declarado, não fingido (14)
    │
@@ -99,8 +99,8 @@ Configure no Railway em **Variables**, ou cole na própria página (vale só na 
 
 | Alvo | Fontes |
 |---|---|
-| E-mail | MX/provedor/descartável, Gravatar, Holehe¹, HIBP², busca+dorks |
-| Username | WhatsMyName (~90 sites, HTTP puro), GitHub API, Maigret¹, busca+dorks |
+| E-mail | MX/provedor/descartável, Gravatar, Holehe¹, HIBP², Hudson Rock (infostealer), busca+dorks |
+| Username | WhatsMyName (~90 sites, HTTP puro), GitHub API, Maigret¹, Hudson Rock, busca+dorks |
 | Telefone | libphonenumber, numeração BR (DDD, tipo de linha, WhatsApp), NumVerify², busca+dorks |
 | Domínio | RDAP/WHOIS, crt.sh (todos os subdomínios), Hunter², busca+dorks |
 | CNPJ | Receita Federal (razão social, endereço, contatos, **quadro societário**), Querido Diário, Portal da Transparência² |
@@ -265,3 +265,31 @@ mercado ("este e-mail aparece na brecha X"). Não despeja credencial vazada e
 não integra serviço que comercializa base de dado pessoal roubada.
 Uso educacional, em alvos autorizados. Confirme cada fato na fonte antes de
 embasar qualquer decisão.
+
+
+---
+
+## Grafo de conexões
+
+O dossiê agora tem um **mapa visual**: o alvo no centro e cada achado como um
+nó ligado a ele. Sócio de empresa liga na empresa, não no alvo — então a rede
+`pessoa → empresa → sócio → outra empresa` aparece desenhada, não em lista.
+Arraste os nós, dê zoom, clique para focar. Aparece na página Investigar, no
+próprio dossiê.
+
+## Hudson Rock (infostealer) — grátis, sem chave
+
+Novo conector automático para e-mail e username: detecta se o alvo teve um
+computador infectado por malware infostealer. É o vazamento mais grave — quando
+positivo, TODAS as senhas salvas naquela máquina vazaram, não uma só. Traz a
+família do malware, a data e o sistema da máquina infectada.
+
+## Histórico que sobrevive a deploy (Railway Volume)
+
+O histórico de dossiês fica em `HOLMES_HISTORY_DIR` (padrão `.holmes_history`,
+que o Railway apaga a cada deploy). Para preservar entre deploys:
+
+1. No Railway, crie um **Volume** montado em `/data`.
+2. Adicione a variável `HOLMES_HISTORY_DIR=/data/history`.
+
+O mesmo vale para o cache: `HOLMES_CACHE_DIR=/data/cache`.

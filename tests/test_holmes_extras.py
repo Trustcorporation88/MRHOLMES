@@ -138,3 +138,38 @@ def test_prune_respeita_teto(monkeypatch):
     for i in range(6):
         history.save(_dossie(f"Alvo {i}", [Finding(FindingKind.NAME, f"Alvo {i}", "t")]))
     assert len(history.list_entries()) <= 3
+
+
+# ── Hudson Rock (infostealer) ────────────────────────────────────────────────
+
+def test_hudsonrock_extrai_stealers(monkeypatch):
+    from holmes import net
+    from holmes.connectors.auto import _hudsonrock
+
+    fake = {
+        "stealers": [
+            {"stealer_family": "Lumma", "date_compromised": "2024-08-24T00:00:00Z",
+             "computer_name": "pc1", "operating_system": "Windows 11", "ip": "1.2.*.*"},
+            {"stealer_family": "Vidar", "date_compromised": "2022-01-10T00:00:00Z"},
+        ],
+        "total_user_services": 90, "total_corporate_services": 2,
+    }
+    monkeypatch.setattr(net, "get_json", lambda *a, **k: fake)
+    out = list(_hudsonrock(detect("alvo@x.com")))
+    assert out and out[0].kind is FindingKind.BREACH
+    assert "3 máquina" not in out[0].value  # são 2
+    assert any("Lumma" in f.value for f in out)
+
+
+def test_hudsonrock_sem_infeccao_nao_gera_nada(monkeypatch):
+    from holmes import net
+    from holmes.connectors.auto import _hudsonrock
+
+    monkeypatch.setattr(net, "get_json", lambda *a, **k: {"stealers": []})
+    assert list(_hudsonrock(detect("limpo@x.com"))) == []
+
+
+def test_hudsonrock_ignora_tipo_errado():
+    from holmes.connectors.auto import _hudsonrock
+
+    assert list(_hudsonrock(detect("+5511999998888"))) == []
