@@ -628,24 +628,26 @@ a { color: var(--accent) !important; }
 }
 
 /* ── Menu lateral por BOTÕES (sem rádio, sem bolinha) ───────────────────────── */
-[data-testid="stSidebar"] .stButton { margin-bottom: 2px !important; }
+/* itens juntinhos, como um menu de verdade — não botões soltos */
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.1rem !important; }
+[data-testid="stSidebar"] .stButton { margin: 0 !important; }
 [data-testid="stSidebar"] .stButton > button {
   width: 100% !important; text-align: left !important; justify-content: flex-start !important;
   background: transparent !important; color: var(--sidebar-text) !important;
-  border: 1px solid transparent !important; border-radius: 9px !important;
-  font-family: var(--sans) !important; font-weight: 500 !important; font-size: 0.9rem !important;
-  padding: 0.5rem 0.7rem !important; box-shadow: none !important; transform: none !important;
-  min-height: 0 !important;
+  border: 1px solid transparent !important; border-radius: 8px !important;
+  font-family: var(--sans) !important; font-weight: 500 !important; font-size: 0.88rem !important;
+  padding: 0.4rem 0.7rem !important; line-height: 1.2 !important;
+  box-shadow: none !important; transform: none !important; min-height: 0 !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
-  background: #131b25 !important; color: var(--ink) !important;
+  background: #141c26 !important; color: var(--ink) !important;
   border-color: transparent !important; box-shadow: none !important; transform: none !important;
   filter: none !important;
 }
 [data-testid="stSidebar"] .stButton > button[kind="primary"],
 [data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"] {
-  background: rgba(95, 214, 189, 0.12) !important; color: #eafff8 !important;
-  border-color: rgba(95, 214, 189, 0.32) !important;
+  background: rgba(95, 214, 189, 0.13) !important; color: #eafff8 !important;
+  border-color: transparent !important;
   box-shadow: inset 3px 0 0 var(--accent) !important; font-weight: 650 !important;
 }
 [data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:hover {
@@ -830,7 +832,7 @@ with st.sidebar:
     for _grupo, _ids in NAV_GROUPS:
         st.markdown(f'<div class="mh-nav-group">{_grupo}</div>', unsafe_allow_html=True)
         for _pid in _ids:
-            _rotulo = f"{NAV_ICON.get(_pid, '•')} {NAV_SHORT.get(_pid, _pid)}"
+            _rotulo = NAV_SHORT.get(_pid, _pid)
             if st.button(
                 _rotulo, key=f"nav_btn_{_pid}", use_container_width=True,
                 type="primary" if page == _pid else "secondary",
