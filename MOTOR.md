@@ -338,3 +338,19 @@ No Railway, adicione duas variáveis:
 SUPABASE_URL=https://SEU-PROJETO.supabase.co
 SUPABASE_KEY=<service_role key do projeto>
 ```
+
+## Aviso por e-mail (monitoramento)
+
+Quando o monitoramento acha novidade num alvo vigiado, envia um e-mail com o
+resumo. Usa SMTP puro (sem serviço pago). Configure no Railway:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=seu-email@gmail.com
+SMTP_PASSWORD=senha-de-app        # NÃO a senha normal — gere uma "senha de app"
+ALERT_EMAIL=para-onde-avisar@...  # opcional; sem isso usa o SMTP_USER
+```
+
+Com o Railway Cron rodando `python -m holmes.monitor`, o alerta chega sozinho
+na sua caixa, sem ninguém abrir a página.

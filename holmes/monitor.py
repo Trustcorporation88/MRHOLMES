@@ -185,8 +185,25 @@ def run_once(investigate_fn=None, config=None) -> list[dict]:
                 _push_alert(alerta)
                 novos.append(alerta)
 
-    _save(WATCH_FILE, lista)
+    if not enabled_store():
+        _save(WATCH_FILE, lista)
+
+    # Avisa por e-mail se houver novidade e o SMTP estiver configurado.
+    if novos:
+        try:
+            from . import notify
+
+            notify.notify_alerts(novos)
+        except Exception:
+            pass
+
     return novos
+
+
+def enabled_store() -> bool:
+    from . import store
+
+    return store.enabled()
 
 
 def _resumir_diff(d: dict) -> str:
