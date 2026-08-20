@@ -726,6 +726,34 @@ def register_auto_connectors() -> None:
         description="Perfil, e-mail de commit, empresa e localização",
     ))
 
+    # ── Contas por username: fontes gratuitas de JSON (holmes.social) ────────
+    from .. import social
+
+    register(Connector(
+        id="keybase", label="Keybase", mode=Mode.AUTO,
+        accepts=(U, EntityType.PROFILE_URL), category="username",
+        run=social.keybase_findings,
+        description="Contas ligadas com prova, nome real e cripto do dono",
+    ))
+    register(Connector(
+        id="gitlab", label="GitLab", mode=Mode.AUTO,
+        accepts=(U, EntityType.PROFILE_URL), category="username",
+        run=social.gitlab_findings,
+        description="Perfil público e nome real via API do GitLab",
+    ))
+    register(Connector(
+        id="hackernews", label="Hacker News", mode=Mode.AUTO,
+        accepts=(U, EntityType.PROFILE_URL), category="username",
+        run=social.hackernews_findings,
+        description="Conta, karma e e-mail do 'sobre mim' no HN",
+    ))
+    register(Connector(
+        id="reddit_api", label="Reddit", mode=Mode.AUTO,
+        accepts=(U, EntityType.PROFILE_URL), category="username",
+        run=social.reddit_findings,
+        description="Conta, carma e data de criação do perfil Reddit",
+    ))
+
     register(Connector(
         id="libphonenumber", label="libphonenumber", mode=Mode.AUTO, accepts=(P,),
         category="telefone", run=_phone_lib,

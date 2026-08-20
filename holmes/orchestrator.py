@@ -91,6 +91,52 @@ def _run_batch(
     return results
 
 
+def _run_batches_parallel(
+    entities: list[Entity],
+    config: InvestigationConfig,
+    deadline_ts: float,
+    progress: ProgressFn | None = None,
+    progress_base: float = 0.5,
+    progress_span: float = 0.4,
+) -> list[ConnectorResult]:
+    """
+    Roda o lote AUTO de VÁRIOS alvos (os pivôs de um salto) ao mesmo tempo.
+
+    Antes, os pivôs rodavam um atrás do outro — 4 pivôs de ~40s viravam ~160s.
+    Rodando em paralelo, o salto inteiro leva o tempo do pivô mais lento.
+    O teto de 4 pivôs simultâneos evita explodir o número de threads (cada
+    pivô já abre seu próprio lote paralelo por dentro).
+    """
+    results: list[ConnectorResult] = []
+    n = len(entities)
+    if not n:
+        return results
+
+    workers = min(max(1, config.max_workers), n, 4)
+    done = 0
+    pool = ThreadPoolExecutor(max_workers=workers)
+    futures = {
+        pool.submit(_run_batch, e, {Mode.AUTO}, config, None, 0.0, 0.0): e
+        for e in entities
+    }
+    restante = max(1.0, deadline_ts - time.time())
+    try:
+        for fut in as_completed(futures, timeout=restante):
+            try:
+                results.extend(fut.result() or [])
+            except Exception:  # noqa: BLE001
+                pass
+            done += 1
+            if progress:
+                progress(f"Pivôs do salto ({done}/{n})",
+                         progress_base + progress_span * (done / n))
+    except FuturesTimeout:
+        pass
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return results
+
+
 def investigate(
     raw_target: str,
     config: InvestigationConfig | None = None,
@@ -145,11 +191,9 @@ def investigate(
 
         span = 0.4 / max(1, cfg.depth - 1)
         base = 0.5 + span * (hop - 1)
-        new_findings = []
 
-        for idx, piv in enumerate(pending):
-            if time.time() - started > cfg.global_timeout:
-                break
+        # Registra os pivôs deste salto antes de disparar.
+        for piv in pending:
             seen.add(piv.key)
             dossier.pivots_run.append({
                 "alvo": piv.entity.value,
@@ -158,15 +202,15 @@ def investigate(
                 "origem": piv.origin,
                 "salto": hop,
             })
-            if progress:
-                progress(f"Pivô {hop}.{idx + 1}: {piv.entity.value}", base + span * (idx / max(1, len(pending))))
 
-            # No pivô, só fontes automáticas: deeplink de alvo derivado vira ruído.
-            piv_results = _run_batch(
-                piv.entity, {Mode.AUTO}, cfg, None, base, span / max(1, len(pending))
-            )
-            dossier.add_results(piv_results)
-            new_findings.extend(f for r in piv_results for f in r.findings)
+        # No pivô, só fontes automáticas: deeplink de alvo derivado vira ruído.
+        # Todos os pivôs do salto rodam em paralelo (ganho principal de tempo).
+        piv_results = _run_batches_parallel(
+            [p.entity for p in pending], cfg, started + cfg.global_timeout,
+            progress, base, span,
+        )
+        dossier.add_results(piv_results)
+        new_findings = [f for r in piv_results for f in r.findings]
 
         hop += 1
         pending = pivot_mod.dedupe_and_rank(

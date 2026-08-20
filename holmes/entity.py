@@ -25,6 +25,7 @@ class EntityType(str, Enum):
     IP = "ip"
     CPF = "cpf"
     CNPJ = "cnpj"
+    PLACA = "placa"
     PROCESSO = "processo"
     PROFILE_URL = "perfil"
     URL = "url"
@@ -40,6 +41,7 @@ ENTITY_LABEL = {
     EntityType.IP: "IP",
     EntityType.CPF: "CPF",
     EntityType.CNPJ: "CNPJ",
+    EntityType.PLACA: "Placa de veículo",
     EntityType.PROCESSO: "Processo judicial",
     EntityType.URL: "Endereço web",
     EntityType.PROFILE_URL: "URL de perfil",
@@ -74,6 +76,24 @@ def _looks_like_domain(text: str) -> bool:
         return False
     tld = text.rsplit(".", 1)[-1].lower()
     return (len(tld) == 2 and tld.isalpha()) or tld in _GTLDS
+
+
+# Placa de veículo BR. Mercosul (LLLNLNN) é inequívoco. A placa antiga
+# (LLLNNNN) colide com username tipo "abc1234", então só é aceita quando o
+# texto vem em MAIÚSCULAS ou com separador — senão fica como username.
+_PLACA_MERCOSUL = re.compile(r"^[A-Za-z]{3}\d[A-Za-z]\d{2}$")
+_PLACA_ANTIGA = re.compile(r"^([A-Za-z]{3})[- ]?(\d{4})$")
+
+
+def _looks_like_plate(text: str) -> str | None:
+    """Devolve a placa normalizada (7 caracteres, sem separador) ou None."""
+    t = text.strip()
+    if _PLACA_MERCOSUL.match(t):
+        return t.upper().replace("-", "").replace(" ", "")
+    m = _PLACA_ANTIGA.match(t)
+    if m and (t.isupper() or "-" in t or " " in t):
+        return (m.group(1) + m.group(2)).upper()
+    return None
 
 # Plataformas cujo path já entrega o handle.
 _PROFILE_HOSTS = {
@@ -322,6 +342,23 @@ def _norm_name(raw: str) -> Entity:
     return Entity(raw=raw, type=EntityType.NAME, value=cleaned, variants=variants)
 
 
+def _norm_plate(raw: str) -> Entity:
+    placa = _looks_like_plate(raw) or raw.strip().upper().replace("-", "").replace(" ", "")
+    mercosul = bool(_PLACA_MERCOSUL.match(placa))
+    variants = {
+        "placa": placa,
+        "formato": "Mercosul" if mercosul else "antiga (pré-2018)",
+        "com_hifen": placa if mercosul else f"{placa[:3]}-{placa[3:]}",
+        "quoted": f'"{placa}"',
+    }
+    ent = Entity(raw=raw, type=EntityType.PLACA, value=placa, variants=variants)
+    ent.notes.append(
+        "Placa de veículo. O nome do proprietário NÃO é público no Brasil; as "
+        "fontes gratuitas trazem marca, modelo, ano, cor e município/UF de registro."
+    )
+    return ent
+
+
 def _norm_url(raw: str) -> Entity:
     """
     URL com caminho. Diferente de domínio: aqui o caminho importa, porque é
@@ -453,6 +490,10 @@ def detect(raw: str) -> Entity:
     # 5. Telefone — só dígitos e pontuação de telefone, tamanho plausível.
     if not non_digit and 8 <= len(digits) <= 15:
         return _norm_phone(text)
+
+    # 5.5. Placa de veículo BR — antes de virar username/nome.
+    if _looks_like_plate(text):
+        return _norm_plate(text)
 
     # 6. Handle explícito.
     if text.startswith("@") and _HANDLE_RE.match(text):

@@ -176,8 +176,104 @@ def _render_links(facts) -> None:
                     st.caption(fact.detail[:90])
 
 
+def _render_identity_card(dossier) -> None:
+    """Cartão de identidade estilo agência: quem é o alvo numa olhada só."""
+    import html as _html
+
+    card = dossier.identity_card()
+
+    def _linha(rotulo: str, valor: str) -> str:
+        if not valor:
+            return ""
+        return (
+            f"<div style='margin:2px 0'><span style='color:#94a3b8;font-size:12px;"
+            f"text-transform:uppercase;letter-spacing:.06em'>{rotulo}</span><br>"
+            f"<span style='font-size:14.5px'>{_html.escape(valor)}</span></div>"
+        )
+
+    esquerda = ""
+    if card["foto"]:
+        esquerda = (
+            f"<img src='{_html.escape(card['foto'], quote=True)}' "
+            f"style='width:92px;height:92px;border-radius:12px;object-fit:cover;"
+            f"border:1px solid rgba(148,163,184,.3)'>"
+        )
+    else:
+        inicial = (card["nome"] or card["alvo"] or "?")[:1].upper()
+        esquerda = (
+            f"<div style='width:92px;height:92px;border-radius:12px;background:rgba(15,98,254,.15);"
+            f"display:flex;align-items:center;justify-content:center;font-size:40px;"
+            f"font-weight:800;color:#3b82f6'>{_html.escape(inicial)}</div>"
+        )
+
+    flags_html = ""
+    if card["flags"]:
+        pills = "".join(
+            f"<span style='display:inline-block;background:#db443722;color:#f87171;"
+            f"font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;"
+            f"margin:2px 4px 2px 0'>⚠ {_html.escape(x)}</span>"
+            for x in card["flags"]
+        )
+        flags_html = f"<div style='margin-top:8px'>{pills}</div>"
+
+    corpo = "".join([
+        _linha("Nome", card["nome"]),
+        _linha("E-mails", " · ".join(card["emails"])),
+        _linha("Telefones", " · ".join(card["telefones"])),
+        _linha("Localização", card["localizacao"]),
+        _linha("Empresas", " · ".join(card["empresas"])),
+        _linha("Documentos", " · ".join(card["documentos"])),
+        _linha("Contas", f"{card['total_contas']} encontrada(s): "
+               + ", ".join(c.split(':')[0] for c in card["contas"]) if card["contas"] else ""),
+    ])
+
+    bloco = (
+        f"<div style='background:linear-gradient(135deg,rgba(15,98,254,.08),rgba(15,98,254,.01));"
+        f"border:1px solid rgba(148,163,184,.22);border-radius:14px;padding:16px 18px;margin-bottom:14px'>"
+        f"<div style='display:flex;gap:16px;align-items:flex-start'>"
+        f"<div>{esquerda}</div>"
+        f"<div style='flex:1'>"
+        f"<div style='font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#94a3b8;font-weight:700'>"
+        f"Cartão de identidade · {_html.escape(card['tipo'])}</div>"
+        f"<div style='font-size:21px;font-weight:800;margin:2px 0 8px'>{_html.escape(card['nome'] or card['alvo'])}</div>"
+        f"{corpo}{flags_html}"
+        f"</div></div></div>"
+    )
+    st.markdown(bloco, unsafe_allow_html=True)
+
+
+def _render_timeline(dossier) -> None:
+    """Linha do tempo: os achados com data, em ordem cronológica."""
+    import html as _html
+
+    eventos = dossier.timeline()
+    if not eventos:
+        return
+    icone = {
+        "vazamento": "🩸", "empresa": "🏢", "dominio": "🌐", "juridico": "⚖️",
+        "conta": "👤", "nome": "🪪", "documento": "📄", "nota": "🔧",
+    }
+    with st.expander(f"🕰️ Linha do tempo ({len(eventos)} eventos com data)", expanded=False):
+        linhas = []
+        for ev in eventos:
+            ic = icone.get(ev["tipo"], "•")
+            texto = _html.escape(ev["texto"])
+            fonte = _html.escape(ev["fonte"])
+            link = (f" <a href='{_html.escape(ev['url'], quote=True)}' target='_blank' "
+                    f"rel='noopener noreferrer' style='font-size:11px'>abrir</a>") if ev["url"] else ""
+            linhas.append(
+                f"<div style='display:flex;gap:10px;padding:6px 0;border-bottom:1px solid rgba(148,163,184,.12)'>"
+                f"<div style='min-width:92px;font-weight:700;color:#3b82f6;font-size:13px'>{ev['data']}</div>"
+                f"<div style='flex:1'>{ic} {texto}"
+                f"<span style='color:#94a3b8;font-size:11.5px'> — {fonte}{link}</span></div></div>"
+            )
+        st.markdown("".join(linhas), unsafe_allow_html=True)
+
+
 def _render_dossier(dossier) -> None:
     s = dossier.stats
+
+    _render_identity_card(dossier)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Fontes consultadas", s["fontes_consultadas"])
@@ -197,6 +293,8 @@ def _render_dossier(dossier) -> None:
         with st.expander(f"⭐ O que está bem sustentado ({len(destaque)})", expanded=True):
             for fact in destaque[:25]:
                 _render_fact(fact)
+
+    _render_timeline(dossier)
 
     # Grafo de conexões — o mapa "pessoa → empresa → sócio".
     try:
@@ -435,6 +533,11 @@ def display_investigar() -> None:
         with c3:
             usar_llm = st.checkbox("Analisar com IA", value=True)
             timeout = st.slider("Tempo máximo (s)", 60, 600, 300, step=30)
+            modo_rapido = st.checkbox(
+                "⚡ Modo rápido", value=False,
+                help="Só o alvo, sem pivôs. Bem mais rápido — use para uma primeira "
+                     "olhada. Desmarque para a investigação completa.",
+            )
 
         env = environment_report()
         indisponiveis = [k for k, v in env.items() if not v]
@@ -446,7 +549,8 @@ def display_investigar() -> None:
 
     if rodar and alvo.strip():
         cfg = InvestigationConfig(
-            depth=depth, include_deeplinks=incluir_links, include_manual=incluir_manual,
+            depth=1 if modo_rapido else depth,
+            include_deeplinks=incluir_links, include_manual=incluir_manual,
             max_pivots_per_hop=max_pivots, use_llm=usar_llm, global_timeout=timeout,
         )
         barra = st.progress(0.0)

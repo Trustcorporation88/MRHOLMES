@@ -13,8 +13,35 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable
 
-from .entity import Entity
+from .entity import Entity, EntityType
 from .findings import ConnectorResult, CorroboratedFact, Finding, FindingKind
+
+# Datas para a linha do tempo — ISO (2024-08-24) e BR (24/08/2024).
+_DATA_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+_DATA_BR = re.compile(r"\b(\d{2})/(\d{2})/(\d{4})\b")
+
+# Findings que não entram na linha do tempo: a data no snippet de busca ou no
+# deeplink é ruído, não evento do alvo.
+_SEM_TIMELINE = {FindingKind.WEB_RESULT, FindingKind.LINK, FindingKind.IMAGE}
+
+
+def _extrair_data(*textos: str) -> str | None:
+    """Primeira data plausível (1900–2100) encontrada, normalizada em ISO."""
+    for texto in textos:
+        if not texto:
+            continue
+        m = _DATA_ISO.search(texto)
+        if m:
+            ano, mes, dia = m.groups()
+            if 1900 <= int(ano) <= 2100:
+                return f"{ano}-{mes}-{dia}"
+        m = _DATA_BR.search(texto)
+        if m:
+            dia, mes, ano = m.groups()
+            if 1900 <= int(ano) <= 2100:
+                return f"{ano}-{mes}-{dia}"
+    return None
+
 
 # Ordem de apresentação: identidade primeiro, ruído por último.
 SECTION_ORDER = [
@@ -117,6 +144,90 @@ class Dossier:
             if f.score >= minimum and kind not in (FindingKind.LINK, FindingKind.WEB_RESULT)
         ]
         return sorted(out, key=lambda f: -f.score)
+
+    # ── dossiê estilo agência ─────────────────────────────────────────────────
+
+    def identity_card(self) -> dict:
+        """
+        Cartão de identidade: o melhor de cada tipo, para bater o olho e saber
+        quem é o alvo sem ler o dossiê inteiro. É o topo do relatório.
+        """
+        def melhores(kind: FindingKind, n: int = 3) -> list[str]:
+            return [f.value for f in self.section(kind)[:n]]
+
+        def melhor(kind: FindingKind) -> str:
+            itens = self.section(kind)
+            return itens[0].value if itens else ""
+
+        foto = ""
+        for f in self.section(FindingKind.IMAGE):
+            if f.value.startswith("http"):
+                foto = f.value
+                break
+
+        # Bandeiras que mudam a leitura do caso, em ordem de gravidade.
+        flags: list[str] = []
+        if any("POLITICAMENTE EXPOSTA" in n.value.upper() for n in self.section(FindingKind.NOTE)):
+            flags.append("Pessoa politicamente exposta (PEP)")
+        vaz = self.section(FindingKind.BREACH)
+        if vaz:
+            flags.append(f"{len(vaz)} vazamento(s)")
+        sancoes = [j for j in self.section(FindingKind.LEGAL) if "SANÇÃO" in j.value.upper()]
+        if sancoes:
+            flags.append(f"{len(sancoes)} sanção(ões) oficial(is)")
+
+        nome = melhor(FindingKind.NAME)
+        if not nome and self.entity.type is EntityType.NAME:
+            nome = self.entity.value
+
+        contas = self.section(FindingKind.ACCOUNT)
+        return {
+            "alvo": self.entity.value,
+            "tipo": self.entity.label,
+            "nome": nome,
+            "foto": foto,
+            "emails": melhores(FindingKind.EMAIL, 4),
+            "telefones": melhores(FindingKind.PHONE, 4),
+            "localizacao": melhor(FindingKind.ADDRESS),
+            "empresas": melhores(FindingKind.COMPANY, 3),
+            "documentos": melhores(FindingKind.DOCUMENT, 3),
+            "contas": [c.value for c in contas[:8]],
+            "total_contas": len(contas),
+            "flags": flags,
+        }
+
+    def timeline(self) -> list[dict]:
+        """
+        Linha do tempo: todo achado com data vira um evento, em ordem
+        cronológica. Vazamento, registro de domínio, entrada em sociedade,
+        infecção por malware — tudo que tem quando.
+        """
+        vistos: set[tuple] = set()
+        eventos: list[dict] = []
+        for f in self.all_findings():
+            if f.kind in _SEM_TIMELINE:
+                continue
+            try:
+                raw_blob = json.dumps(f.raw, ensure_ascii=False)
+            except Exception:
+                raw_blob = ""
+            data = _extrair_data(f.value, f.detail, raw_blob)
+            if not data:
+                continue
+            texto = f.value if len(f.value) <= 90 else f.value[:90] + "…"
+            chave = (data, f.kind.value, texto.lower())
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            eventos.append({
+                "data": data,
+                "texto": texto,
+                "tipo": f.kind.value,
+                "fonte": f.source_label or f.source,
+                "url": f.url or "",
+            })
+        eventos.sort(key=lambda e: e["data"])
+        return eventos[:40]
 
     @property
     def stats(self) -> dict:
