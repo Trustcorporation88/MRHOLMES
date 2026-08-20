@@ -776,6 +776,23 @@ def register_auto_connectors() -> None:
         description="Razão social, endereço, contatos e quadro societário",
     ))
 
+    # ── Sanções/PEP no mundo todo + Wikipédia/Wikidata ──────────────────────
+    from .. import sanctions, wiki
+
+    register(Connector(
+        id="opensanctions", label="OpenSanctions (sanções e PEP globais)",
+        mode=Mode.AUTO, accepts=(EntityType.NAME, EntityType.CNPJ),
+        category="juridico", run=sanctions.opensanctions_findings,
+        requires_key="opensanctions", cost="chave", timeout=20,
+        description="OFAC, ONU, UE, INTERPOL e listas de PEP de dezenas de países (chave grátis)",
+    ))
+    register(Connector(
+        id="wikipedia", label="Wikipédia / Wikidata", mode=Mode.AUTO,
+        accepts=(EntityType.NAME,), category="perfil", run=wiki.wiki_findings,
+        timeout=25,
+        description="Biografia, foto oficial, data de nascimento e cargos — grátis, sem chave",
+    ))
+
     # ── Brasil: fontes oficiais e abertas ──────────────────────────────────
     from .. import br_auto
     from ..cnj import processo_findings

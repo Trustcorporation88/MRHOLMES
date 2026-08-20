@@ -43,6 +43,7 @@ _KEY_ALIASES = {
     "ipinfo": ("IPINFO_TOKEN", "IPINFO_API_KEY"),
     "osintleak": ("OSINTLEAK_API_KEY",),
     "portal_transparencia": ("PORTAL_TRANSPARENCIA_KEY", "PORTAL_TRANSPARENCIA_API_KEY"),
+    "opensanctions": ("OPENSANCTIONS_API_KEY",),
     "leakcheck": ("LEAKCHECK_API_KEY",),
     "dehashed_user": ("DEHASHED_USER", "DEHASHED_EMAIL"),
     "dehashed_key": ("DEHASHED_API_KEY",),

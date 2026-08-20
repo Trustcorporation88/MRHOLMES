@@ -90,6 +90,7 @@ Só uma é realmente decisiva:
 | `HUNTER_API_KEY` | — | E-mails e padrão de e-mail de um domínio |
 | `NUMVERIFY_API_KEY` | — | Operadora atual e tipo de linha |
 | `PORTAL_TRANSPARENCIA_KEY` | PEP fica só via Câmara/Senado | PEP oficial, CEIS, CNEP e servidor federal (grátis) |
+| `OPENSANCTIONS_API_KEY` | Sanção/PEP fica só nas bases brasileiras | OFAC, ONU, UE, INTERPOL e PEP de dezenas de países (grátis, com limite) |
 
 Configure no Railway em **Variables**, ou cole na própria página (vale só na sessão).
 
@@ -105,7 +106,7 @@ Configure no Railway em **Variables**, ou cole na própria página (vale só na 
 | Domínio | RDAP/WHOIS, crt.sh (todos os subdomínios), Hunter², busca+dorks |
 | CNPJ | Receita Federal (razão social, endereço, contatos, **quadro societário**), Querido Diário, Portal da Transparência² |
 | CPF | Portal da Transparência² — PEP e listas de sanção |
-| Nome | busca+dorks, Câmara e Senado (detecção de PEP), Querido Diário, Portal da Transparência² |
+| Nome | busca+dorks, Câmara e Senado (detecção de PEP), Querido Diário, Portal da Transparência², **OpenSanctions² (sanção/PEP global)**, **Wikipédia/Wikidata (biografia, foto, nascimento, cargos — sem chave)** |
 | **Processo judicial** | **DataJud (CNJ)** — decodifica o número e traz a movimentação oficial |
 | Domínio .br | Registro.br — titular e CPF/CNPJ do dono |
 | URL / domínio | Rastreamento do site (opt-in) — e-mail, telefone, cripto, perfis |
