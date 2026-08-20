@@ -611,9 +611,20 @@ a { color: var(--accent) !important; }
   border: 1px solid transparent !important;
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
-/* esconde a bolinha do radio — vira item de menu */
-[data-testid="stSidebar"] .stRadio [role="radiogroup"] > label > div:first-child {
+/* esconde a bolinha do radio em TODOS os itens — vira item de menu.
+   No BaseWeb a estrutura é <label><input><div=bolinha><div=texto></label>,
+   então a bolinha é o `input + div` (não o :first-child). Cobrimos todas as variações. */
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] label > input + div,
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] label > div:has(> input),
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] label div[data-baseweb="radio"] > div:first-child {
   display: none !important;
+}
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] label > input {
+  position: absolute !important; opacity: 0 !important; width: 0 !important; height: 0 !important;
+}
+/* garante que o texto do item ocupe a linha toda, sem recuo da bolinha sumida */
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] label > div:last-child {
+  margin-left: 0 !important;
 }
 [data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:hover {
   background: #131b25 !important;
