@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
 from external_services_ui import display_external_services, display_services_for_page
-from osint_premium import apply_pending_navigation
+from osint_premium import apply_pending_navigation, queue_navigation
 from osint_premium_ui import display_osint_premium
 from robin_workspace import sync_llm_keys_from_session
 from holmes_ui import display_investigar, display_historico, display_monitoramento
@@ -626,6 +626,28 @@ a { color: var(--accent) !important; }
 [data-testid="stSidebar"] .stRadio [role="radiogroup"] label > div:last-child {
   margin-left: 0 !important;
 }
+
+/* ── Menu lateral por BOTÕES (sem rádio, sem bolinha) ───────────────────────── */
+[data-testid="stSidebar"] .stButton { margin-bottom: 2px !important; }
+[data-testid="stSidebar"] .stButton > button {
+  width: 100% !important; text-align: left !important; justify-content: flex-start !important;
+  background: transparent !important; color: var(--sidebar-text) !important;
+  border: 1px solid transparent !important; border-radius: 9px !important;
+  font-family: var(--sans) !important; font-weight: 500 !important; font-size: 0.9rem !important;
+  padding: 0.5rem 0.7rem !important; box-shadow: none !important; transform: none !important;
+  min-height: 0 !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: #131b25 !important; color: var(--ink) !important;
+  border-color: transparent !important; box-shadow: none !important; transform: none !important;
+  filter: none !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"] {
+  background: rgba(95, 214, 189, 0.12) !important; color: #eafff8 !important;
+  border-color: rgba(95, 214, 189, 0.32) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important; font-weight: 650 !important;
+}
 [data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:hover {
   background: #131b25 !important;
 }
@@ -764,6 +786,31 @@ def _nav_label(page_id: str) -> str:
     return NAV_LABEL.get(page_id, page_id)
 
 
+# Navegação por botões (menu de verdade, sem bolinha de rádio), agrupada.
+NAV_ICON = {
+    "Investigar": "🔎", "Monitoramento": "🔔", "OSINT Premium": "★",
+    "Telefone": "📱", "Email": "✉️", "Domínio": "🌐", "Dorks": "🧩",
+    "OSINT Avançado": "👤", "Leaks": "🩸", "Rede": "📡", "Gráfico": "🕸️",
+    "Ferramentas": "🧰", "Serviços Externos": "🔗", "Aprenda": "🎓",
+    "Histórico": "🕘", "Sobre": "ℹ️",
+}
+NAV_SHORT = {
+    "Investigar": "Investigar", "Monitoramento": "Monitoramento",
+    "OSINT Premium": "OSINT Premium", "Telefone": "Telefone", "Email": "Email",
+    "Domínio": "Domínio", "Dorks": "Dorks Google", "OSINT Avançado": "Username / Social",
+    "Leaks": "Leaks", "Rede": "Rede / IP", "Gráfico": "Grafo",
+    "Ferramentas": "Catálogo (GitHub)", "Serviços Externos": "Links web",
+    "Aprenda": "Aprenda", "Histórico": "Histórico", "Sobre": "Sobre",
+}
+NAV_GROUPS = [
+    ("Principal", ["Investigar", "Monitoramento", "OSINT Premium"]),
+    ("Ferramentas manuais", ["Telefone", "Email", "Domínio", "Dorks",
+                             "OSINT Avançado", "Leaks", "Rede", "Gráfico",
+                             "Ferramentas", "Serviços Externos"]),
+    ("Sistema", ["Aprenda", "Histórico", "Sobre"]),
+]
+
+
 with st.sidebar:
     st.html(
         """
@@ -777,15 +824,20 @@ with st.sidebar:
         </div>
         """
     )
-    st.caption("Comece por **Investigar** · os itens 1–13 são o modo manual/avançado")
     apply_pending_navigation(st.session_state, NAV_OPTIONS, default="Investigar")
-    page = st.radio(
-        "Menu",
-        NAV_OPTIONS,
-        format_func=_nav_label,
-        key="nav_page",
-        label_visibility="collapsed",
-    )
+    page = st.session_state.get("nav_page", "Investigar")
+
+    for _grupo, _ids in NAV_GROUPS:
+        st.markdown(f'<div class="mh-nav-group">{_grupo}</div>', unsafe_allow_html=True)
+        for _pid in _ids:
+            _rotulo = f"{NAV_ICON.get(_pid, '•')} {NAV_SHORT.get(_pid, _pid)}"
+            if st.button(
+                _rotulo, key=f"nav_btn_{_pid}", use_container_width=True,
+                type="primary" if page == _pid else "secondary",
+            ):
+                queue_navigation(st.session_state, _pid)
+                st.rerun()
+
     st.markdown("---")
     sync_llm_keys_from_session()
     _prov = None
