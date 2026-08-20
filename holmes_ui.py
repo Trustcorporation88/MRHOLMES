@@ -188,6 +188,19 @@ def _render_dossier(dossier) -> None:
             for fact in destaque[:25]:
                 _render_fact(fact)
 
+    # Grafo de conexões — o mapa "pessoa → empresa → sócio".
+    try:
+        from holmes import graph as _graph
+        import streamlit.components.v1 as _components
+
+        g = _graph.stats(dossier)
+        if g["nos"] > 1:
+            with st.expander(f"🕸️ Grafo de conexões ({g['nos']} nós, {g['conexoes']} ligações)",
+                             expanded=True):
+                _components.html(_graph.to_html(dossier), height=580, scrolling=False)
+    except Exception:
+        pass
+
     sections = dossier.sections()
     link_section = [(l, i) for l, i in sections if l == "Fontes para abrir"]
     other = [(l, i) for l, i in sections if l != "Fontes para abrir"]

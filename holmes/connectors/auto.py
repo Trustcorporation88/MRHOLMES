@@ -171,6 +171,58 @@ def _holehe(entity: Entity) -> Iterable[Finding]:
     return out
 
 
+def _hudsonrock(entity: Entity) -> Iterable[Finding]:
+    """
+    Máquina infectada por infostealer com o e-mail/username do alvo — API
+    gratuita da Hudson Rock, sem chave. É o vazamento mais grave: significa
+    que TODAS as senhas salvas naquele computador vazaram, não só uma.
+    """
+    if entity.type is EntityType.EMAIL:
+        campo, valor = "email", entity.value
+    elif entity.type is EntityType.USERNAME:
+        campo, valor = "username", entity.get("handle") or entity.value
+    else:
+        return []
+
+    try:
+        data = net.get_json(
+            f"https://cavalier.hudsonrock.com/api/json/v2/osint-tools/search-by-{campo}",
+            params={campo: valor}, timeout=20, ttl=12 * 3600,
+        ) or {}
+    except Exception:
+        return []
+
+    stealers = data.get("stealers") or []
+    if not stealers:
+        return []
+
+    out: list[Finding] = [Finding(
+        kind=FindingKind.BREACH,
+        value=f"Infostealer: {len(stealers)} máquina(s) infectada(s)",
+        source="hudsonrock", source_label="Hudson Rock",
+        url="https://www.hudsonrock.com/free-tools",
+        confidence=Confidence.CONFIRMED,
+        detail=f"O {campo} aparece em computador infectado por malware. "
+               f"{data.get('total_user_services', 0)} serviços pessoais e "
+               f"{data.get('total_corporate_services', 0)} corporativos com credencial exposta.",
+        raw={"total": len(stealers)},
+    )]
+    for s in stealers[:5]:
+        familia = s.get("stealer_family") or "malware"
+        quando = (s.get("date_compromised") or "")[:10]
+        so = s.get("operating_system") or ""
+        out.append(Finding(
+            kind=FindingKind.BREACH,
+            value=f"{familia} — {quando}",
+            source="hudsonrock", source_label="Hudson Rock",
+            url="https://www.hudsonrock.com/free-tools", confidence=Confidence.CONFIRMED,
+            detail=f"Computador '{s.get('computer_name') or '?'}' ({so}) infectado. "
+                   f"IP parcial: {s.get('ip') or 'n/d'}.",
+            raw=s,
+        ))
+    return out
+
+
 def _hibp(entity: Entity) -> Iterable[Finding]:
     """Em quais vazamentos o e-mail apareceu. Nome da brecha, não credencial."""
     key = net.get_key("hibp")
@@ -646,6 +698,11 @@ def register_auto_connectors() -> None:
         id="hibp", label="Have I Been Pwned", mode=Mode.AUTO, accepts=(E,),
         category="leaks", run=_hibp, requires_key="hibp", cost="chave",
         description="Vazamentos em que o e-mail apareceu",
+    ))
+    register(Connector(
+        id="hudsonrock_api", label="Hudson Rock (infostealer)", mode=Mode.AUTO,
+        accepts=(E, U), category="leaks", run=_hudsonrock,
+        description="Máquina infectada por malware com o e-mail/username (grátis)",
     ))
     register(Connector(
         id="hunter", label="Hunter.io", mode=Mode.AUTO, accepts=(D,),
