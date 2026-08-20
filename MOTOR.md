@@ -354,3 +354,12 @@ ALERT_EMAIL=para-onde-avisar@...  # opcional; sem isso usa o SMTP_USER
 
 Com o Railway Cron rodando `python -m holmes.monitor`, o alerta chega sozinho
 na sua caixa, sem ninguém abrir a página.
+
+## Exploradores de cripto
+
+Todo endereço de cripto (BTC/ETH/XMR) que o motor extrai vira link direto para
+o explorador da blockchain (transações e saldo) e para base de denúncia de
+golpe (Bitcoin Abuse, Chainabuse). Aparece em «Fontes para abrir». Fontes
+selecionadas da categoria Blockchain do OSINT-Framework (lockfale) — só o que
+aceita o endereço na URL; o resto do índice (1.168 links) é home/manual e foi
+deixado de fora de propósito, para não repetir o catálogo morto.
