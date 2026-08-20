@@ -201,9 +201,10 @@ def _render_identity_card(dossier) -> None:
     else:
         inicial = (card["nome"] or card["alvo"] or "?")[:1].upper()
         esquerda = (
-            f"<div style='width:92px;height:92px;border-radius:12px;background:rgba(15,98,254,.15);"
+            f"<div style='width:92px;height:92px;border-radius:12px;background:rgba(95,214,189,.14);"
+            f"border:1px solid rgba(95,214,189,.30);"
             f"display:flex;align-items:center;justify-content:center;font-size:40px;"
-            f"font-weight:800;color:#3b82f6'>{_html.escape(inicial)}</div>"
+            f"font-weight:800;color:#5fd6bd'>{_html.escape(inicial)}</div>"
         )
 
     flags_html = ""
@@ -228,8 +229,8 @@ def _render_identity_card(dossier) -> None:
     ])
 
     bloco = (
-        f"<div style='background:linear-gradient(135deg,rgba(15,98,254,.08),rgba(15,98,254,.01));"
-        f"border:1px solid rgba(148,163,184,.22);border-radius:14px;padding:16px 18px;margin-bottom:14px'>"
+        f"<div style='background:linear-gradient(135deg,rgba(95,214,189,.09),rgba(95,214,189,.01));"
+        f"border:1px solid rgba(95,214,189,.20);border-radius:14px;padding:16px 18px;margin-bottom:14px'>"
         f"<div style='display:flex;gap:16px;align-items:flex-start'>"
         f"<div>{esquerda}</div>"
         f"<div style='flex:1'>"
@@ -263,7 +264,7 @@ def _render_timeline(dossier) -> None:
                     f"rel='noopener noreferrer' style='font-size:11px'>abrir</a>") if ev["url"] else ""
             linhas.append(
                 f"<div style='display:flex;gap:10px;padding:6px 0;border-bottom:1px solid rgba(148,163,184,.12)'>"
-                f"<div style='min-width:92px;font-weight:700;color:#3b82f6;font-size:13px'>{ev['data']}</div>"
+                f"<div style='min-width:92px;font-weight:700;color:#5fd6bd;font-size:13px'>{ev['data']}</div>"
                 f"<div style='flex:1'>{ic} {texto}"
                 f"<span style='color:#94a3b8;font-size:11.5px'> — {fonte}{link}</span></div></div>"
             )
@@ -485,10 +486,10 @@ def display_investigar() -> None:
     stats = registry_stats()
 
     st.markdown(
-        f"""<div style="background:linear-gradient(135deg,rgba(15,98,254,.10),rgba(15,98,254,.02));
-             border:1px solid rgba(15,98,254,.25);border-radius:12px;padding:16px 18px;margin-bottom:16px">
+        f"""<div style="background:linear-gradient(135deg,rgba(95,214,189,.10),rgba(95,214,189,.02));
+             border:1px solid rgba(95,214,189,.24);border-radius:12px;padding:16px 18px;margin-bottom:16px">
           <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;
-               color:#94a3b8;font-weight:700">Motor de investigação</div>
+               color:#5fd6bd;font-weight:700">Motor de investigação</div>
           <div style="font-size:22px;font-weight:700;margin-top:4px">Uma caixa. Todas as fontes.</div>
           <div style="color:#94a3b8;font-size:14px;margin-top:6px">
             Nome, e-mail, telefone, @usuário, CPF, CNPJ, domínio ou link de perfil —
