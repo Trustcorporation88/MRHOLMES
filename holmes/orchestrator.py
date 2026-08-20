@@ -188,6 +188,26 @@ def investigate(
                 ok=True, findings=links,
             )])
 
+    # ── exploradores de cripto ────────────────────────────────────────────────
+    # Cada endereço BTC/ETH/XMR vira link para o explorador e para base de golpe.
+    cripto_raw = [f for r in dossier.results for f in r.findings
+                  if f.kind is FindingKind.CRYPTO]
+    if cripto_raw:
+        from .crypto_links import crypto_findings
+
+        vistos: set[str] = set()
+        unicos = []
+        for f in cripto_raw:
+            if f.value not in vistos:
+                vistos.add(f.value)
+                unicos.append(f)
+        links = crypto_findings(unicos)
+        if links:
+            dossier.add_results([ConnectorResult(
+                connector_id="crypto_links", connector_label="Exploradores de cripto",
+                ok=True, findings=links,
+            )])
+
     # ── consolidação ────────────────────────────────────────────────────────
     if progress:
         progress("Consolidando dossiê…", 0.92)
