@@ -293,3 +293,48 @@ que o Railway apaga a cada deploy). Para preservar entre deploys:
 2. Adicione a variável `HOLMES_HISTORY_DIR=/data/history`.
 
 O mesmo vale para o cache: `HOLMES_CACHE_DIR=/data/cache`.
+
+## Relatório PDF
+
+O dossiê exporta um **PDF com cara de documento de agência** (capa com métricas,
+leitura do caso, o que está sustentado, seções com fonte e link). Botão
+«📕 Relatório PDF» na área de exportar. Usa reportlab, sem binário externo.
+
+## Análise de foto (EXIF + busca reversa)
+
+Na página Investigar, «📷 Analisar uma foto»: suba uma foto **original** e o
+sistema extrai, offline, os metadados EXIF — câmera/aparelho, data e
+principalmente **coordenadas GPS** quando existem (foto com GPS entrega o local
+exato). Rede social apaga o EXIF, então só vale em foto original. Junto vão os
+links de busca reversa por rosto (Google Lens, Yandex, TinEye, PimEyes).
+
+## Monitoramento
+
+Página «🔔 Monitoramento»: uma lista de alvos vigiados. «Verificar todos agora»
+reinvestiga cada um, compara com a última vez e gera **alerta de novidade**
+(perfil, telefone, vazamento, processo novos). Para o sistema verificar sozinho,
+sem ninguém na página, configure um **Railway Cron** rodando:
+
+```
+python -m holmes.monitor
+```
+
+no intervalo desejado. A watchlist e os alertas ficam em `HOLMES_WATCH_DIR`
+(padrão: junto do histórico) — aponte para o Volume para sobreviver a deploy.
+
+## Armazenamento no Supabase (Postgres)
+
+Histórico, watchlist e alertas podem ir para um Postgres do Supabase — não
+somem em deploy. Com `SUPABASE_URL` e `SUPABASE_KEY` configurados, o app usa o
+Supabase via REST; sem eles, cai no arquivo local automaticamente. Sem
+dependência nova (usa a camada HTTP do motor).
+
+Tabelas (criadas uma vez no Supabase): `holmes_dossies`, `holmes_watchlist`,
+`holmes_alertas`. O SQL fica em `holmes/store.py` (`SCHEMA_SQL`).
+
+No Railway, adicione duas variáveis:
+
+```
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_KEY=<service_role key do projeto>
+```

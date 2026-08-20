@@ -258,7 +258,19 @@ def _render_export(dossier) -> None:
             "🧾 JSON", dossier.to_json(), file_name=f"dossie_{alvo}.json",
             mime="application/json", use_container_width=True,
         )
-    st.caption("O HTML abre no navegador e imprime em PDF com Ctrl+P.")
+
+    # PDF caprichado (reportlab).
+    try:
+        from holmes import report_pdf
+
+        if report_pdf.available():
+            st.download_button(
+                "📕 Relatório PDF", report_pdf.generate(dossier),
+                file_name=f"dossie_{alvo}.pdf", mime="application/pdf",
+                use_container_width=True,
+            )
+    except Exception:
+        st.caption("O HTML abre no navegador e imprime em PDF com Ctrl+P.")
 
 
 def _render_chat(dossier) -> None:
@@ -475,3 +487,129 @@ def display_investigar() -> None:
             "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
             "cole só o dado principal — o motor extrai o resto sozinho pelos pivôs."
         )
+
+    st.markdown("---")
+    _render_foto()
+
+
+def _render_foto() -> None:
+    """Análise de foto: EXIF (GPS, câmera, data) + busca reversa por rosto."""
+    from holmes import facesearch, photo
+
+    with st.expander("📷 Analisar uma foto (EXIF + busca reversa)"):
+        st.caption(
+            "Suba uma foto **original** (não baixada de rede social) para extrair "
+            "GPS, câmera e data embutidos. Rede social apaga esses dados."
+        )
+        arquivo = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "tiff", "webp"],
+                                   key="foto_up", label_visibility="collapsed")
+        if not arquivo:
+            return
+
+        dados = arquivo.getvalue()
+        st.image(dados, width=260)
+
+        info = photo.analisar_bytes(dados)
+        linhas = photo.resumo_texto(info)
+        if linhas:
+            st.markdown("**Metadados encontrados:**")
+            for l in linhas:
+                st.markdown(f"- {l}")
+            if info.get("gps"):
+                g = info["gps"]
+                st.success(f"📍 Esta foto tem GPS: {g['lat']}, {g['lon']}", icon="📍")
+                st.link_button("Abrir no Google Maps", g["maps"])
+        if info.get("aviso"):
+            st.info(info["aviso"])
+
+        st.markdown("**Busca reversa (para achar o rosto em outros lugares):**")
+        st.caption(
+            "Estes buscadores acham a mesma foto na web, mas exigem que você "
+            "**arraste o arquivo** na página deles (não aceitam upload automático)."
+        )
+        for rotulo, url, _desc in [
+            ("Google Lens", "https://lens.google.com/"),
+            ("Yandex Imagens", "https://yandex.com/images/"),
+            ("TinEye", "https://tineye.com/"),
+            ("PimEyes (rosto)", "https://pimeyes.com/en"),
+        ]:
+            st.markdown(f"- [{rotulo}]({url})")
+
+
+def display_monitoramento() -> None:
+    """Página de monitoramento: watchlist de alvos e alertas de novidade."""
+    from holmes import monitor
+
+    st.markdown(
+        "<div style='font-size:11px;letter-spacing:.16em;text-transform:uppercase;"
+        "color:#94a3b8;font-weight:700'>Monitoramento</div>"
+        "<div style='font-size:22px;font-weight:700;margin:4px 0 2px'>Alvos vigiados</div>"
+        "<div style='color:#94a3b8;font-size:14px'>O sistema reinvestiga cada alvo e "
+        "avisa quando surge algo novo — perfil, telefone, vazamento, processo.</div>",
+        unsafe_allow_html=True,
+    )
+
+    nao_lidos = monitor.unread_count()
+    if nao_lidos:
+        st.warning(f"🔔 {nao_lidos} alerta(s) de novidade não lido(s).", icon="🔔")
+
+    # ── alertas ───────────────────────────────────────────────────────────────
+    alertas = monitor.alerts()
+    if alertas:
+        with st.expander(f"🔔 Alertas ({len(alertas)})", expanded=bool(nao_lidos)):
+            if st.button("Marcar todos como lidos", key="mon_read"):
+                monitor.marcar_lidos()
+                st.rerun()
+            for a in alertas[:50]:
+                import datetime as _dt
+                quando = _dt.datetime.fromtimestamp(a.get("quando", 0)).strftime("%d/%m %H:%M")
+                icone = "🟢" if a.get("tipo") == "novidade" else "⚠️"
+                marca = "" if a.get("lido") else " **(novo)**"
+                st.markdown(f"{icone} `{quando}` — **{a.get('alvo')}**: {a.get('texto')}{marca}")
+
+    st.markdown("---")
+
+    # ── adicionar / rodar agora ───────────────────────────────────────────────
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        novo = st.text_input("Adicionar alvo à vigilância", key="mon_add",
+                             placeholder="nome, e-mail, telefone, @usuário, CNPJ…")
+    with c2:
+        st.write("")
+        if st.button("➕ Vigiar", use_container_width=True) and novo.strip():
+            if monitor.add_target(novo):
+                st.success(f"Vigiando «{novo}».")
+                st.rerun()
+            else:
+                st.info("Já estava na lista (ou vazio).")
+
+    lista = monitor.watchlist()
+    if not lista:
+        st.caption("Nenhum alvo vigiado ainda.")
+        return
+
+    st.markdown(f"**{len(lista)} alvo(s) vigiado(s):**")
+    for t in lista:
+        col1, col2 = st.columns([5, 1])
+        import datetime as _dt
+        ultima = t.get("ultima_verificacao")
+        quando = _dt.datetime.fromtimestamp(ultima).strftime("%d/%m %H:%M") if ultima else "nunca"
+        col1.markdown(f"🎯 **{t['alvo']}**  ·  última verificação: {quando}")
+        if col2.button("Remover", key=f"rm_{t['alvo']}"):
+            monitor.remove_target(t["alvo"])
+            st.rerun()
+
+    st.markdown("---")
+    if st.button("▶️ Verificar todos agora", type="primary"):
+        with st.spinner("Reinvestigando os alvos vigiados…"):
+            novos = monitor.run_once()
+        if novos:
+            st.success(f"{len(novos)} novidade(s) encontrada(s)! Veja nos alertas acima.")
+        else:
+            st.info("Nenhuma novidade desde a última verificação.")
+        st.rerun()
+
+    st.caption(
+        "Para o sistema verificar sozinho (sem você abrir a página), configure um "
+        "Railway Cron rodando `python -m holmes.monitor` no intervalo que quiser."
+    )
