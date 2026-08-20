@@ -632,12 +632,21 @@ a { color: var(--accent) !important; }
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.1rem !important; }
 [data-testid="stSidebar"] .stButton { margin: 0 !important; }
 [data-testid="stSidebar"] .stButton > button {
-  width: 100% !important; text-align: left !important; justify-content: flex-start !important;
+  width: 100% !important; border-radius: 8px !important;
   background: transparent !important; color: var(--sidebar-text) !important;
-  border: 1px solid transparent !important; border-radius: 8px !important;
+  border: 1px solid transparent !important; border-left: 3px solid transparent !important;
   font-family: var(--sans) !important; font-weight: 500 !important; font-size: 0.88rem !important;
-  padding: 0.4rem 0.7rem !important; line-height: 1.2 !important;
+  padding: 0.42rem 0.65rem !important; line-height: 1.2 !important;
   box-shadow: none !important; transform: none !important; min-height: 0 !important;
+  display: flex !important; justify-content: flex-start !important;
+}
+/* o rótulo do botão vem num <div><p> internos que centralizam por padrão —
+   força tudo à esquerda para parecer item de menu, não botão de ação. */
+[data-testid="stSidebar"] .stButton > button > div {
+  width: 100% !important; justify-content: flex-start !important;
+}
+[data-testid="stSidebar"] .stButton > button p {
+  text-align: left !important; width: 100% !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
   background: #141c26 !important; color: var(--ink) !important;
@@ -647,8 +656,24 @@ a { color: var(--accent) !important; }
 [data-testid="stSidebar"] .stButton > button[kind="primary"],
 [data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"] {
   background: rgba(95, 214, 189, 0.13) !important; color: #eafff8 !important;
-  border-color: transparent !important;
-  box-shadow: inset 3px 0 0 var(--accent) !important; font-weight: 650 !important;
+  border-color: transparent !important; border-left-color: var(--accent) !important;
+  font-weight: 650 !important;
+}
+/* Grupos recolhíveis (Ferramentas manuais / Sistema) com a mesma linguagem visual */
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+  border: none !important; background: transparent !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+  padding: 0.35rem 0.5rem !important; border-radius: 8px !important;
+  font-family: var(--mono) !important; font-size: 0.68rem !important;
+  letter-spacing: 0.12em !important; text-transform: uppercase !important;
+  color: var(--accent) !important; font-weight: 600 !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover {
+  background: #141c26 !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+  padding: 0.15rem 0 0 0 !important;
 }
 [data-testid="stSidebar"] .stRadio [role="radiogroup"] > label:hover {
   background: #131b25 !important;
@@ -829,9 +854,8 @@ with st.sidebar:
     apply_pending_navigation(st.session_state, NAV_OPTIONS, default="Investigar")
     page = st.session_state.get("nav_page", "Investigar")
 
-    for _grupo, _ids in NAV_GROUPS:
-        st.markdown(f'<div class="mh-nav-group">{_grupo}</div>', unsafe_allow_html=True)
-        for _pid in _ids:
+    def _nav_buttons(ids):
+        for _pid in ids:
             _rotulo = NAV_SHORT.get(_pid, _pid)
             if st.button(
                 _rotulo, key=f"nav_btn_{_pid}", use_container_width=True,
@@ -839,6 +863,17 @@ with st.sidebar:
             ):
                 queue_navigation(st.session_state, _pid)
                 st.rerun()
+
+    # Só o grupo Principal fica sempre visível. Os demais (a lista longa de
+    # ferramentas manuais) ficam num expansor — abre sozinho se a página
+    # ativa estiver lá dentro, senão começa fechado.
+    for i, (_grupo, _ids) in enumerate(NAV_GROUPS):
+        if i == 0:
+            st.markdown(f'<div class="mh-nav-group">{_grupo}</div>', unsafe_allow_html=True)
+            _nav_buttons(_ids)
+        else:
+            with st.expander(_grupo, expanded=page in _ids):
+                _nav_buttons(_ids)
 
     st.markdown("---")
     sync_llm_keys_from_session()
