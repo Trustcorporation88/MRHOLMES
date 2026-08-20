@@ -350,7 +350,7 @@ def search_many(queries: Iterable[str], limit_each: int = 8, max_queries: int = 
         return []
 
     all_hits: list[SerpHit] = []
-    with ThreadPoolExecutor(max_workers=min(6, len(unique_queries))) as pool:
+    with ThreadPoolExecutor(max_workers=min(10, len(unique_queries))) as pool:
         futures = {pool.submit(search, q, limit_each): q for q in unique_queries}
         for fut in as_completed(futures):
             try:
@@ -450,6 +450,13 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
         q += [entity.get("quoted", f'"{v}"'), f'"{entity.get("digits", "")}"']
         if t is EntityType.CNPJ:
             q += [f'"{v}" site:{s}' for s in ("consultasocio.com", "econodata.com.br", "jusbrasil.com.br")]
+
+    elif t is EntityType.PLACA:
+        q += [
+            f'"{v}"',
+            f'placa "{v}"',
+            f'"{v}" (venda OR anuncio OR anúncio OR leilao OR leilão OR multa)',
+        ]
 
     elif t is EntityType.IP:
         q += [f'"{v}"', f'"{v}" (abuse OR blacklist OR malware)']

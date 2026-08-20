@@ -386,6 +386,22 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
             ("Google — número exato", f"https://www.google.com/search?q=%22{quote_plus(numero)}%22",
              "Menções ao processo em qualquer lugar da web"),
         ]
+    elif t is EntityType.PLACA:
+        placa = entity.value
+        links += [
+            ("KePlaca", f"https://www.keplaca.com/placa/{placa}",
+             "Marca, modelo, ano, cor, combustível e município/UF de registro"),
+            ("Placa FIPE", f"https://placafipe.com/placa/{placa}",
+             "Ficha do veículo com valor FIPE estimado"),
+            ("Tabela FIPE Brasil", f"https://www.tabelafipebrasil.com/placa/{placa}",
+             "Consulta de veículo por placa e valor de mercado"),
+            ("Consulta Placa", f"https://consultaplaca.com.br/{placa}",
+             "Ficha técnica pública do veículo"),
+            ("Google — placa exata", f"https://www.google.com/search?q=%22{placa}%22",
+             "Anúncio de venda, multa ou leilão citando a placa"),
+            ("OLX — busca", f"https://www.olx.com.br/brasil?q={placa}",
+             "Anúncio de venda que mencione a placa"),
+        ]
     elif t is EntityType.PHONE and entity.get("country") == "BR":
         e164 = entity.get("e164", entity.value)
         digits = entity.get("digits", "")

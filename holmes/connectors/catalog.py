@@ -27,6 +27,7 @@ CPF = EntityType.CPF
 CNPJ = EntityType.CNPJ
 PROF = EntityType.PROFILE_URL
 PROC = EntityType.PROCESSO
+PLACA = EntityType.PLACA
 
 
 def _fmt(template: str, entity: Entity) -> str | None:
@@ -76,7 +77,7 @@ def _homepage(url: str):
 # (id, rótulo, categoria, tipos aceitos, modo, template ou url, descrição)
 _CATALOG: list[tuple] = [
     # ── Motores de busca com o alvo entre aspas ─────────────────────────────
-    ("g_exato", "Google — termo exato", "busca", (N, E, P, U, CPF, CNPJ), Mode.DEEPLINK,
+    ("g_exato", "Google — termo exato", "busca", (N, E, P, U, CPF, CNPJ, PLACA), Mode.DEEPLINK,
      'https://www.google.com/search?q=%22{value+}%22', "Busca literal, sem sinônimos"),
     ("g_social", "Google — só redes sociais", "busca", (N, U), Mode.DEEPLINK,
      'https://www.google.com/search?q=%22{value+}%22+(site%3Ainstagram.com+OR+site%3Alinkedin.com+OR+site%3Afacebook.com+OR+site%3Ax.com)',
@@ -317,12 +318,14 @@ def register_br_catalog() -> None:
     """Deeplinks brasileiros — gerados a partir de holmes.br."""
     from .. import br
 
+    PLACA = EntityType.PLACA
     specs = {
         N: br.br_deeplinks,
         PROC: br.br_deeplinks,
         CNPJ: br.br_deeplinks,
         CPF: br.br_deeplinks,
         P: br.br_deeplinks,
+        PLACA: br.br_deeplinks,
     }
 
     def _make(idx: int, entity_types: tuple):
@@ -348,6 +351,8 @@ def register_br_catalog() -> None:
         P: _E(raw="+5511999999999", type=P, value="+5511999999999",
               variants={"country": "BR", "digits": "5511999999999",
                         "e164": "+5511999999999"}),
+        PLACA: _E(raw="ABC1D23", type=PLACA, value="ABC1D23",
+                  variants={"placa": "ABC1D23"}),
     }
     for etype, sample in samples.items():
         for idx, (rotulo, _url, desc) in enumerate(br.br_deeplinks(sample)):
