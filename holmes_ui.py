@@ -764,13 +764,27 @@ def display_monitoramento() -> None:
     # ── adicionar / rodar agora ───────────────────────────────────────────────
     c1, c2 = st.columns([3, 1])
     with c1:
-        novo = st.text_input("Adicionar alvo à vigilância", key="mon_add",
-                             placeholder="nome, e-mail, telefone, @usuário, CNPJ…")
+        novo = st.text_input(
+            "Adicionar alvo à vigilância", key="mon_add",
+            placeholder="nome, e-mail, telefone, @usuário, CNPJ… (pode colar tudo junto, ex.: \"fulano cpf 000.000.000-00\")",
+        )
     with c2:
         st.write("")
         if st.button("➕ Vigiar", use_container_width=True) and novo.strip():
-            if monitor.add_target(novo):
-                st.success(f"Vigiando «{novo}».")
+            from holmes.entity import detect_all
+
+            # Se o texto tem mais de um dado misturado (ex.: nome + CPF na
+            # mesma linha), cada um vira um alvo vigiado separado — em vez
+            # de guardar a frase inteira como se fosse um nome literal.
+            partes = detect_all(novo)
+            candidatos = [e.value for e in partes] if len(partes) > 1 else [novo.strip()]
+
+            adicionados = [c for c in candidatos if monitor.add_target(c)]
+            if adicionados:
+                if len(adicionados) > 1:
+                    st.success("Vigiando " + ", ".join(f"«{a}»" for a in adicionados) + ".")
+                else:
+                    st.success(f"Vigiando «{adicionados[0]}».")
                 st.rerun()
             else:
                 st.info("Já estava na lista (ou vazio).")
