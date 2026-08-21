@@ -121,3 +121,44 @@ def test_detect_all_extrai_de_bloco_de_texto():
 def test_entrada_vazia_nao_quebra():
     assert detect("").type is EntityType.UNKNOWN
     assert detect("   ").type is EntityType.UNKNOWN
+
+
+# ── detect_all: nome + documento colados na mesma linha ─────────────────────
+# Reproduz o bug real: usuário colou "nome cpf 000..." como um alvo só de
+# monitoramento, e o motor tratava a frase inteira como um "nome" literal.
+
+def test_detect_all_separa_nome_e_cpf_sem_pontuacao():
+    achados = detect_all("thiago augusto pinto gomes cpf 07268596642")
+    por_tipo = {e.type: e.value for e in achados}
+    assert por_tipo[EntityType.CPF] == "072.685.966-42"
+    assert por_tipo[EntityType.NAME] == "thiago augusto pinto gomes"
+
+
+def test_detect_all_preserva_particula_de_no_nome():
+    # "de" é parte legítima do nome — não pode ser tratado como rótulo e sumir.
+    achados = detect_all("Maria da Silva CPF 111.444.777-35")
+    nomes = [e.value for e in achados if e.type is EntityType.NAME]
+    assert nomes == ["Maria da Silva"]
+
+
+def test_detect_all_reconhece_cnpj_antes_do_cpf():
+    achados = detect_all("CNPJ 00.000.000/0001-91 da Empresa X Ltda")
+    tipos = {e.type for e in achados}
+    assert EntityType.CNPJ in tipos
+    assert EntityType.CPF not in tipos  # não pode "quebrar" o CNPJ em CPF
+
+
+def test_detect_all_com_email_telefone_e_nome_juntos():
+    achados = detect_all("Fulano de Tal, e-mail fulano@x.com, telefone (11) 99999-8888")
+    por_tipo = {e.type: e.value for e in achados}
+    assert por_tipo[EntityType.EMAIL] == "fulano@x.com"
+    assert por_tipo[EntityType.PHONE] == "+5511999998888"
+    assert por_tipo[EntityType.NAME] == "Fulano de Tal"
+
+
+def test_detect_all_string_unica_sem_rotulo_continua_funcionando():
+    # Uso normal (sem nada para separar) não pode regredir.
+    achados = detect_all("Maria Souza")
+    assert len(achados) == 1
+    assert achados[0].type is EntityType.NAME
+    assert achados[0].value == "Maria Souza"

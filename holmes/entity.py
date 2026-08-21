@@ -510,25 +510,57 @@ def detect(raw: str) -> Entity:
     return _norm_name(text)
 
 
+# Rótulo que a pessoa digita junto do dado ("fulano CPF 000.000.000-00") —
+# não pode sobrar como se fosse parte do nome. Particle de nome ("de", "da"…)
+# fica de fora de propósito — "Fulano de Tal" precisa continuar "Fulano de Tal".
+_PALAVRAS_ROTULO = {
+    "cpf", "cnpj", "telefone", "tel", "fone", "celular", "whatsapp", "zap",
+    "email", "mail", "doc", "documento", "rg", "cel", "numero", "número",
+    "nome", "contato",
+}
+
+# Nessa ordem: CNPJ antes de CPF (14 dígitos contém um miolo de 11 que bateria
+# com o padrão de CPF), e ambos antes do telefone genérico (que aceitaria o
+# mesmo formato). Cada padrão consome o que já reconheceu antes do próximo rodar.
+_DETECT_ALL_PATTERNS = [
+    r"[^@\s]+@[a-z0-9.-]+\.[a-z]{2,}",                 # e-mail
+    r"https?://[^\s\"'<>]+",                            # URL
+    r"\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}",             # CNPJ, com ou sem pontuação
+    r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}",                    # CPF, com ou sem pontuação
+    r"\+?\d[\d\s().-]{7,17}\d",                          # telefone (o que sobrar de dígitos)
+]
+
+
 def detect_all(raw: str) -> list[Entity]:
     """
-    Para colar um bloco de texto (assinatura de e-mail, print de cadastro) e
-    extrair todos os alvos de uma vez.
+    Para colar um bloco de texto (assinatura de e-mail, print de cadastro, ou
+    algo como "fulano de tal cpf 000.000.000-00") e extrair todos os alvos de
+    uma vez — cada padrão reconhecido vira uma entidade, e o que sobrar (se
+    parecer nome de pessoa, sem os rótulos que vieram junto) também.
     """
-    text = raw or ""
     found: list[Entity] = []
     seen: set[str] = set()
+    resto = raw or ""
 
-    patterns = [
-        r"[^@\s]+@[a-z0-9.-]+\.[a-z]{2,}",
-        r"https?://[^\s\"'<>]+",
-        r"\+?\d[\d\s().-]{7,17}\d",
-    ]
-    for pat in patterns:
-        for match in re.findall(pat, text, re.I):
+    for pat in _DETECT_ALL_PATTERNS:
+        for match in re.findall(pat, resto, re.I):
             ent = detect(match.strip())
             key = f"{ent.type.value}:{ent.value}"
             if ent.type is not EntityType.UNKNOWN and key not in seen:
                 seen.add(key)
                 found.append(ent)
+            # Tira do texto que falta reconhecer — ache ou não um tipo
+            # válido, um número solto inválido não pode sobrar e virar "nome".
+            resto = resto.replace(match, " ", 1)
+
+    # O que sobrou sem rótulo e sem pontuação pode ser o nome da pessoa.
+    palavras = re.findall(r"[^\W\d_]+", resto, re.UNICODE)
+    tokens_nome = [p for p in palavras if p.lower() not in _PALAVRAS_ROTULO and len(p) > 1]
+    if len(tokens_nome) >= 2:
+        ent = _norm_name(" ".join(tokens_nome))
+        key = f"{ent.type.value}:{ent.value}"
+        if key not in seen:
+            seen.add(key)
+            found.append(ent)
+
     return found
