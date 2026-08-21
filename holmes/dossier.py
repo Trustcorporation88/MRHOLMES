@@ -175,6 +175,11 @@ class Dossier:
         sancoes = [j for j in self.section(FindingKind.LEGAL) if "SANÇÃO" in j.value.upper()]
         if sancoes:
             flags.append(f"{len(sancoes)} sanção(ões) oficial(is)")
+        situacao_especial = [
+            n for n in self.section(FindingKind.NOTE) if "SITUAÇÃO ESPECIAL" in n.value.upper()
+        ]
+        if situacao_especial:
+            flags.append(situacao_especial[0].value.replace("SITUAÇÃO ESPECIAL: ", "Situação especial: "))
 
         nome = melhor(FindingKind.NAME)
         if not nome and self.entity.type is EntityType.NAME:
