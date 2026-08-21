@@ -779,12 +779,25 @@ def register_auto_connectors() -> None:
     # ── Sanções/PEP no mundo todo + Wikipédia/Wikidata ──────────────────────
     from .. import sanctions, wiki
 
-    register(Connector(
+    # Disponível se o índice LOCAL gratuito foi baixado OU se há chave da API
+    # paga como reserva — nunca falha em silêncio quando nenhum dos dois existe.
+    class _OpenSanctionsConnector(Connector):
+        def availability(self):
+            from .. import opensanctions_bulk as bulk
+
+            if bulk.disponivel() or net.has_key("opensanctions"):
+                return True, None
+            return False, (
+                "índice local não baixado (rode: python -m holmes.opensanctions_bulk "
+                "--update) e OPENSANCTIONS_API_KEY não configurada"
+            )
+
+    register(_OpenSanctionsConnector(
         id="opensanctions", label="OpenSanctions (sanções e PEP globais)",
         mode=Mode.AUTO, accepts=(EntityType.NAME, EntityType.CNPJ),
-        category="juridico", run=sanctions.opensanctions_findings,
-        requires_key="opensanctions", cost="chave", timeout=20,
-        description="OFAC, ONU, UE, INTERPOL e listas de PEP de dezenas de países (chave grátis)",
+        category="juridico", run=sanctions.opensanctions_findings, timeout=15,
+        description="OFAC, ONU, UE, INTERPOL e PEP de dezenas de países — via índice local grátis "
+                     "(python -m holmes.opensanctions_bulk --update) ou chave paga como reserva",
     ))
     register(Connector(
         id="wikipedia", label="Wikipédia / Wikidata", mode=Mode.AUTO,

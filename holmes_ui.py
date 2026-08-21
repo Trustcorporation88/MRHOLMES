@@ -32,6 +32,57 @@ _ICON = {
 }
 
 
+def _opensanctions_panel() -> None:
+    """
+    Status do índice local gratuito de sanções/PEP e botão para baixar.
+    O download é grande (~400 MB) — melhor rodar via Railway Cron
+    (`python -m holmes.opensanctions_bulk --update`), mas o botão aqui serve
+    para a primeira vez ou para quem não quer configurar Cron agora.
+    """
+    from holmes import opensanctions_bulk as bulk
+
+    st.markdown("**Sanções e PEP internacionais (OpenSanctions)**")
+    s = bulk.status()
+    if s["baixado"]:
+        st.success(
+            f"Índice local pronto — {s['total_entidades']:,} registros · "
+            f"{s['tamanho_mb']} MB · atualizado em {s['atualizado_em'][:10]}",
+            icon="✅",
+        )
+    else:
+        st.caption(
+            "Ainda não baixado. É gratuito (dados de uso não-comercial do OpenSanctions), "
+            "mas o arquivo de origem tem ~400 MB — a primeira vez demora alguns minutos."
+        )
+
+    if st.button("⬇️ Baixar/atualizar agora", key="os_bulk_update"):
+        barra = st.progress(0.0)
+        status_txt = st.empty()
+
+        def _prog(frac: float) -> None:
+            barra.progress(min(1.0, frac))
+            status_txt.caption(f"Baixando… {frac:.0%}")
+
+        try:
+            with st.spinner("Baixando e indexando (não feche a aba)…"):
+                info = bulk.update(progress=_prog)
+            barra.empty()
+            status_txt.empty()
+            st.success(f"Pronto: {info['total_entidades']:,} registros indexados.")
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Falha ao baixar/indexar: {exc}")
+
+    st.caption(
+        "Para atualizar sozinho (sem abrir esta página), configure um Railway Cron "
+        "rodando `python -m holmes.opensanctions_bulk --update` uma vez por semana."
+    )
+    st.caption(
+        "Dados de [OpenSanctions](https://www.opensanctions.org/), licença CC BY-NC 4.0 — "
+        "uso não-comercial."
+    )
+
+
 def _key_sidebar() -> None:
     """Chaves coladas aqui valem só nesta sessão — não vão para disco nem para o git."""
     from holmes import net
@@ -556,6 +607,8 @@ def display_investigar() -> None:
 
         with st.expander("🔧 Avançado — rastrear site e chaves de API"):
             _crawler_controls(alvo)
+            _opensanctions_panel()
+            st.markdown("---")
             _key_sidebar()
             env = environment_report()
             indisponiveis = [k for k, v in env.items() if not v]

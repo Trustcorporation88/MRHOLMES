@@ -90,9 +90,31 @@ Só uma é realmente decisiva:
 | `HUNTER_API_KEY` | — | E-mails e padrão de e-mail de um domínio |
 | `NUMVERIFY_API_KEY` | — | Operadora atual e tipo de linha |
 | `PORTAL_TRANSPARENCIA_KEY` | PEP fica só via Câmara/Senado | PEP oficial, CEIS, CNEP e servidor federal (grátis) |
-| `OPENSANCTIONS_API_KEY` | Sanção/PEP fica só nas bases brasileiras | OFAC, ONU, UE, INTERPOL e PEP de dezenas de países (grátis, com limite) |
+| `OPENSANCTIONS_API_KEY` | Sanção/PEP internacional fica só nas bases brasileiras | reserva — a API deles cobra por consulta após 30 dias de teste |
 
 Configure no Railway em **Variables**, ou cole na própria página (vale só na sessão).
+
+### Sanções/PEP internacional — o caminho grátis é o índice local, não a API
+
+A API do OpenSanctions **não é gratuita para uso pessoal continuado** (30 dias
+de teste, depois ~€0,10/consulta; a chave permanente grátis é só para
+jornalismo/ONG/academia). O caminho de verdade sem custo é baixar os dados em
+massa deles (livres para uso não-comercial, CC BY-NC 4.0) e indexar localmente:
+
+```bash
+python -m holmes.opensanctions_bulk --update
+```
+
+Isso baixa `targets.simple.csv` (~400 MB, só as entidades sinalizadas — sanção,
+PEP ou contexto criminal) e monta um índice SQLite por nome. Repita
+semanalmente (Railway Cron) para manter atualizado. Aponte
+`HOLMES_OPENSANCTIONS_DIR` para o Volume persistente, senão o índice se perde
+a cada deploy. Também dá para clicar em **Baixar/atualizar agora** na aba
+Investigar → Avançado — mais lento na primeira vez (roda dentro da própria
+página), mas não exige configurar Cron.
+
+Com o índice local baixado, o conector nunca chama a API paga — `OPENSANCTIONS_API_KEY`
+só é usada como reserva se o índice ainda não existir.
 
 ---
 
