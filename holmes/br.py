@@ -172,6 +172,52 @@ def cnpj_findings(entity: Entity) -> Iterable[Finding]:
             source="receita_cnpj", source_label=f"Receita Federal ({fonte})", url=url,
             confidence=Confidence.CONFIRMED,
         ))
+
+    # Simples Nacional, MEI e situação especial: já vinham na própria consulta
+    # de CNPJ, só não apareciam no dossiê. Mudam a leitura do risco tributário
+    # e societário do caso (ex.: empresa em falência ou recuperação judicial).
+    # BrasilAPI usa campo plano; ReceitaWS usa objeto aninhado — cobre os dois.
+    simples_obj = data.get("simples") if isinstance(data.get("simples"), dict) else {}
+    simples_optante = data.get("opcao_pelo_simples")
+    if simples_optante is None and simples_obj:
+        simples_optante = simples_obj.get("optante")
+    if simples_optante is not None:
+        data_opcao = data.get("data_opcao_pelo_simples") or simples_obj.get("data_opcao") or ""
+        if simples_optante:
+            texto = "Optante pelo Simples Nacional"
+            detalhe = f"Desde {data_opcao}" if data_opcao else ""
+        else:
+            texto = "NÃO optante pelo Simples Nacional"
+            detalhe = "Regime tributário normal (Lucro Real/Presumido) ou excluído do Simples"
+        out.append(Finding(
+            kind=FindingKind.NOTE, value=texto, source="receita_cnpj",
+            source_label=f"Receita Federal ({fonte})", url=url,
+            confidence=Confidence.CONFIRMED, detail=detalhe,
+        ))
+
+    simei_obj = data.get("simei") if isinstance(data.get("simei"), dict) else {}
+    mei_optante = data.get("opcao_pelo_mei")
+    if mei_optante is None and simei_obj:
+        mei_optante = simei_obj.get("optante")
+    if mei_optante:
+        out.append(Finding(
+            kind=FindingKind.NOTE, value="Optante pelo MEI (Microempreendedor Individual)",
+            source="receita_cnpj", source_label=f"Receita Federal ({fonte})", url=url,
+            confidence=Confidence.CONFIRMED,
+            detail="Empresário individual — o sócio responde pessoalmente pela empresa.",
+        ))
+
+    situacao_especial = (data.get("situacao_especial") or "").strip()
+    if situacao_especial:
+        data_sit = data.get("data_situacao_especial") or ""
+        out.append(Finding(
+            kind=FindingKind.NOTE,
+            value=f"SITUAÇÃO ESPECIAL: {situacao_especial}",
+            source="receita_cnpj", source_label=f"Receita Federal ({fonte})", url=url,
+            confidence=Confidence.CONFIRMED,
+            detail=(f"Desde {data_sit}. " if data_sit else "")
+            + "Ex.: falência, recuperação judicial, liquidação — eleva o risco do caso.",
+        ))
     return out
 
 
