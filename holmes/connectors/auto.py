@@ -311,18 +311,53 @@ def _whatsmyname(entity: Entity) -> Iterable[Finding]:
     out: list[Finding] = []
     for prof in result.get("profiles") or []:
         site = prof.get("site") or prof.get("name") or "site"
+        via_unlocker = prof.get("via") == "unlocker"
         out.append(Finding(
             kind=FindingKind.ACCOUNT, value=f"{site}: @{handle}",
             source="whatsmyname", source_label="WhatsMyName",
             url=prof.get("url"), confidence=Confidence.CONFIRMED,
-            detail=f"Perfil ativo respondeu para o handle @{handle}.",
+            detail=(
+                f"Perfil ativo respondeu para o handle @{handle}."
+                + (" (via Web Unlocker)" if via_unlocker else "")
+            ),
             raw=prof,
         ))
+
+    blocked = result.get("blocked") or []
+    conclusive = result.get("conclusive", result.get("checked", 0))
+
     if not out:
+        # Só é ausência de verdade nos sites que responderam. Onde o site
+        # barrou, ninguém olhou — dizer "não encontrado" ali seria falso.
+        if blocked:
+            detalhe = (
+                f"O handle @{handle} não apareceu nos {conclusive} sites que responderam. "
+                f"Outros {len(blocked)} bloquearam a consulta e ficaram sem verificação."
+            )
+            conf = Confidence.POSSIBLE
+            rotulo = f"Nenhum perfil em {conclusive} sites ({len(blocked)} bloquearam)"
+        else:
+            detalhe = f"O handle @{handle} não retornou perfil ativo nos sites da lista."
+            conf = Confidence.CONFIRMED
+            rotulo = f"Nenhum perfil em {conclusive} sites checados"
         out.append(Finding(
-            kind=FindingKind.NOTE, value=f"Nenhum perfil em {result.get('checked', 0)} sites checados",
-            source="whatsmyname", source_label="WhatsMyName", confidence=Confidence.CONFIRMED,
-            detail=f"O handle @{handle} não retornou perfil ativo nos sites da lista.",
+            kind=FindingKind.NOTE, value=rotulo,
+            source="whatsmyname", source_label="WhatsMyName", confidence=conf,
+            detail=detalhe,
+        ))
+
+    if blocked:
+        nomes = ", ".join(sorted({b.get("site", "?") for b in blocked})[:12])
+        out.append(Finding(
+            kind=FindingKind.NOTE,
+            value=f"{len(blocked)} sites bloquearam a consulta",
+            source="whatsmyname", source_label="WhatsMyName",
+            confidence=Confidence.CONFIRMED,
+            detail=(
+                f"Sem resposta utilizável de: {nomes}. "
+                "Esses sites não foram verificados — o resultado acima não fala sobre eles."
+            ),
+            raw={"blocked": blocked},
         ))
     return out
 
@@ -384,7 +419,10 @@ def _github_user(entity: Entity) -> Iterable[Finding]:
     """API pública do GitHub: nome real, empresa, local, e-mail e repositórios."""
     handle = entity.get("handle") or entity.value
     try:
-        data = net.get_json(f"https://api.github.com/users/{handle}", timeout=12)
+        data = net.get_json(
+            f"https://api.github.com/users/{handle}",
+            headers=net.github_headers(), timeout=12,
+        )
     except Exception:
         return []
     if not data or not data.get("login"):
@@ -440,7 +478,10 @@ def _github_user(entity: Entity) -> Iterable[Finding]:
 
     # E-mail de commit é o vazamento clássico de identidade em conta GitHub.
     try:
-        events = net.get_json(f"https://api.github.com/users/{handle}/events/public", timeout=12) or []
+        events = net.get_json(
+            f"https://api.github.com/users/{handle}/events/public",
+            headers=net.github_headers(), timeout=12,
+        ) or []
         emails: dict[str, str] = {}
         for ev in events[:60]:
             for commit in ((ev.get("payload") or {}).get("commits") or []):
