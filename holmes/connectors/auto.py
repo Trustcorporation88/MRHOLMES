@@ -419,10 +419,7 @@ def _github_user(entity: Entity) -> Iterable[Finding]:
     """API pública do GitHub: nome real, empresa, local, e-mail e repositórios."""
     handle = entity.get("handle") or entity.value
     try:
-        data = net.get_json(
-            f"https://api.github.com/users/{handle}",
-            headers=net.github_headers(), timeout=12,
-        )
+        data = net.github_get_json(f"https://api.github.com/users/{handle}", timeout=12)
     except Exception:
         return []
     if not data or not data.get("login"):
@@ -478,9 +475,8 @@ def _github_user(entity: Entity) -> Iterable[Finding]:
 
     # E-mail de commit é o vazamento clássico de identidade em conta GitHub.
     try:
-        events = net.get_json(
-            f"https://api.github.com/users/{handle}/events/public",
-            headers=net.github_headers(), timeout=12,
+        events = net.github_get_json(
+            f"https://api.github.com/users/{handle}/events/public", timeout=12,
         ) or []
         emails: dict[str, str] = {}
         for ev in events[:60]:

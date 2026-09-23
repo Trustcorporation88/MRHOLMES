@@ -30,6 +30,7 @@ def _ambiente_limpo(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     net._RUNTIME_KEYS.clear()
     net.unlocker_reset_stats()
+    monkeypatch.setattr(net, "_github_token_rejected", False)
     yield
     net.unlocker_reset_stats()
 
@@ -204,3 +205,69 @@ def test_conector_nao_afirma_ausencia_quando_houve_bloqueio(monkeypatch):
     nota = next(a for a in achados if "Nenhum perfil" in a.value)
     assert nota.confidence is not Confidence.CONFIRMED
     assert "bloquearam" in nota.value
+
+
+# ── token do GitHub vencido não derruba o conector ──────────────────────────
+
+class _GitHubFake:
+    """Responde 401 a quem manda token e 200 a quem não manda."""
+
+    def __init__(self):
+        self.chamadas = []
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        auth = (headers or {}).get("Authorization")
+        self.chamadas.append(auth)
+        if auth:
+            return FakeResp(401, '{"message":"Bad credentials"}')
+        r = FakeResp(200, '{"login":"alvo"}')
+        r.json = lambda: {"login": "alvo"}
+        return r
+
+
+def test_token_recusado_cai_para_modo_sem_token(monkeypatch):
+    monkeypatch.setenv("HOLMES_GITHUB_TOKEN", "ghp_vencido")
+    monkeypatch.setattr(net, "DEFAULT_TTL", 0)
+    fake = _GitHubFake()
+    monkeypatch.setattr(net._SESSION, "get", fake.get)
+
+    data = net.github_get_json("https://api.github.com/users/alvo", ttl=0)
+
+    assert data == {"login": "alvo"}
+    assert fake.chamadas == ["Bearer ghp_vencido", None]
+    assert net.github_auth_state() == "recusado"
+
+
+def test_depois_do_401_nao_insiste_no_token(monkeypatch):
+    """Um 401 basta. Cada consulta seguinte vai direto sem token."""
+    monkeypatch.setenv("HOLMES_GITHUB_TOKEN", "ghp_vencido")
+    fake = _GitHubFake()
+    monkeypatch.setattr(net._SESSION, "get", fake.get)
+
+    net.github_get_json("https://api.github.com/users/a", ttl=0)
+    net.github_get_json("https://api.github.com/users/b", ttl=0)
+
+    assert fake.chamadas == ["Bearer ghp_vencido", None, None]
+
+
+def test_sem_token_401_continua_sendo_erro(monkeypatch):
+    """Sem token não há o que desligar. O 401 sobe como erro normal."""
+    import requests
+
+    monkeypatch.setattr(net._SESSION, "get", lambda *a, **k: FakeResp(401, "{}"))
+    with pytest.raises(requests.HTTPError):
+        net.github_get_json("https://api.github.com/users/x", ttl=0)
+    assert net.github_auth_state() == "sem_token"
+
+
+def test_token_valido_fica_ativo(monkeypatch):
+    monkeypatch.setenv("HOLMES_GITHUB_TOKEN", "ghp_bom")
+
+    def _ok(url, params=None, headers=None, timeout=None):
+        r = FakeResp(200, "{}")
+        r.json = lambda: {"login": "alvo"}
+        return r
+
+    monkeypatch.setattr(net._SESSION, "get", _ok)
+    net.github_get_json("https://api.github.com/users/alvo", ttl=0)
+    assert net.github_auth_state() == "ativo"
