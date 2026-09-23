@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -248,12 +249,50 @@ def github_token() -> str | None:
     return None
 
 
+# Vira True no primeiro 401: token vencido, revogado ou digitado errado.
+# A partir daí o processo segue sem token (60/h) em vez de falhar toda
+# consulta ao GitHub até alguém notar e redeployar.
+_github_token_rejected = False
+
+
 def github_headers() -> dict[str, str]:
     headers = {"Accept": "application/vnd.github+json"}
     token = github_token()
-    if token:
+    if token and not _github_token_rejected:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+
+def github_auth_state() -> str:
+    """Para a UI e para o log: `sem_token`, `ativo` ou `recusado`."""
+    if not github_token():
+        return "sem_token"
+    return "recusado" if _github_token_rejected else "ativo"
+
+
+def github_get_json(url: str, *, timeout: int = DEFAULT_TIMEOUT, ttl: int = DEFAULT_TTL) -> Any | None:
+    """
+    GET na API do GitHub com o token, se houver. Se o GitHub recusar o token
+    (401), repete a mesma chamada sem ele e desliga o token para o resto do
+    processo. Um token vencido derruba a cota de 5.000/h para 60/h, mas não
+    derruba o conector.
+    """
+    global _github_token_rejected
+    try:
+        return get_json(url, headers=github_headers(), timeout=timeout, ttl=ttl)
+    except requests.HTTPError as exc:
+        status = getattr(exc.response, "status_code", None)
+        if status != 401 or _github_token_rejected or not github_token():
+            raise
+        _github_token_rejected = True
+        print(
+            "[holmes] GitHub recusou HOLMES_GITHUB_TOKEN (401: vencido, revogado "
+            "ou inválido). Seguindo sem token, limite de 60 req/h. "
+            "Gere um novo em github.com/settings/tokens.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return get_json(url, headers=github_headers(), timeout=timeout, ttl=ttl)
 
 
 # ── Bright Data Web Unlocker ────────────────────────────────────────────────
