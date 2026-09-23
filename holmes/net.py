@@ -49,6 +49,8 @@ _KEY_ALIASES = {
     "dehashed_key": ("DEHASHED_API_KEY",),
     "openai": ("OPENAI_API_KEY",),
     "anthropic": ("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
+    "brightdata": ("BRIGHTDATA_API_KEY", "BRIGHT_DATA_API_KEY", "BRD_API_KEY"),
+    "github": ("HOLMES_GITHUB_TOKEN",),
 }
 
 # Chaves coladas na UI nesta sessão (não persistem em disco).
@@ -218,3 +220,134 @@ def head_status(url: str, timeout: int = 8) -> int | None:
         return resp.status_code
     except Exception:
         return None
+
+
+# ── GitHub: token opcional ──────────────────────────────────────────────────
+#
+# Sem token a API do GitHub dá 60 requisições/hora por IP; com token, 5.000.
+# É o maior ganho gratuito do motor, e por isso vale um helper próprio.
+#
+# Cuidado deliberado com o nome da variável: `GITHUB_TOKEN` e `GH_TOKEN` são
+# usadas por CI, por agentes e por proxies corporativos para guardar *outros*
+# tokens. Mandar um desses para api.github.com vaza credencial de terceiro e
+# ainda quebra o conector com 401. Então a variável canônica é
+# HOLMES_GITHUB_TOKEN, e as genéricas só são aceitas se o valor tiver mesmo
+# cara de token do GitHub.
+
+_GITHUB_TOKEN_PREFIXES = ("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_")
+
+
+def github_token() -> str | None:
+    explicit = get_key("github")
+    if explicit:
+        return explicit
+    for env_name in ("GITHUB_TOKEN", "GH_TOKEN"):
+        val = os.environ.get(env_name, "").strip()
+        if val.startswith(_GITHUB_TOKEN_PREFIXES):
+            return val
+    return None
+
+
+def github_headers() -> dict[str, str]:
+    headers = {"Accept": "application/vnd.github+json"}
+    token = github_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+# ── Bright Data Web Unlocker ────────────────────────────────────────────────
+#
+# Rota paga, desligada por padrão. Só entra em ação quando o alvo bloqueia de
+# verdade (403/429/captcha) — nunca como caminho principal, porque cada
+# requisição custa dinheiro e a esmagadora maioria das fontes do motor
+# responde bem direto.
+#
+# Ligar:
+#   export BRIGHTDATA_API_KEY=...     # a chave, nunca no código
+#   export HOLMES_UNLOCKER=1          # o interruptor
+#   export HOLMES_UNLOCKER_ZONE=...   # opcional (padrão: cli_unlocker)
+#   export HOLMES_UNLOCKER_BUDGET=200 # teto de chamadas por processo
+
+UNLOCKER_ENDPOINT = "https://api.brightdata.com/request"
+UNLOCKER_ZONE = os.environ.get("HOLMES_UNLOCKER_ZONE", "cli_unlocker")
+UNLOCKER_BUDGET = int(os.environ.get("HOLMES_UNLOCKER_BUDGET", "200"))
+UNLOCKER_TIMEOUT = int(os.environ.get("HOLMES_UNLOCKER_TIMEOUT", "60"))
+
+# Contadores do processo. O teto existe porque o crédito é finito e um laço
+# mal fechado num motor que roda 90 sites em paralelo queima saldo rápido.
+_unlocker_stats = {"usadas": 0, "sucesso": 0, "falha": 0, "bloqueadas_por_teto": 0}
+
+
+def unlocker_enabled() -> bool:
+    """Só é verdade com chave presente E interruptor ligado. Na dúvida, não gasta."""
+    if os.environ.get("HOLMES_UNLOCKER", "").strip().lower() not in ("1", "true", "sim", "on"):
+        return False
+    return has_key("brightdata")
+
+
+def unlocker_budget_left() -> int:
+    return max(0, UNLOCKER_BUDGET - _unlocker_stats["usadas"])
+
+
+def unlocker_stats() -> dict:
+    """Usado pela UI e pelos relatórios: quanto desta investigação foi pago."""
+    return dict(_unlocker_stats, teto=UNLOCKER_BUDGET, restante=unlocker_budget_left())
+
+
+def unlocker_reset_stats() -> None:
+    for k in ("usadas", "sucesso", "falha", "bloqueadas_por_teto"):
+        _unlocker_stats[k] = 0
+
+
+def unlocked_get_text(
+    url: str,
+    *,
+    timeout: int | None = None,
+    ttl: int = DEFAULT_TTL,
+    country: str | None = None,
+) -> str | None:
+    """
+    Busca a página pelo Web Unlocker da Bright Data. Devolve o HTML ou None.
+
+    Cacheia igual ao resto da camada: repetir o mesmo alvo dentro do TTL não
+    custa uma segunda requisição paga.
+    """
+    if not unlocker_enabled():
+        return None
+
+    ck = f"UNLOCK:{url}:{country or ''}"
+    cached = cache_get(ck, ttl)
+    if cached is not None:
+        return cached
+
+    if unlocker_budget_left() <= 0:
+        _unlocker_stats["bloqueadas_por_teto"] += 1
+        return None
+
+    payload: dict[str, Any] = {"zone": UNLOCKER_ZONE, "url": url, "format": "raw"}
+    if country:
+        payload["country"] = country
+
+    _unlocker_stats["usadas"] += 1
+    try:
+        resp = _SESSION.post(
+            UNLOCKER_ENDPOINT,
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {get_key('brightdata')}",
+                "Content-Type": "application/json",
+            },
+            timeout=timeout or UNLOCKER_TIMEOUT,
+        )
+    except Exception:
+        _unlocker_stats["falha"] += 1
+        return None
+
+    if resp.status_code >= 400:
+        _unlocker_stats["falha"] += 1
+        return None
+
+    _unlocker_stats["sucesso"] += 1
+    cache_set(ck, resp.text)
+    return resp.text

@@ -386,3 +386,80 @@ golpe (Bitcoin Abuse, Chainabuse). Aparece em «Fontes para abrir». Fontes
 selecionadas da categoria Blockchain do OSINT-Framework (lockfale) — só o que
 aceita o endereço na URL; o resto do índice (1.168 links) é home/manual e foi
 deixado de fora de propósito, para não repetir o catálogo morto.
+
+## Bloqueio não é ausência
+
+O maior risco de uma ferramenta de OSINT não é deixar de achar — é **afirmar
+que não existe** quando na verdade ninguém conseguiu olhar.
+
+Antes, o `whatsmyname` tratava qualquer falha como "perfil não encontrado".
+Um site que devolvia 403 ou captcha entrava na conta como se tivesse
+respondido "não tem", e o dossiê fechava com `Nenhum perfil em 90 sites
+checados` — com confiança **confirmada**. Isso é falso negativo apresentado
+como fato.
+
+Agora cada sondagem termina num veredito explícito:
+
+| status | significa |
+|---|---|
+| `hit` | o site respondeu e o perfil existe |
+| `miss` | o site respondeu e o perfil não existe |
+| `blocked` | o site barrou a consulta — **ninguém olhou** |
+| `error` | timeout ou falha de rede |
+| `inconclusive` | veio página, mas sem como validar |
+
+E o dossiê passa a distinguir os dois casos:
+
+- **Ninguém bloqueou** → `Nenhum perfil em 88 sites checados` (confirmada)
+- **Alguns bloquearam** → `Nenhum perfil em 73 sites (15 bloquearam)`
+  (possível), mais um achado listando quem barrou
+
+O denominador é `conclusive` — quantos sites realmente responderam —, nunca o
+total da lista.
+
+Detecção de bloqueio: 401/403/405/429/451/503, header `cf-mitigated`, e
+marcadores de desafio no corpo (`just a moment`, `attention required`,
+`captcha`…). Duas ressalvas importantes na regra:
+
+1. O corpo é checado **antes** do código, porque o desafio do Cloudflare vem
+   com HTTP 200 — checar o status primeiro deixaria passar o caso mais comum.
+2. Se o dataset declara aquele código como `e_code` ou `m_code` do site, ele
+   é protocolo normal da plataforma e **não** conta como bloqueio.
+
+## Rota paga: Bright Data Web Unlocker
+
+Opcional, desligada por padrão, e só para o que bloqueou de fato.
+
+Quando ligada, um site com `blocked` ganha uma segunda tentativa via Web
+Unlocker. Se essa tentativa acha o perfil, o achado sai marcado
+`(via Web Unlocker)`. A rota paga nunca é o caminho principal.
+
+Para ligar são necessárias **duas** variáveis — a chave sozinha não gasta
+nada:
+
+```bash
+export BRIGHTDATA_API_KEY=...
+export HOLMES_UNLOCKER=1
+```
+
+Salvaguardas embutidas:
+
+- **Teto por processo** (`HOLMES_UNLOCKER_BUDGET`, padrão 200). O motor roda
+  ~90 sites em paralelo; sem teto, um laço mal fechado queima o crédito.
+- **Cache**: repetir o mesmo alvo dentro do TTL não paga de novo.
+- **`net.unlocker_stats()`** informa quanto da investigação foi pago.
+
+Antes de ligar, meça — o script não gasta crédito:
+
+```bash
+python3 scripts/measure_blocking.py --handle umHandleQueExista
+```
+
+Ele sonda os ~90 sites, conta quem bloqueia e estima o custo por
+investigação. Se mais de 30% der erro de rede, ele avisa que a medição não
+vale (ambiente sem saída para a internet) e omite a estimativa.
+
+**Para busca, o Unlocker não é a melhor escolha.** A cadeia do `serp` já
+suporta Serper, Brave e Google CSE. Brave tem tier gratuito e Serper custa
+menos por mil que o Unlocker — configure uma dessas antes de gastar crédito
+com busca.
