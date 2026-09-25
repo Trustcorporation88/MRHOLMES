@@ -390,7 +390,19 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
     t, v = entity.type, entity.value
     q: list[str] = []
 
-    if t is EntityType.NAME:
+    if t is EntityType.NAME and is_company_name(v):
+        # Razão social: o que interessa é CNPJ, sócios e processos, não rede social.
+        quoted = entity.get("quoted", f'"{v}"')
+        q += [
+            quoted,
+            f"{quoted} CNPJ",
+            f"{quoted} (sócio OR sócios OR QSA)",
+        ]
+        q += [f"{quoted} site:{s}" for s in ("cnpj.biz", "econodata.com.br", "consultasocio.com")]
+        if deep:
+            q += [f"{quoted} site:{s}" for s in ("jusbrasil.com.br", "escavador.com")]
+
+    elif t is EntityType.NAME:
         quoted = entity.get("quoted", f'"{v}"')
         q.append(quoted)
         q += [f"{quoted} site:{s}" for s in _SOCIAL_SITES]
@@ -447,9 +459,23 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
             ]
 
     elif t in (EntityType.CPF, EntityType.CNPJ):
-        q += [entity.get("quoted", f'"{v}"'), f'"{entity.get("digits", "")}"']
+        digits = entity.get("digits", "")
+        q += [entity.get("quoted", f'"{v}"'), f'"{digits}"']
         if t is EntityType.CNPJ:
             q += [f'"{v}" site:{s}' for s in ("consultasocio.com", "econodata.com.br", "jusbrasil.com.br")]
+        else:
+            # CPF só aparece em registro público: processo, diário oficial,
+            # edital, licitação, lista de aprovados. É onde vale procurar.
+            q += [
+                f'"{v}" site:jusbrasil.com.br',
+                f'"{v}" site:escavador.com',
+                f'"{v}" site:jus.br',
+                f'"{v}" (diário oficial OR DOU OR DOE OR portaria OR edital)',
+                f'"{v}" (licitação OR contrato OR pregão OR empenho)',
+                f'"{v}" (filetype:pdf OR filetype:xlsx OR filetype:csv)',
+                f'"{v}" site:gov.br',
+                f'"{digits}" (processo OR autos OR executado OR requerido)',
+            ]
 
     elif t is EntityType.PLACA:
         q += [
@@ -485,6 +511,66 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
     return [x for x in dict.fromkeys(q) if x.strip()]
 
 
+# Número de processo no padrão CNJ, com pontuação (sem ela dá falso positivo).
+_CNJ_RE = re.compile(r"\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b")
+_CNPJ_RE = re.compile(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b")
+_EMPRESA_SUFIXO = re.compile(r"\b(ltda|eireli|s/a|s\.a\.?)(?=\W|$)", re.I)
+# Onde o texto costuma separar partes: "A x B", "A - Processo", "A | Escavador".
+_SEPARADORES = re.compile(r"\s+(?:x|vs\.?|versus)\s+|[|:•·;,()\[\]]|\s[-–—]\s")
+_PALAVRAS_RUIDO = {"processo", "processos", "autos", "ação", "acao", "réu", "reu", "autor",
+                   "requerente", "requerido", "executado", "exequente", "contra", "de", "do", "da",
+                   "cnpj", "empresa", "razão", "razao", "social", "nome"}
+
+
+def is_company_name(texto: str) -> bool:
+    """Razão social brasileira: termina (ou quase) em LTDA, EIRELI, S/A ou S.A."""
+    return bool(_EMPRESA_SUFIXO.search(texto or ""))
+
+
+def _host_juridico(hit: SerpHit) -> bool:
+    host, path = hit.host, (urlparse(hit.url).path or "").lower()
+    if host.endswith("jus.br"):
+        return True
+    if host.endswith("jusbrasil.com.br") or host.endswith("escavador.com"):
+        # Perfil de pessoa nesses sites é conta; processo, diário e
+        # jurisprudência são registro jurídico.
+        return any(k in path for k in ("processo", "diario", "jurisprudencia", "/doc/"))
+    return False
+
+
+def extrair_empresas(texto: str) -> list[str]:
+    """Razões sociais citadas num texto livre (título ou trecho de resultado)."""
+    achadas: list[str] = []
+    for trecho in _SEPARADORES.split(texto or ""):
+        m = _EMPRESA_SUFIXO.search(trecho)
+        if not m:
+            continue
+        nome = trecho[: m.end()].strip(" .-")
+        palavras = nome.split()
+        while palavras and palavras[0].lower().strip(".") in _PALAVRAS_RUIDO:
+            palavras.pop(0)
+        if not 2 <= len(palavras) <= 14:
+            continue
+        nome = " ".join(palavras)
+        if nome.islower() or nome.isupper():
+            nome = nome.title().replace("Ltda", "LTDA").replace("Eireli", "EIRELI")
+        if nome.lower() not in {a.lower() for a in achadas}:
+            achadas.append(nome)
+    return achadas
+
+
+def extrair_processos(texto: str) -> list[str]:
+    from .cnj import validate_dv
+
+    return [n for n in dict.fromkeys(_CNJ_RE.findall(texto or "")) if validate_dv(n)]
+
+
+def extrair_cnpjs(texto: str) -> list[str]:
+    from .entity import valid_cnpj
+
+    return [c for c in dict.fromkeys(_CNPJ_RE.findall(texto or "")) if valid_cnpj(c)]
+
+
 def hits_to_findings(hits: Iterable[SerpHit], entity: Entity) -> list:
     """
     Converte resultado de busca em findings. Resultado em host de plataforma
@@ -504,8 +590,23 @@ def hits_to_findings(hits: Iterable[SerpHit], entity: Entity) -> list:
         matched = sum(1 for t in needle_tokens if t in blob)
         strong = needle_tokens and matched >= max(1, len(needle_tokens) - 1)
 
-        platform = hit.platform
-        if platform:
+        texto = f"{hit.title} {hit.snippet}"
+        juridico = _host_juridico(hit) or bool(extrair_processos(texto))
+        platform = None if juridico else hit.platform
+        if juridico:
+            findings.append(
+                Finding(
+                    kind=FindingKind.LEGAL,
+                    value=hit.title[:140] or hit.url,
+                    source=f"serp:{hit.engine}",
+                    source_label=f"Busca ({hit.engine})",
+                    url=hit.url,
+                    confidence=Confidence.LIKELY if strong else Confidence.POSSIBLE,
+                    detail=hit.snippet[:300],
+                    raw={"host": hit.host, "query": hit.query, "position": hit.position},
+                )
+            )
+        elif platform:
             findings.append(
                 Finding(
                     kind=FindingKind.ACCOUNT,
@@ -531,6 +632,41 @@ def hits_to_findings(hits: Iterable[SerpHit], entity: Entity) -> list:
                     raw={"host": hit.host, "query": hit.query, "position": hit.position},
                 )
             )
+
+        # O que vem citado junto do alvo no mesmo resultado: processo, CNPJ e
+        # empresa. Só quando o alvo aparece no texto, senão é ruído da página.
+        if strong:
+            conf = Confidence.LIKELY
+            for numero in extrair_processos(f"{texto} {hit.url}"):
+                findings.append(Finding(
+                    kind=FindingKind.LEGAL, value=f"Processo {numero}",
+                    source=f"serp:{hit.engine}", source_label="Busca (número de processo)",
+                    url=hit.url, confidence=conf,
+                    detail=f"Número CNJ citado junto do alvo em: {hit.title[:80]}",
+                    raw={"cnj": numero},
+                ))
+            for cnpj in extrair_cnpjs(texto):
+                findings.append(Finding(
+                    kind=FindingKind.DOCUMENT, value=cnpj,
+                    source=f"serp:{hit.engine}", source_label="Busca (CNPJ citado)",
+                    url=hit.url, confidence=conf,
+                    detail=f"CNPJ citado junto do alvo em: {hit.title[:80]}",
+                    raw={"tipo": "cnpj"},
+                ))
+            alvo_e_empresa = is_company_name(entity.value)
+            vistas = {entity.value.lower()} if alvo_e_empresa else set()
+            # Título e trecho em separado: juntos, o fim de um gruda no começo do outro.
+            for empresa in extrair_empresas(hit.title) + extrair_empresas(hit.snippet):
+                if empresa.lower() in vistas:
+                    continue
+                vistas.add(empresa.lower())
+                findings.append(Finding(
+                    kind=FindingKind.COMPANY, value=empresa,
+                    source=f"serp:{hit.engine}", source_label="Busca (empresa citada)",
+                    url=hit.url, confidence=conf,
+                    detail=f"Empresa citada junto do alvo em: {hit.title[:80]}",
+                    raw={"citada_em": hit.url},
+                ))
 
         # Mineração de contato no snippet: e-mail/telefone aparecem muito em SERP.
         for mail in set(re.findall(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", blob)):

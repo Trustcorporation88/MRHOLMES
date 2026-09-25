@@ -239,6 +239,9 @@ def _render_identity_card(dossier) -> None:
         esquerda = f"<img class='mh-idcard-photo' src='{_html.escape(card['foto'], quote=True)}'>"
     else:
         inicial = (card["nome"] or card["alvo"] or "?")[:1].upper()
+        if not inicial.isalpha():
+            # CPF, CNPJ, telefone, placa: a "inicial" seria um dígito solto.
+            inicial = "🪪"
         esquerda = f"<div class='mh-idcard-initial'>{_html.escape(inicial)}</div>"
 
     flags_html = "".join(
