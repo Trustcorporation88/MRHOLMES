@@ -226,6 +226,47 @@ def from_findings(
                     score=0.55 if confirmado else 0.45,
                 ))
 
+        elif f.kind is FindingKind.LEGAL and (f.raw or {}).get("cnj"):
+            # Número de processo citado junto do alvo: o DataJud devolve classe,
+            # assunto, tribunal e movimentações. É registro público e amarrado.
+            if f.confidence not in (Confidence.CONFIRMED, Confidence.LIKELY):
+                continue
+            ent = detect(f.raw["cnj"])
+            if ent.type is EntityType.PROCESSO:
+                out.append(Pivot(
+                    entity=ent, origin=f.source, hop=hop,
+                    reason=f"Processo citado junto do alvo ({f.source_label})",
+                    score=0.6,
+                ))
+
+        elif f.kind is FindingKind.DOCUMENT:
+            # Só CNPJ vira alvo: leva à Receita (sócios, endereço, situação).
+            # CPF de terceiro citado na página não é seguido.
+            if f.confidence not in (Confidence.CONFIRMED, Confidence.LIKELY):
+                continue
+            ent = detect(f.value)
+            if ent.type is EntityType.CNPJ:
+                out.append(Pivot(
+                    entity=ent, origin=f.source, hop=hop,
+                    reason=f"CNPJ ligado ao alvo, via {f.source_label}",
+                    score=0.6,
+                ))
+
+        elif f.kind is FindingKind.COMPANY:
+            # Empresa citada junto do alvo: busca a razão social para achar o
+            # CNPJ, que no salto seguinte leva aos sócios na Receita.
+            if f.confidence not in (Confidence.CONFIRMED, Confidence.LIKELY):
+                continue
+            if target is not None and f.value.lower() == target.value.lower():
+                continue
+            ent = detect(f.value)
+            if ent.type in (EntityType.NAME, EntityType.CNPJ):
+                out.append(Pivot(
+                    entity=ent, origin=f.source, hop=hop,
+                    reason=f"Empresa citada junto do alvo ({f.source_label})",
+                    score=0.5,
+                ))
+
         elif f.kind is FindingKind.DOMAIN and hop <= 1:
             # Domínio só pivota quando a fonte o amarra ao alvo (MX do e-mail
             # dele, titular do .br). Domínio de resultado de busca é ruído.
