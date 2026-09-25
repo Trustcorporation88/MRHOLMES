@@ -147,6 +147,18 @@ section[data-testid="stSidebar"] > div {
   color: var(--ink-faint) !important; font-weight: 700 !important;
 }
 [data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background: var(--panel-2) !important; }
+/* o texto do grupo vem num <p> próprio do Streamlit: estiliza ele também */
+[data-testid="stSidebar"] [data-testid="stExpander"] summary p,
+[data-testid="stSidebar"] [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p {
+  font-size: 0.68rem !important; letter-spacing: 0.1em !important; text-transform: uppercase !important;
+  color: var(--ink-faint) !important; font-weight: 700 !important; line-height: 1.2 !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary [data-testid="stIconMaterial"] {
+  font-size: 1rem !important; color: var(--ink-faint) !important;
+}
+/* rótulo "Principal" sem a margem negativa do markdown, que o cortava */
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(.mh-nav-group),
+[data-testid="stSidebar"] [data-testid="stHtml"]:has(.mh-nav-group) { margin-bottom: 0.2rem !important; }
 [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] { padding: 0.1rem 0 0 0 !important; }
 [data-testid="stSidebar"] hr { margin: 0.8rem 0 !important; }
 /* restos do menu antigo por rádio (mantidos caso alguma tela ainda use) */
@@ -470,6 +482,12 @@ a.mh-learn-card:hover { border-color: var(--accent); transform: translateY(-2px)
 .stFormSubmitButton > button[data-testid="stBaseButton-primaryFormSubmit"]:hover { background: var(--accent-hover) !important; }
 [data-testid="stForm"] { padding: 0 !important; border: none !important; }
 
+/* títulos de seção dentro das páginas (painel, atalhos) */
+.mh-section {
+  font-family: var(--display); font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em;
+  color: var(--ink); margin: 1.1rem 0 0.5rem;
+}
+
 /* ── Dossiê ─────────────────────────────────────────────────────────────── */
 .mh-fact {
   background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--ink-faint));
@@ -703,7 +721,7 @@ with st.sidebar:
     # ativa estiver lá dentro, senão começa fechado.
     for i, (_grupo, _ids) in enumerate(NAV_GROUPS):
         if i == 0:
-            st.markdown(f'<div class="mh-nav-group">{_grupo}</div>', unsafe_allow_html=True)
+            st.html(f'<div class="mh-nav-group">{_grupo}</div>')
             _nav_buttons(_ids)
         else:
             with st.expander(_grupo, expanded=page in _ids):

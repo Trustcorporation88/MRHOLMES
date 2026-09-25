@@ -162,3 +162,17 @@ def test_detect_all_string_unica_sem_rotulo_continua_funcionando():
     assert len(achados) == 1
     assert achados[0].type is EntityType.NAME
     assert achados[0].value == "Maria Souza"
+
+
+def test_mascarar_esconde_miolo_de_dado_pessoal():
+    from holmes.entity import mascarar
+
+    assert mascarar("072.685.966-42") == "072.***.***-42"
+    assert mascarar("CPF 21491196840") == "CPF 214******40"
+    assert mascarar("+07268696642") == "+072******42"
+    assert mascarar("contato@exemplo.com.br") == "c***@exemplo.com.br"
+    assert mascarar("BBE8I71") == "BBE****"
+    assert mascarar("THIAGO AUGUSTO PINTO GOMES") == "THIAGO A. P. G."
+    assert mascarar("@usuario") == "@us***"
+    assert mascarar("exemplo.com.br") == "exemplo.com.br"
+    assert mascarar("") == ""
