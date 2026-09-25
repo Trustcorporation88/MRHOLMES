@@ -181,18 +181,27 @@ span[class*="material-icons"] {
 }
 [data-testid="stExpander"] [data-testid="stIconMaterial"] { color: var(--ink-faint) !important; }
 
-.mh-page { margin-bottom: 1.1rem; }
+.mh-page {
+  display: flex; align-items: center; gap: 0.9rem;
+  border: 1px solid var(--line); border-radius: 16px; margin-bottom: 1rem;
+  padding: 0.85rem 1.1rem; background: linear-gradient(120deg, #f1f0ff 0%, #fff4ec 100%);
+}
+.mh-page-icon {
+  width: 2.8rem; height: 2.8rem; border-radius: 12px; flex-shrink: 0; font-size: 1.35rem;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.mh-page-body { min-width: 0; }
 .mh-page .eyebrow {
-  display: inline-block; font-size: 0.68rem; letter-spacing: 0.1em; font-weight: 700;
-  text-transform: uppercase; color: var(--accent); background: var(--accent-soft);
-  padding: 0.2rem 0.55rem; border-radius: 999px; margin-bottom: 0.45rem;
+  font-size: 0.66rem; letter-spacing: 0.1em; font-weight: 700;
+  text-transform: uppercase; color: var(--accent);
 }
 .mh-page h1 {
-  font-family: var(--display) !important; font-size: 1.7rem !important; font-weight: 800 !important;
-  color: var(--ink) !important; letter-spacing: -0.035em; margin: 0 !important; padding: 0 !important;
+  font-family: var(--display) !important; font-size: 1.35rem !important; font-weight: 800 !important;
+  color: var(--ink) !important; letter-spacing: -0.03em; margin: 0.05rem 0 0 !important; padding: 0 !important;
   line-height: 1.2 !important;
 }
-.mh-page .desc { margin-top: 0.35rem; color: var(--ink-soft); font-size: 0.93rem; max-width: 44rem; }
+.mh-page .desc { margin-top: 0.2rem; color: var(--ink-soft); font-size: 0.88rem; max-width: 46rem; }
 
 /* ── Botões ──────────────────────────────────────────────────────────────── */
 .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
@@ -318,7 +327,7 @@ div:has(.mh-osint-nav-mark) .stButton > button[data-testid="stBaseButton-primary
 /* heróis das páginas: faixa clara e compacta, sem sombra pesada */
 .mh-tools-hero, .mh-premium-hero, .mh-learn-hero, .mh-dork-hero {
   border: 1px solid var(--line); border-radius: var(--radius);
-  background: linear-gradient(120deg, #f1f0ff 0%, #fff4ec 100%);
+  background: var(--panel); box-shadow: var(--shadow);
   padding: 1.05rem 1.2rem; margin-bottom: 1rem;
 }
 .mh-dork-kicker {
@@ -336,7 +345,7 @@ div:has(.mh-osint-nav-mark) .stButton > button[data-testid="stBaseButton-primary
 .mh-tools-stats { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.8rem 0 0 0; }
 .mh-tools-stat {
   font-size: 0.74rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 999px;
-  background: var(--panel); border: 1px solid var(--line); color: var(--ink-soft);
+  background: var(--accent-soft); color: var(--ink-soft);
 }
 .mh-tools-stat strong { color: var(--accent); font-weight: 800; }
 
@@ -445,6 +454,22 @@ a.mh-learn-card:hover { border-color: var(--accent); transform: translateY(-2px)
 }
 [class*="st-key-mh_chips"] .stButton > button p { font-size: 0.8rem !important; }
 
+/* atalhos do painel inicial: cartões clicáveis */
+[class*="st-key-mh_tiles"] .stButton > button {
+  justify-content: flex-start !important; padding: 0.8rem 0.95rem !important; border-radius: 12px !important;
+  box-shadow: var(--shadow) !important;
+}
+[class*="st-key-mh_tiles"] .stButton > button:hover { transform: translateY(-2px) !important; box-shadow: var(--shadow-hover) !important; }
+[class*="st-key-mh_tiles"] .stButton > button p { font-weight: 700 !important; }
+.stFormSubmitButton > button[kind="primaryFormSubmit"] p,
+.stFormSubmitButton > button[data-testid="stBaseButton-primaryFormSubmit"] p { color: #ffffff !important; }
+.stFormSubmitButton > button[data-testid="stBaseButton-primaryFormSubmit"] {
+  background: var(--accent) !important; color: #ffffff !important; border-color: var(--accent) !important;
+}
+.stFormSubmitButton > button[kind="primaryFormSubmit"]:hover,
+.stFormSubmitButton > button[data-testid="stBaseButton-primaryFormSubmit"]:hover { background: var(--accent-hover) !important; }
+[data-testid="stForm"] { padding: 0 !important; border: none !important; }
+
 /* ── Dossiê ─────────────────────────────────────────────────────────────── */
 .mh-fact {
   background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--ink-faint));
@@ -485,6 +510,52 @@ a.mh-learn-card:hover { border-color: var(--accent); transform: translateY(-2px)
 .mh-soft { color: var(--ink-soft); font-size: 0.85rem; }
 """
 
+# Tema escuro opcional: só redefine as variáveis e as superfícies nativas que
+# o tema claro do Streamlit (config.toml) pintaria de branco.
+_CSS_DARK = r"""
+:root {
+  --ink: #eef0fa;
+  --ink-soft: #a3a9c4;
+  --ink-faint: #7a809c;
+  --paper: #0f1220;
+  --panel: #181c2e;
+  --panel-2: #1f2438;
+  --sidebar: #131627;
+  --sidebar-text: #c9cde0;
+  --accent: #8b8bff;
+  --accent-hover: #a3a3ff;
+  --accent-soft: rgba(139, 139, 255, 0.16);
+  --warm-soft: rgba(242, 112, 63, 0.16);
+  --sun-soft: rgba(245, 180, 0, 0.16);
+  --mint-soft: rgba(16, 178, 124, 0.18);
+  --pink-soft: rgba(232, 72, 138, 0.18);
+  --sky-soft: rgba(31, 155, 220, 0.18);
+  --line: #2c3150;
+  --line-soft: #242940;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 4px 14px rgba(139, 139, 255, 0.18);
+}
+.mh-page { background: linear-gradient(120deg, #1d1f3d 0%, #2a1f24 100%) !important; }
+.mh-flag { color: #ff8fbf !important; }
+.stButton > button[kind="primary"], .stButton > button[data-testid="stBaseButton-primary"],
+.stFormSubmitButton > button[data-testid="stBaseButton-primaryFormSubmit"] { background: #5b5bf0 !important; border-color: #5b5bf0 !important; }
+[data-testid="stSidebar"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] { background: var(--accent-soft) !important; }
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: var(--ink) !important; }
+.stCodeBlock pre, [data-testid="stCode"] pre, code { background: var(--panel-2) !important; color: var(--ink) !important; }
+[data-baseweb="popover"] ul, [data-baseweb="popover"] li, [data-baseweb="menu"] { background: var(--panel) !important; color: var(--ink) !important; }
+[data-baseweb="popover"] li:hover { background: var(--panel-2) !important; }
+div[data-testid="stAlert"] p { color: var(--ink) !important; }
+[data-testid="stSpinner"] p, [data-testid="stHeader"] * { color: var(--ink-soft) !important; }
+[data-testid="stSidebarCollapseButton"] *, [data-testid="stSidebarCollapsedControl"] * { color: var(--ink-soft) !important; }
+"""
+
+# Estado do tema: a chave do toggle vale na sessão; ?tema=escuro guarda a
+# preferência na URL para sobreviver ao recarregar a página.
+if "tema_escuro" not in st.session_state:
+    st.session_state["tema_escuro"] = st.query_params.get("tema") == "escuro"
+_TEMA_CSS = _CSS + (_CSS_DARK if st.session_state["tema_escuro"] else "")
+
 _components.html(
     f"""<script>
     (function() {{
@@ -495,7 +566,7 @@ _components.html(
         s.id = 'mh-theme';
         doc.head.appendChild(s);
       }}
-      s.textContent = {_CSS!r};
+      s.textContent = {_TEMA_CSS!r};
     }})();
     </script>""",
     height=0,
@@ -504,10 +575,13 @@ _components.html(
 
 
 def page_header(eyebrow: str, title: str, desc: str = ""):
+    # Mesmo formato da faixa do Investigar, em versão suave: ícone da página,
+    # rótulo, título e uma linha de descrição.
+    icone = NAV_ICON.get(globals().get("page", ""), "🔎")
     desc_html = f'<div class="desc">{desc}</div>' if desc else ""
     st.html(
-        f'<div class="mh-page"><div class="eyebrow">{eyebrow}</div>'
-        f'<h1>{title}</h1>{desc_html}</div>'
+        f'<div class="mh-page"><div class="mh-page-icon">{icone}</div><div class="mh-page-body">'
+        f'<div class="eyebrow">{eyebrow}</div><h1>{title}</h1>{desc_html}</div></div>'
     )
 
 
@@ -649,6 +723,13 @@ with st.sidebar:
         f"Claude {'●' if _prov.get('anthropic') else '○'} · "
         "cole a chave OpenAI na aba Investigar"
     )
+    def _salvar_tema() -> None:
+        if st.session_state.get("tema_escuro"):
+            st.query_params["tema"] = "escuro"
+        elif "tema" in st.query_params:
+            del st.query_params["tema"]
+
+    st.toggle("🌙 Tema escuro", key="tema_escuro", on_change=_salvar_tema)
     st.caption("Educacional · alvos autorizados")
 
 

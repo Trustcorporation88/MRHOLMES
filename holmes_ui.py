@@ -328,7 +328,8 @@ def _render_dossier(dossier) -> None:
         if g["nos"] > 1:
             with st.expander(f"🕸️ Grafo de conexões ({g['nos']} nós, {g['conexoes']} ligações)",
                              expanded=False):
-                _components.html(_graph.to_html(dossier), height=580, scrolling=False)
+                _components.html(_graph.to_html(dossier, escuro=bool(st.session_state.get("tema_escuro"))),
+                                 height=580, scrolling=False)
     except Exception:
         pass
 
@@ -541,6 +542,72 @@ def _chips_rapidos() -> None:
                                on_click=_preencher_alvo, args=(valor,))
 
 
+# Atalhos do painel inicial: as ferramentas manuais mais usadas.
+_ATALHOS = [
+    ("📱", "Telefone", "Telefone"),
+    ("✉️", "E-mail", "Email"),
+    ("🌐", "Domínio", "Domínio"),
+    ("👤", "Username", "OSINT Avançado"),
+    ("🧩", "Dorks", "Dorks"),
+    ("🩸", "Leaks", "Leaks"),
+    ("📡", "Rede / IP", "Rede"),
+    ("🕸️", "Grafo", "Gráfico"),
+]
+
+
+def _ir_para(page_id: str) -> None:
+    from osint_premium import queue_navigation
+
+    queue_navigation(st.session_state, page_id)
+
+
+def _painel_inicial() -> None:
+    """Resumo do dia e atalhos, no lugar da tela vazia antes da primeira busca."""
+    total_hist = vigiados = novos = 0
+    try:
+        from holmes import history
+
+        total_hist = len(history.list_entries(limit=200))
+    except Exception:
+        pass
+    try:
+        from holmes import monitor
+
+        vigiados = len(monitor.watchlist())
+        novos = monitor.unread_count()
+    except Exception:
+        pass
+
+    st.markdown("### Seu painel")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Investigações salvas", f"{total_hist}+" if total_hist >= 200 else total_hist)
+        st.button("Ver histórico", key="pi_hist", use_container_width=True,
+                  on_click=_ir_para, args=("Histórico",))
+    with c2:
+        st.metric("Alvos monitorados", vigiados)
+        st.button("Abrir monitoramento", key="pi_mon", use_container_width=True,
+                  on_click=_ir_para, args=("Monitoramento",))
+    with c3:
+        st.metric("Alertas novos", novos)
+        st.button("Ver alertas" if novos else "Nada novo por aqui", key="pi_alert",
+                  use_container_width=True, type="primary" if novos else "secondary",
+                  on_click=_ir_para, args=("Monitoramento",))
+
+    st.markdown("### Ferramentas rápidas")
+    with st.container(key="mh_tiles"):
+        for inicio in range(0, len(_ATALHOS), 4):
+            cols = st.columns(4)
+            for col, (icone, rotulo, page_id) in zip(cols, _ATALHOS[inicio:inicio + 4]):
+                col.button(f"{icone}  {rotulo}", key=f"pi_tool_{page_id}", use_container_width=True,
+                           on_click=_ir_para, args=(page_id,))
+
+    st.caption(
+        "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
+        "cole só o dado principal. O motor extrai o resto sozinho pelos pivôs."
+    )
+
+
 def display_investigar() -> None:
     ensure_registered()
     from holmes import serp
@@ -581,14 +648,16 @@ def display_investigar() -> None:
         elif health["provider"] == "duckduckgo":
             st.warning(health["message"], icon="⚠️")
 
-        col_in, col_btn = st.columns([4, 1])
-        with col_in:
-            alvo = st.text_input(
-                "Alvo", key="holmes_target", label_visibility="collapsed",
-                placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, placa, domínio ou link…",
-            )
-        with col_btn:
-            rodar = st.button("🔎 Investigar", type="primary", use_container_width=True)
+        # Formulário para o Enter já disparar a investigação, sem precisar do clique.
+        with st.form("holmes_form", border=False):
+            col_in, col_btn = st.columns([4, 1])
+            with col_in:
+                alvo = st.text_input(
+                    "Alvo", key="holmes_target", label_visibility="collapsed",
+                    placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, placa, domínio ou link…",
+                )
+            with col_btn:
+                rodar = st.form_submit_button("🔎 Investigar", type="primary", use_container_width=True)
 
         _chips_rapidos()
 
@@ -677,10 +746,7 @@ def display_investigar() -> None:
             st.markdown("---")
             _render_chat(dossier)
         elif not rodar:
-            st.caption(
-                "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
-                "cole só o dado principal — o motor extrai o resto sozinho pelos pivôs."
-            )
+            _painel_inicial()
 
 
 def _render_foto() -> None:

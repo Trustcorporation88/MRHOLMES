@@ -131,22 +131,38 @@ def _tooltip(fato) -> str:
     return " | ".join(partes)
 
 
-def to_html(dossier: Dossier, altura: int = 560) -> str:
+# Cores do iframe por tema: (fundo, painel da legenda, borda, texto, destaque, dica)
+_TEMA = {
+    False: ("#ffffff", "rgba(255,255,255,.92)", "#e3e6ef", "#5d6480", "#1d2239", "#8a90a8"),
+    True: ("#141726", "rgba(20,23,38,.92)", "#2c3150", "#a3a9c4", "#eef0fa", "#7a809c"),
+}
+
+
+def to_html(dossier: Dossier, altura: int = 560, escuro: bool = False) -> str:
     """HTML autocontido com o grafo interativo (arrastar, zoom, clicar)."""
     dados = build(dossier)
+    fundo, painel, borda, texto, forte, dica = _TEMA[bool(escuro)]
+    if escuro:
+        # Rótulos claros com contorno escuro para ler sobre o fundo escuro.
+        for no in dados["nodes"]:
+            fonte = no.get("font") or {}
+            fonte["color"] = forte if no["id"] == "alvo" else texto
+            if "strokeColor" in fonte:
+                fonte["strokeColor"] = fundo
+            no["font"] = fonte
     dados_json = json.dumps(dados, ensure_ascii=False)
     alvo = html.escape(dossier.entity.value)
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <style>
-  body{{margin:0;background:#ffffff;font-family:ui-sans-serif,-apple-system,'Segoe UI',Roboto,sans-serif}}
+  body{{margin:0;background:{fundo};font-family:ui-sans-serif,-apple-system,'Segoe UI',Roboto,sans-serif}}
   #rede{{width:100%;height:{altura}px}}
-  .legenda{{position:absolute;top:8px;left:8px;background:rgba(255,255,255,.92);
-    border:1px solid #e3e6ef;border-radius:10px;padding:8px 10px;
-    font-size:11px;color:#5d6480;line-height:1.7;z-index:5}}
-  .legenda b{{color:#1d2239}}
-  .dica{{position:absolute;bottom:8px;right:12px;font-size:11px;color:#8a90a8;z-index:5}}
+  .legenda{{position:absolute;top:8px;left:8px;background:{painel};
+    border:1px solid {borda};border-radius:10px;padding:8px 10px;
+    font-size:11px;color:{texto};line-height:1.7;z-index:5}}
+  .legenda b{{color:{forte}}}
+  .dica{{position:absolute;bottom:8px;right:12px;font-size:11px;color:{dica};z-index:5}}
 </style></head><body>
 <div class="legenda">
   <b>{alvo}</b><br>
