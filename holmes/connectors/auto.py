@@ -861,7 +861,7 @@ def register_auto_connectors() -> None:
     ))
     register(Connector(
         id="querido_diario", label="Querido Diário", mode=Mode.AUTO,
-        accepts=(EntityType.NAME, EntityType.CNPJ), category="brasil",
+        accepts=(EntityType.NAME, EntityType.CNPJ, EntityType.CPF), category="brasil",
         run=br_auto.querido_diario_findings, timeout=40,
         description="Diários oficiais de 3.000+ municípios",
     ))

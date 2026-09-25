@@ -91,6 +91,7 @@ Só uma é realmente decisiva:
 | `NUMVERIFY_API_KEY` | — | Operadora atual e tipo de linha |
 | `PORTAL_TRANSPARENCIA_KEY` | PEP fica só via Câmara/Senado | PEP oficial, CEIS, CNEP e servidor federal (grátis) |
 | `OPENSANCTIONS_API_KEY` | Sanção/PEP internacional fica só nas bases brasileiras | reserva — a API deles cobra por consulta após 30 dias de teste |
+| `BRIGHTDATA_API_KEY` + `HOLMES_BRD_SERP_ZONE` | — | Google pela SERP API da Bright Data, alternativa ao Serper (sem bloqueio de IP). Teto por processo em `HOLMES_BRD_SERP_BUDGET` (padrão 500) |
 
 Configure no Railway em **Variables**, ou cole na própria página (vale só na sessão).
 
@@ -126,8 +127,8 @@ só é usada como reserva se o índice ainda não existir.
 | Username | WhatsMyName (~90 sites, HTTP puro), GitHub API, Maigret¹, Hudson Rock, busca+dorks |
 | Telefone | libphonenumber, numeração BR (DDD, tipo de linha, WhatsApp), NumVerify², busca+dorks |
 | Domínio | RDAP/WHOIS, crt.sh (todos os subdomínios), Hunter², busca+dorks |
-| CNPJ | Receita Federal (razão social, endereço, contatos, **quadro societário**), Querido Diário, Portal da Transparência² |
-| CPF | Portal da Transparência² — PEP e listas de sanção |
+| CNPJ | Receita Federal via BrasilAPI → Minha Receita → ReceitaWS (razão social, endereço, contatos, **quadro societário**), Querido Diário, Portal da Transparência² (vínculos federais, CEIS, CNEP, CEPIM, leniência, contratos) |
+| CPF | Portal da Transparência² (**nome do titular**, NIS, vínculos federais, PEP, servidor, CEIS, CNEP, CEAF), Querido Diário (CPF inteiro e mascarado `***.456.789-**`), dorks pelo miolo mascarado |
 | Nome | busca+dorks, Câmara e Senado (detecção de PEP), Querido Diário, Portal da Transparência², **OpenSanctions² (sanção/PEP global)**, **Wikipédia/Wikidata (biografia, foto, nascimento, cargos — sem chave)** |
 | **Processo judicial** | **DataJud (CNJ)** — decodifica o número e traz a movimentação oficial |
 | Domínio .br | Registro.br — titular e CPF/CNPJ do dono |

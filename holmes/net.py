@@ -390,3 +390,83 @@ def unlocked_get_text(
     _unlocker_stats["sucesso"] += 1
     cache_set(ck, resp.text)
     return resp.text
+
+
+# ── Bright Data SERP API ────────────────────────────────────────────────────
+#
+# A busca de superfície é o que mais pesa na qualidade do dossiê de nome, CPF
+# e CNPJ, e é justamente o que Google, DDG e Mojeek bloqueiam em IP de
+# datacenter. A SERP API da Bright Data devolve o resultado do Google já em
+# JSON, pelo mesmo endpoint e pela mesma chave do Web Unlocker; só muda a zona.
+#
+# Ligar (a zona precisa existir no painel, do tipo "SERP API"):
+#   export BRIGHTDATA_API_KEY=...
+#   export HOLMES_BRD_SERP_ZONE=serp_api1   # nome da zona no painel
+#   export HOLMES_BRD_SERP_BUDGET=500       # teto de buscas por processo
+
+BRD_SERP_ZONE = os.environ.get("HOLMES_BRD_SERP_ZONE", "").strip()
+BRD_SERP_BUDGET = int(os.environ.get("HOLMES_BRD_SERP_BUDGET", "500"))
+
+_brd_serp_stats = {"usadas": 0, "sucesso": 0, "falha": 0, "bloqueadas_por_teto": 0}
+
+
+def brd_serp_enabled() -> bool:
+    return bool(BRD_SERP_ZONE) and has_key("brightdata")
+
+
+def brd_serp_stats() -> dict:
+    return dict(_brd_serp_stats, teto=BRD_SERP_BUDGET,
+                restante=max(0, BRD_SERP_BUDGET - _brd_serp_stats["usadas"]))
+
+
+def brd_serp_json(
+    google_url: str,
+    *,
+    timeout: int | None = None,
+    ttl: int = DEFAULT_TTL,
+) -> dict | None:
+    """
+    Manda uma URL de busca do Google pela zona SERP e devolve o JSON parseado
+    (`brd_json=1`). Cacheia como o resto da camada: repetir a mesma busca
+    dentro do TTL não gasta crédito. Falha de rede ou de cota levanta erro,
+    para o conector aparecer em «fontes que não responderam».
+    """
+    if not brd_serp_enabled():
+        return None
+    sep = "&" if "?" in google_url else "?"
+    url = google_url if "brd_json=" in google_url else f"{google_url}{sep}brd_json=1"
+
+    ck = f"BRDSERP:{url}"
+    cached = cache_get(ck, ttl)
+    if cached is not None:
+        return cached
+
+    if _brd_serp_stats["usadas"] >= BRD_SERP_BUDGET:
+        _brd_serp_stats["bloqueadas_por_teto"] += 1
+        raise RuntimeError(f"teto de {BRD_SERP_BUDGET} buscas Bright Data atingido neste processo")
+
+    _brd_serp_stats["usadas"] += 1
+    try:
+        resp = _SESSION.post(
+            UNLOCKER_ENDPOINT,
+            json={"zone": BRD_SERP_ZONE, "url": url, "format": "raw"},
+            headers={
+                "Authorization": f"Bearer {get_key('brightdata')}",
+                "Content-Type": "application/json",
+            },
+            timeout=timeout or UNLOCKER_TIMEOUT,
+        )
+    except Exception:
+        _brd_serp_stats["falha"] += 1
+        raise
+    if resp.status_code >= 400:
+        _brd_serp_stats["falha"] += 1
+        raise requests.HTTPError(f"Bright Data SERP HTTP {resp.status_code}", response=resp)
+    try:
+        data = resp.json()
+    except ValueError:
+        _brd_serp_stats["falha"] += 1
+        raise RuntimeError("Bright Data SERP devolveu HTML em vez de JSON (zona sem brd_json?)")
+    _brd_serp_stats["sucesso"] += 1
+    cache_set(ck, data)
+    return data
