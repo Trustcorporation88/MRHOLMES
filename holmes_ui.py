@@ -19,7 +19,7 @@ from holmes.findings import FindingKind
 
 _BADGE_COLOR = {
     "alta": "#0f9d58",
-    "media": "#f4b400",
+    "media": "#d98e00",
     "baixa": "#db4437",
     "indicio": "#9aa5b1",
 }
@@ -190,25 +190,19 @@ def _render_fact(fact) -> None:
     url_txt = _html.escape(url)
 
     link_html = (
-        f"<div style='margin-top:6px'><a href='{url_attr}' target='_blank' "
-        f"rel='noopener noreferrer' style='font-size:12px;word-break:break-all'>{url_txt}</a></div>"
+        f"<div class='mh-fact-link'><a href='{url_attr}' target='_blank' "
+        f"rel='noopener noreferrer'>{url_txt}</a></div>"
         if url else ""
     )
-    detail_html = (
-        f"<div style='color:#64748b;font-size:13.5px;margin-top:3px'>{detalhe}</div>"
-        if detalhe else ""
-    )
+    detail_html = f"<div class='mh-fact-detail'>{detalhe}</div>" if detalhe else ""
     # HTML numa linha só: linha indentada vira "bloco de código" no Streamlit
     # e faz a tag final aparecer como texto (o bug do </div>).
     bloco = (
-        f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.18);'
-        f'border-left:4px solid {color};border-radius:8px;padding:11px 13px;margin-bottom:7px">'
-        f'<span style="display:inline-block;font-size:9.5px;font-weight:800;text-transform:uppercase;'
-        f'letter-spacing:.08em;padding:2px 7px;border-radius:99px;background:{color}22;'
-        f'color:{color};margin-right:8px">{_html.escape(fact.label)}</span>'
-        f'<span style="font-weight:600">{valor}</span>'
+        f'<div class="mh-fact" style="--c:{color}">'
+        f'<span class="mh-fact-tag">{_html.escape(fact.label)}</span>'
+        f'<span class="mh-fact-val">{valor}</span>'
         f'{detail_html}'
-        f'<div style="color:#94a3b8;font-size:11.5px;margin-top:5px">fontes: {fontes}</div>'
+        f'<div class="mh-fact-src">fontes: {fontes}</div>'
         f'{link_html}'
         f'</div>'
     )
@@ -237,36 +231,19 @@ def _render_identity_card(dossier) -> None:
         if not valor:
             return ""
         return (
-            f"<div style='margin:2px 0'><span style='color:#94a3b8;font-size:12px;"
-            f"text-transform:uppercase;letter-spacing:.06em'>{rotulo}</span><br>"
-            f"<span style='font-size:14.5px'>{_html.escape(valor)}</span></div>"
+            f"<div class='mh-idcard-row'><span>{rotulo}</span>"
+            f"<div>{_html.escape(valor)}</div></div>"
         )
 
-    esquerda = ""
     if card["foto"]:
-        esquerda = (
-            f"<img src='{_html.escape(card['foto'], quote=True)}' "
-            f"style='width:92px;height:92px;border-radius:12px;object-fit:cover;"
-            f"border:1px solid rgba(148,163,184,.3)'>"
-        )
+        esquerda = f"<img class='mh-idcard-photo' src='{_html.escape(card['foto'], quote=True)}'>"
     else:
         inicial = (card["nome"] or card["alvo"] or "?")[:1].upper()
-        esquerda = (
-            f"<div style='width:92px;height:92px;border-radius:12px;background:rgba(95,214,189,.14);"
-            f"border:1px solid rgba(95,214,189,.30);"
-            f"display:flex;align-items:center;justify-content:center;font-size:40px;"
-            f"font-weight:800;color:#5fd6bd'>{_html.escape(inicial)}</div>"
-        )
+        esquerda = f"<div class='mh-idcard-initial'>{_html.escape(inicial)}</div>"
 
-    flags_html = ""
-    if card["flags"]:
-        pills = "".join(
-            f"<span style='display:inline-block;background:#db443722;color:#f87171;"
-            f"font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;"
-            f"margin:2px 4px 2px 0'>⚠ {_html.escape(x)}</span>"
-            for x in card["flags"]
-        )
-        flags_html = f"<div style='margin-top:8px'>{pills}</div>"
+    flags_html = "".join(
+        f"<span class='mh-flag'>⚠ {_html.escape(x)}</span>" for x in card["flags"]
+    )
 
     corpo = "".join([
         _linha("Nome", card["nome"]),
@@ -280,16 +257,11 @@ def _render_identity_card(dossier) -> None:
     ])
 
     bloco = (
-        f"<div style='background:linear-gradient(135deg,rgba(95,214,189,.09),rgba(95,214,189,.01));"
-        f"border:1px solid rgba(95,214,189,.20);border-radius:14px;padding:16px 18px;margin-bottom:14px'>"
-        f"<div style='display:flex;gap:16px;align-items:flex-start'>"
-        f"<div>{esquerda}</div>"
-        f"<div style='flex:1'>"
-        f"<div style='font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#94a3b8;font-weight:700'>"
-        f"Cartão de identidade · {_html.escape(card['tipo'])}</div>"
-        f"<div style='font-size:21px;font-weight:800;margin:2px 0 8px'>{_html.escape(card['nome'] or card['alvo'])}</div>"
-        f"{corpo}{flags_html}"
-        f"</div></div></div>"
+        f"<div class='mh-idcard'><div>{esquerda}</div><div class='mh-idcard-body'>"
+        f"<div class='mh-idcard-kicker'>Cartão de identidade · {_html.escape(card['tipo'])}</div>"
+        f"<div class='mh-idcard-name'>{_html.escape(card['nome'] or card['alvo'])}</div>"
+        f"<div class='mh-idcard-grid'>{corpo}</div>{flags_html}"
+        f"</div></div>"
     )
     st.markdown(bloco, unsafe_allow_html=True)
 
@@ -312,12 +284,11 @@ def _render_timeline(dossier) -> None:
             texto = _html.escape(ev["texto"])
             fonte = _html.escape(ev["fonte"])
             link = (f" <a href='{_html.escape(ev['url'], quote=True)}' target='_blank' "
-                    f"rel='noopener noreferrer' style='font-size:11px'>abrir</a>") if ev["url"] else ""
+                    f"rel='noopener noreferrer'>abrir</a>") if ev["url"] else ""
             linhas.append(
-                f"<div style='display:flex;gap:10px;padding:6px 0;border-bottom:1px solid rgba(148,163,184,.12)'>"
-                f"<div style='min-width:92px;font-weight:700;color:#5fd6bd;font-size:13px'>{ev['data']}</div>"
-                f"<div style='flex:1'>{ic} {texto}"
-                f"<span style='color:#94a3b8;font-size:11.5px'> — {fonte}{link}</span></div></div>"
+                f"<div class='mh-tl-row'><div class='mh-tl-date'>{ev['data']}</div>"
+                f"<div style='flex:1'>{ic} {texto} "
+                f"<span class='mh-tl-src'>· {fonte} {link}</span></div></div>"
             )
         st.markdown("".join(linhas), unsafe_allow_html=True)
 
@@ -357,7 +328,8 @@ def _render_dossier(dossier) -> None:
         if g["nos"] > 1:
             with st.expander(f"🕸️ Grafo de conexões ({g['nos']} nós, {g['conexoes']} ligações)",
                              expanded=False):
-                _components.html(_graph.to_html(dossier), height=580, scrolling=False)
+                _components.html(_graph.to_html(dossier, escuro=bool(st.session_state.get("tema_escuro"))),
+                                 height=580, scrolling=False)
     except Exception:
         pass
 
@@ -381,7 +353,7 @@ def _render_dossier(dossier) -> None:
             for p in dossier.pivots_run:
                 st.markdown(
                     f"**`{p.get('alvo')}`** — {p.get('tipo')}  \n"
-                    f"<span style='color:#94a3b8;font-size:13px'>{p.get('motivo')} "
+                    f"<span class='mh-soft'>{p.get('motivo')} "
                     f"(salto {p.get('salto')}, origem: {p.get('origem')})</span>",
                     unsafe_allow_html=True,
                 )
@@ -455,14 +427,6 @@ def display_historico() -> None:
     """Página de histórico: reabrir dossiês antigos e comparar dois do mesmo alvo."""
     from holmes import history
 
-    st.markdown(
-        "<div style='font-size:11px;letter-spacing:.16em;text-transform:uppercase;"
-        "color:#94a3b8;font-weight:700'>Histórico do motor</div>"
-        "<div style='font-size:22px;font-weight:700;margin:4px 0 2px'>Investigações salvas</div>"
-        "<div style='color:#94a3b8;font-size:14px'>Cada investigação feita na aba "
-        "Investigar fica guardada aqui. Compare duas do mesmo alvo para ver o que mudou.</div>",
-        unsafe_allow_html=True,
-    )
 
     busca = st.text_input("Filtrar por alvo", key="hist_q", placeholder="parte do nome, e-mail, telefone…")
     entradas = history.list_entries(busca)
@@ -529,6 +493,121 @@ def display_historico() -> None:
                 )
 
 
+# Um exemplo por tipo de alvo: um clique preenche a caixa e mostra o que o
+# motor aceita, sem precisar ler instrução.
+_EXEMPLOS = [
+    ("👤 Nome", "Maria da Silva"),
+    ("✉️ E-mail", "contato@exemplo.com.br"),
+    ("📱 Telefone", "+55 11 99999-9999"),
+    ("@ Usuário", "@usuario"),
+    ("🏢 CNPJ", "00.000.000/0001-91"),
+    ("🌐 Domínio", "exemplo.com.br"),
+]
+
+
+def _preencher_alvo(valor: str) -> None:
+    st.session_state["holmes_target"] = valor
+
+
+def _chips_rapidos() -> None:
+    """Exemplos e buscas recentes em chips: um clique preenche a caixa."""
+    recentes: list[str] = []
+    try:
+        from holmes import history
+
+        vistos = set()
+        for e in history.list_entries(limit=20):
+            alvo = (e.get("alvo") or "").strip()
+            if alvo and alvo.lower() not in vistos:
+                vistos.add(alvo.lower())
+                recentes.append(alvo)
+            if len(recentes) >= 6:
+                break
+    except Exception:
+        recentes = []
+
+    with st.container(key="mh_chips"):
+        if recentes:
+            st.markdown('<div class="mh-hint-label">Recentes</div>', unsafe_allow_html=True)
+            cols = st.columns(len(recentes))
+            for i, alvo in enumerate(recentes):
+                rotulo = alvo if len(alvo) <= 28 else alvo[:27] + "…"
+                cols[i].button(f"🕘 {rotulo}", key=f"chip_rec_{i}",
+                               on_click=_preencher_alvo, args=(alvo,))
+        else:
+            st.markdown('<div class="mh-hint-label">Experimente</div>', unsafe_allow_html=True)
+            cols = st.columns(len(_EXEMPLOS))
+            for i, (rotulo, valor) in enumerate(_EXEMPLOS):
+                cols[i].button(rotulo, key=f"chip_ex_{i}", help=valor,
+                               on_click=_preencher_alvo, args=(valor,))
+
+
+# Atalhos do painel inicial: as ferramentas manuais mais usadas.
+_ATALHOS = [
+    ("📱", "Telefone", "Telefone"),
+    ("✉️", "E-mail", "Email"),
+    ("🌐", "Domínio", "Domínio"),
+    ("👤", "Username", "OSINT Avançado"),
+    ("🧩", "Dorks", "Dorks"),
+    ("🩸", "Leaks", "Leaks"),
+    ("📡", "Rede / IP", "Rede"),
+    ("🕸️", "Grafo", "Gráfico"),
+]
+
+
+def _ir_para(page_id: str) -> None:
+    from osint_premium import queue_navigation
+
+    queue_navigation(st.session_state, page_id)
+
+
+def _painel_inicial() -> None:
+    """Resumo do dia e atalhos, no lugar da tela vazia antes da primeira busca."""
+    total_hist = vigiados = novos = 0
+    try:
+        from holmes import history
+
+        total_hist = len(history.list_entries(limit=200))
+    except Exception:
+        pass
+    try:
+        from holmes import monitor
+
+        vigiados = len(monitor.watchlist())
+        novos = monitor.unread_count()
+    except Exception:
+        pass
+
+    st.markdown("### Seu painel")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Investigações salvas", f"{total_hist}+" if total_hist >= 200 else total_hist)
+        st.button("Ver histórico", key="pi_hist", use_container_width=True,
+                  on_click=_ir_para, args=("Histórico",))
+    with c2:
+        st.metric("Alvos monitorados", vigiados)
+        st.button("Abrir monitoramento", key="pi_mon", use_container_width=True,
+                  on_click=_ir_para, args=("Monitoramento",))
+    with c3:
+        st.metric("Alertas novos", novos)
+        st.button("Ver alertas" if novos else "Nada novo por aqui", key="pi_alert",
+                  use_container_width=True, type="primary" if novos else "secondary",
+                  on_click=_ir_para, args=("Monitoramento",))
+
+    st.markdown("### Ferramentas rápidas")
+    with st.container(key="mh_tiles"):
+        for inicio in range(0, len(_ATALHOS), 4):
+            cols = st.columns(4)
+            for col, (icone, rotulo, page_id) in zip(cols, _ATALHOS[inicio:inicio + 4]):
+                col.button(f"{icone}  {rotulo}", key=f"pi_tool_{page_id}", use_container_width=True,
+                           on_click=_ir_para, args=(page_id,))
+
+    st.caption(
+        "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
+        "cole só o dado principal. O motor extrai o resto sozinho pelos pivôs."
+    )
+
+
 def display_investigar() -> None:
     ensure_registered()
     from holmes import serp
@@ -541,11 +620,10 @@ def display_investigar() -> None:
     _deep = stats["por_modo"].get("deeplink", 0)
     st.markdown(
         f"""<div class="mh-hero">
-          <div class="mh-hero-eyebrow">Mr.Holmes · Console OSINT</div>
-          <h1 class="mh-hero-title">Uma caixa. Todas as fontes.</h1>
-          <p class="mh-hero-sub">Nome, e-mail, telefone, @usuário, CPF, CNPJ, placa, domínio ou
-          link de perfil — o tipo é detectado sozinho, todas as fontes rodam em paralelo e o
-          resultado é um dossiê único.</p>
+          <div class="mh-hero-eyebrow">🔎 Investigar</div>
+          <h1 class="mh-hero-title">Quem ou o que vamos investigar hoje?</h1>
+          <p class="mh-hero-sub">Cole qualquer dado: o tipo é detectado sozinho e todas as
+          fontes rodam juntas num dossiê único.</p>
           <div class="mh-hero-stats">
             <span><strong>{_total}</strong> fontes</span>
             <span><strong>{_auto}</strong> automáticas</span>
@@ -570,14 +648,18 @@ def display_investigar() -> None:
         elif health["provider"] == "duckduckgo":
             st.warning(health["message"], icon="⚠️")
 
-        col_in, col_btn = st.columns([4, 1])
-        with col_in:
-            alvo = st.text_input(
-                "Alvo", key="holmes_target", label_visibility="collapsed",
-                placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, placa, domínio ou link…",
-            )
-        with col_btn:
-            rodar = st.button("🔎 Investigar", type="primary", use_container_width=True)
+        # Formulário para o Enter já disparar a investigação, sem precisar do clique.
+        with st.form("holmes_form", border=False):
+            col_in, col_btn = st.columns([4, 1])
+            with col_in:
+                alvo = st.text_input(
+                    "Alvo", key="holmes_target", label_visibility="collapsed",
+                    placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, placa, domínio ou link…",
+                )
+            with col_btn:
+                rodar = st.form_submit_button("🔎 Investigar", type="primary", use_container_width=True)
+
+        _chips_rapidos()
 
         linha1, linha2 = st.columns([3, 2])
         with linha1:
@@ -585,9 +667,9 @@ def display_investigar() -> None:
                 preview = detect(alvo)
                 st.caption(f"Detectado: **{preview.label}** → `{preview.value}`")
         with linha2:
-            modo_rapido = st.checkbox(
-                "⚡ Modo rápido (só o alvo, bem mais veloz)", value=False, key="modo_rapido",
-                help="Sem pivôs — ótimo para uma primeira olhada. Desmarque para a busca completa.",
+            modo_rapido = st.toggle(
+                "⚡ Modo rápido (só o alvo)", value=False, key="modo_rapido",
+                help="Sem pivôs, ótimo para uma primeira olhada. Desligue para a busca completa.",
             )
 
         with st.expander("⚙️ Ajustes da busca"):
@@ -657,18 +739,14 @@ def display_investigar() -> None:
 
         dossier = st.session_state.get("holmes_dossier")
         if dossier:
-            st.markdown("---")
-            st.markdown(f"## Dossiê — {dossier.entity.value}")
+            st.markdown(f"## Dossiê · {dossier.entity.value}")
             _render_dossier(dossier)
             st.markdown("---")
             _render_export(dossier)
             st.markdown("---")
             _render_chat(dossier)
         elif not rodar:
-            st.caption(
-                "Dica: se você tem um bloco de texto (assinatura de e-mail, print de cadastro), "
-                "cole só o dado principal — o motor extrai o resto sozinho pelos pivôs."
-            )
+            _painel_inicial()
 
 
 def _render_foto() -> None:
@@ -718,14 +796,6 @@ def display_monitoramento() -> None:
     """Página de monitoramento: watchlist de alvos e alertas de novidade."""
     from holmes import monitor
 
-    st.markdown(
-        "<div style='font-size:11px;letter-spacing:.16em;text-transform:uppercase;"
-        "color:#94a3b8;font-weight:700'>Monitoramento</div>"
-        "<div style='font-size:22px;font-weight:700;margin:4px 0 2px'>Alvos vigiados</div>"
-        "<div style='color:#94a3b8;font-size:14px'>O sistema reinvestiga cada alvo e "
-        "avisa quando surge algo novo — perfil, telefone, vazamento, processo.</div>",
-        unsafe_allow_html=True,
-    )
 
     nao_lidos = monitor.unread_count()
     if nao_lidos:
