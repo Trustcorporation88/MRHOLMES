@@ -122,3 +122,6 @@ Configuration/Agreement.txt
 
 # Histórico de dossiês (local)
 .holmes_history/
+
+# Índices locais (OpenSanctions, sócios da Receita) e medição das fontes
+.holmes_data/

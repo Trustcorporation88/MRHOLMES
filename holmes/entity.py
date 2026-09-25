@@ -473,7 +473,11 @@ def detect(raw: str) -> Entity:
             return Entity(
                 raw=text, type=EntityType.CPF, value=format_cpf(digits),
                 variants={"digits": digits, "formatted": format_cpf(digits),
-                          "quoted": f'"{format_cpf(digits)}"'},
+                          "quoted": f'"{format_cpf(digits)}"',
+                          # Diário oficial e Portal publicam o CPF mascarado
+                          # pela LGPD (***.456.789-**): só o miolo aparece.
+                          "masked": f"***.{digits[3:6]}.{digits[6:9]}-**",
+                          "miolo": f"{digits[3:6]}.{digits[6:9]}"},
             )
         if len(digits) == 14 and valid_cnpj(digits):
             return Entity(

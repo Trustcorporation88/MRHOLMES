@@ -64,6 +64,15 @@ def consulta_cnpj(cnpj: str) -> dict | None:
             return data
     except Exception:
         pass
+    # Minha Receita é a base que a própria BrasilAPI usa; responde direto
+    # quando a BrasilAPI está fora ou limitando, no mesmo formato de campos.
+    try:
+        data = net.get_json(f"https://minhareceita.org/{digits}", timeout=15)
+        if data and data.get("razao_social"):
+            data["_fonte"] = "Minha Receita"
+            return data
+    except Exception:
+        pass
     try:
         data = net.get_json(f"https://receitaws.com.br/v1/cnpj/{digits}", timeout=20)
         if data and data.get("status") != "ERROR":
@@ -353,8 +362,6 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Currículo acadêmico, orientadores e instituições"),
             ("Portal da Transparência", f"https://portaldatransparencia.gov.br/busca?termo={nome}",
              "Servidor público, benefício, sanção e contrato federal"),
-            ("Consulta Sócio", f"https://www.consultasocio.com/busca?q={nome}",
-             "Participação societária em empresas"),
             ("Querido Diário", f"https://queridodiario.ok.org.br/pesquisa?term={nome}",
              "Diários oficiais de mais de 3.000 municípios"),
             ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={nome}",
@@ -370,23 +377,11 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
                 f"&dadosConsulta.valorConsulta={nome}&cdForo=-1",
                 f"Tribunal de {sigla[2:]} — busca por nome da parte, já preenchida",
             ))
-        links += [
-            ("TSE — candidaturas", "https://divulgacandcontas.tse.jus.br/divulga/",
-             "Candidatura e bens declarados (busca no formulário — o site é SPA)"),
-            ("CVM — cadastro geral", "https://sistemas.cvm.gov.br/?CadGeral=",
-             "Administrador, gestor ou consultor autorizado (formulário)"),
-            ("INPI — marcas por titular", "https://busca.inpi.gov.br/pePI/",
-             "Marcas registradas em nome do alvo (entrar como anônimo)"),
-            ("CADE", "https://pesquisaavancada.cade.gov.br/consulta",
-             "Processos antitruste — busca por interessado (formulário)"),
-            ("Diário Oficial da União", "https://in.gov.br/consulta",
-             "Nomeação, portaria e contrato federal (formulário)"),
-        ]
     elif t is EntityType.CNPJ:
         digits = only_digits(entity.value)
         formatado = quote_plus(entity.value)
         links += [
-            ("Consulta Sócio", f"https://www.consultasocio.com/q/sa/{digits}", "Quadro societário e coligadas"),
+            ("CNPJ.biz", f"https://cnpj.biz/{digits}", "Ficha pública com sócios, endereço e contatos"),
             ("Econodata", f"https://www.econodata.com.br/consulta-empresa/{digits}", "Porte, faturamento estimado e contatos"),
             ("JusBrasil", f"https://www.jusbrasil.com.br/busca?q={digits}", "Processos da pessoa jurídica"),
             ("Portal da Transparência", f"https://portaldatransparencia.gov.br/busca?termo={digits}", "Contratos e sanções federais"),
@@ -394,28 +389,17 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Contrato e licitação com prefeituras"),
             ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={formatado}",
              "Reputação, volume de reclamação e resposta da empresa"),
-            ("Cartão CNPJ (Receita)", "https://servicos.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp",
-             "Comprovante oficial de inscrição (captcha)"),
-            ("Sintegra SP", "https://www.sintegra.fazenda.sp.gov.br/",
-             "Inscrição estadual de ICMS em SP (captcha)"),
-            ("Sintegra MG", "https://www.sintegra.fazenda.mg.gov.br/",
-             "Inscrição estadual de ICMS em MG (captcha)"),
-            ("Cadastro ICMS PR", "https://www.fazenda.pr.gov.br/Servicos/Consultar-cadastro-ICMS",
-             "Inscrição estadual no Paraná (captcha)"),
-            ("CADE", "https://pesquisaavancada.cade.gov.br/consulta",
-             "Ato de concentração e processo antitruste"),
-            ("INPI — marcas", "https://busca.inpi.gov.br/pePI/",
-             "Marcas registradas pelo CNPJ"),
         ]
     elif t is EntityType.CPF:
         digits = only_digits(entity.value)
         links += [
             ("Portal da Transparência", f"https://portaldatransparencia.gov.br/busca?termo={digits}",
              "Vínculo com programa social, servidor ou sanção"),
-            ("Situação cadastral (Receita)", "https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp",
-             "Consulta oficial — exige data de nascimento e captcha"),
-            ("Escavador", f"https://www.escavador.com/busca?q={digits}",
-             "Processos vinculados ao documento"),
+            ("Google — CPF mascarado",
+             f"https://www.google.com/search?q=%22{digits[3:6]}.{digits[6:9]}%22+CPF",
+             "Diário oficial e edital publicam o CPF como ***.456.789-**"),
+            ("Querido Diário", f"https://queridodiario.ok.org.br/pesquisa?term={quote_plus(entity.value)}",
+             "Diários oficiais municipais que citam o CPF"),
         ]
     elif t is EntityType.PROCESSO:
         info = entity.get("cnj") or {}

@@ -116,13 +116,13 @@ def test_todo_template_de_tribunal_tem_placeholder():
 def test_nome_recebe_fontes_brasileiras_essenciais():
     rotulos = " ".join(r for r, _u, _d in br_deeplinks(detect("Jose da Silva")))
     for esperado in ("Escavador", "JusBrasil", "Lattes", "Querido Diário",
-                     "TJSP", "Reclame Aqui", "CADE", "INPI"):
+                     "TJSP", "Reclame Aqui"):
         assert esperado in rotulos, esperado
 
 
-def test_cnpj_recebe_sintegra_e_reputacao():
+def test_cnpj_recebe_ficha_publica_e_reputacao():
     rotulos = " ".join(r for r, _u, _d in br_deeplinks(detect("00.000.000/0001-91")))
-    for esperado in ("Consulta Sócio", "Sintegra", "Reclame Aqui", "Querido Diário"):
+    for esperado in ("CNPJ.biz", "Reclame Aqui", "Querido Diário"):
         assert esperado in rotulos, esperado
 
 

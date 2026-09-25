@@ -276,6 +276,11 @@ def investigate(
     if not dossier.next_steps:
         dossier.next_steps = _fallback_next_steps(dossier)
 
+    # Rendimento de cada fonte, para cortar com base em número (source_yield).
+    from . import source_yield
+
+    source_yield.record(dossier)
+
     if progress:
         progress("Pronto.", 1.0)
     return dossier

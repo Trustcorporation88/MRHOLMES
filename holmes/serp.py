@@ -118,6 +118,42 @@ def _serper(query: str, limit: int) -> list[SerpHit]:
     return hits
 
 
+def _brightdata(query: str, limit: int) -> list[SerpHit]:
+    """Google pela SERP API da Bright Data: mesmo índice do Serper, sem bloqueio de IP."""
+    from urllib.parse import quote_plus
+
+    data = net.brd_serp_json(
+        f"https://www.google.com/search?q={quote_plus(query)}"
+        f"&num={min(max(limit, 10), 20)}&gl=br&hl=pt-BR",
+        timeout=45,
+    ) or {}
+    hits: list[SerpHit] = []
+    for i, item in enumerate(data.get("organic") or []):
+        hits.append(
+            SerpHit(
+                title=item.get("title") or "",
+                url=item.get("link") or item.get("url") or "",
+                snippet=item.get("description") or item.get("snippet") or "",
+                position=item.get("rank") or item.get("global_rank") or i + 1,
+                engine="brightdata",
+                query=query,
+            )
+        )
+    kg = data.get("knowledge") or {}
+    if kg.get("name") or kg.get("title"):
+        hits.append(
+            SerpHit(
+                title=kg.get("name") or kg.get("title"),
+                url=kg.get("website") or kg.get("link") or "",
+                snippet=kg.get("description") or "",
+                position=0,
+                engine="brightdata:kg",
+                query=query,
+            )
+        )
+    return hits[:limit] if limit else hits
+
+
 def _brave(query: str, limit: int) -> list[SerpHit]:
     key = net.get_key("brave")
     data = net.get_json(
@@ -277,14 +313,23 @@ _duckduckgo = _keyless
 
 _PROVIDERS = (
     ("serper", "serper", _serper),
+    ("brightdata", "brightdata", _brightdata),
     ("brave", "brave", _brave),
     ("google_cse", "google_cse", _google_cse),
 )
 
 
+def _provider_ready(name: str, key: str) -> bool:
+    if name == "brightdata":
+        # A chave da Bright Data serve também ao Unlocker; a busca só liga
+        # quando a zona SERP foi declarada.
+        return net.brd_serp_enabled()
+    return net.has_key(key)
+
+
 def active_provider() -> str:
     for name, key, _ in _PROVIDERS:
-        if net.has_key(key):
+        if _provider_ready(name, key):
             if name == "google_cse" and not net.has_key("google_cse_cx"):
                 continue
             return name
@@ -294,6 +339,7 @@ def active_provider() -> str:
 def provider_label() -> str:
     return {
         "serper": "Serper (índice Google)",
+        "brightdata": "Bright Data SERP (índice Google)",
         "brave": "Brave Search",
         "google_cse": "Google CSE",
         "duckduckgo": "sem chave — motores públicos (instável em servidor)",
@@ -313,15 +359,15 @@ def search_health() -> dict:
                            "Configure SERPER_API_KEY para cobertura real."}
     return {"ok": False, "provider": provider, "label": provider_label(),
             "message": "A busca de superfície está SEM chave e os motores públicos "
-                       "bloquearam o servidor. Configure SERPER_API_KEY (serper.dev) "
-                       "para que a investigação encontre o que o Google encontra."}
+                       "bloquearam o servidor. Configure SERPER_API_KEY (serper.dev), "
+                       "ou BRIGHTDATA_API_KEY com HOLMES_BRD_SERP_ZONE, para que a investigação encontre o que o Google encontra."}
 
 
 def search(query: str, limit: int = 10) -> list[SerpHit]:
     """Uma busca. Cai para o próximo provedor se o preferido falhar."""
     if not query or not query.strip():
         return []
-    chain = [p for p in _PROVIDERS if net.has_key(p[1])]
+    chain = [p for p in _PROVIDERS if _provider_ready(p[0], p[1])]
     if any(p[0] == "google_cse" for p in chain) and not net.has_key("google_cse_cx"):
         chain = [p for p in chain if p[0] != "google_cse"]
 
@@ -378,7 +424,7 @@ _SOCIAL_SITES = (
 
 _BR_SITES = (
     "escavador.com", "jusbrasil.com.br", "lattes.cnpq.br",
-    "consultasocio.com", "econodata.com.br",
+    "cnpj.biz", "econodata.com.br",
 )
 
 
@@ -398,7 +444,7 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
             f"{quoted} CNPJ",
             f"{quoted} (sócio OR sócios OR QSA)",
         ]
-        q += [f"{quoted} site:{s}" for s in ("cnpj.biz", "econodata.com.br", "consultasocio.com")]
+        q += [f"{quoted} site:{s}" for s in ("cnpj.biz", "econodata.com.br", "jusbrasil.com.br")]
         if deep:
             q += [f"{quoted} site:{s}" for s in ("jusbrasil.com.br", "escavador.com")]
 
@@ -458,23 +504,38 @@ def build_queries(entity: Entity, deep: bool = True) -> list[str]:
                 f'"@{root}" -site:{root}',
             ]
 
-    elif t in (EntityType.CPF, EntityType.CNPJ):
+    elif t is EntityType.CPF:
+        digits = entity.get("digits", "")
+        miolo = entity.get("miolo", "")
+        q += [entity.get("quoted", f'"{v}"'), f'"{digits}"']
+        # Diário oficial, edital e Portal publicam o CPF mascarado pela LGPD
+        # (***.456.789-**). Sem essa consulta o CPF quase nunca é achado.
+        if miolo:
+            q.append(f'"{miolo}" CPF')
+        # CPF só aparece em registro público: processo, diário oficial,
+        # edital, licitação, lista de aprovados. É onde vale procurar.
+        q += [
+            f'"{v}" site:jusbrasil.com.br',
+            f'"{v}" site:escavador.com',
+            f'"{v}" site:jus.br',
+            f'"{v}" (diário oficial OR DOU OR DOE OR portaria OR edital)',
+            f'"{v}" (licitação OR contrato OR pregão OR empenho)',
+            f'"{v}" (filetype:pdf OR filetype:xlsx OR filetype:csv)',
+            f'"{v}" site:gov.br',
+            f'"{digits}" (processo OR autos OR executado OR requerido)',
+        ]
+        if miolo and deep:
+            q.append(f'"{miolo}" (edital OR nomeação OR portaria OR contrato OR processo)')
+
+    elif t is EntityType.CNPJ:
         digits = entity.get("digits", "")
         q += [entity.get("quoted", f'"{v}"'), f'"{digits}"']
-        if t is EntityType.CNPJ:
-            q += [f'"{v}" site:{s}' for s in ("consultasocio.com", "econodata.com.br", "jusbrasil.com.br")]
-        else:
-            # CPF só aparece em registro público: processo, diário oficial,
-            # edital, licitação, lista de aprovados. É onde vale procurar.
+        q += [f'"{v}" site:{s}' for s in ("cnpj.biz", "econodata.com.br", "jusbrasil.com.br")]
+        if deep:
             q += [
-                f'"{v}" site:jusbrasil.com.br',
-                f'"{v}" site:escavador.com',
-                f'"{v}" site:jus.br',
-                f'"{v}" (diário oficial OR DOU OR DOE OR portaria OR edital)',
-                f'"{v}" (licitação OR contrato OR pregão OR empenho)',
-                f'"{v}" (filetype:pdf OR filetype:xlsx OR filetype:csv)',
-                f'"{v}" site:gov.br',
-                f'"{digits}" (processo OR autos OR executado OR requerido)',
+                f'"{v}" (licitação OR contrato OR pregão OR homologação)',
+                f'"{v}" (filetype:pdf OR filetype:xlsx)',
+                f'"{v}" (reclamação OR golpe OR fraude OR processo)',
             ]
 
     elif t is EntityType.PLACA:

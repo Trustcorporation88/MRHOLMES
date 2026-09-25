@@ -13,7 +13,7 @@ import unicodedata
 from typing import Iterable
 
 from . import net
-from .entity import Entity, only_digits
+from .entity import Entity, EntityType, only_digits
 from .findings import Confidence, Finding, FindingKind
 
 PORTAL_BASE = "https://api.portaldatransparencia.gov.br/api-de-dados"
@@ -124,10 +124,24 @@ def congresso_findings(entity: Entity) -> Iterable[Finding]:
 
 # ── Portal da Transparência (chave gratuita por e-mail) ─────────────────────
 
-def _portal_get(caminho: str, params: dict) -> list | None:
+class _PortalErros(list):
+    """Falhas de uma rodada de consultas ao Portal, para não virar «nada encontrado»."""
+
+    chamadas = 0
+
+    def conferir(self) -> None:
+        # Se TODAS as consultas falharam, o Portal não respondeu: isso tem que
+        # aparecer em «fontes que não responderam», não como dossiê vazio.
+        if self.chamadas and len(self) >= self.chamadas:
+            raise RuntimeError(f"Portal da Transparência não respondeu: {self[0]}")
+
+
+def _portal_get(caminho: str, params: dict, erros: _PortalErros | None = None):
     chave = net.get_key("portal_transparencia")
     if not chave:
         return None
+    if erros is not None:
+        erros.chamadas += 1
     try:
         return net.get_json(
             f"{PORTAL_BASE}/{caminho}",
@@ -135,17 +149,67 @@ def _portal_get(caminho: str, params: dict) -> list | None:
             headers={"chave-api-dados": chave, "Accept": "application/json"},
             timeout=25, ttl=24 * 3600,
         )
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        if erros is not None:
+            erros.append(f"{caminho}: {exc}")
         return None
+
+
+def _lista(resposta) -> list:
+    """O Portal devolve lista na maioria dos recursos e objeto em alguns."""
+    if isinstance(resposta, list):
+        return resposta
+    if isinstance(resposta, dict) and resposta:
+        return [resposta]
+    return []
+
+
+# Flags do recurso pessoa-fisica/pessoa-juridica → frase para o dossiê.
+_VINCULOS_PF = {
+    "servidor": "servidor público federal",
+    "servidorInativo": "servidor federal inativo",
+    "pensionistaOuRepresentanteLegal": "pensionista (ou representante legal)",
+    "beneficiarioBolsaFamilia": "beneficiário do Bolsa Família",
+    "beneficiarioNovoBolsaFamilia": "beneficiário do Novo Bolsa Família",
+    "beneficiarioAuxilioEmergencial": "beneficiário do Auxílio Emergencial",
+    "beneficiarioAuxilioBrasil": "beneficiário do Auxílio Brasil",
+    "beneficiarioBpc": "beneficiário do BPC",
+    "beneficiarioPeti": "beneficiário do PETI",
+    "beneficiarioSafra": "beneficiário do Garantia-Safra",
+    "beneficiarioSeguroDefeso": "beneficiário do Seguro-Defeso",
+    "favorecidoDespesas": "favorecido em despesa federal (recebeu pagamento da União)",
+    "favorecidoTransferencias": "favorecido em transferência federal",
+    "favorecidoRecursos": "favorecido em recursos federais",
+    "possuiContratacao": "possui contrato com o governo federal",
+    "participanteLicitacao": "participou de licitação federal",
+    "emitiuNFe": "emitiu NF-e para órgão federal",
+    "sancionadoCEIS": "sancionado no CEIS",
+    "sancionadoCNEP": "sancionado no CNEP",
+    "sancionadoCEAF": "expulso da administração federal (CEAF)",
+    "sancionadoCEPIM": "impedido no CEPIM (entidade sem fins lucrativos)",
+    "permissionario": "permissionário",
+    "portadorCPGF": "portador de cartão corporativo do governo",
+    "favorecidoCPGF": "favorecido por cartão corporativo",
+    "convenios": "possui convênio federal",
+}
+
+
+def _brl(valor: float) -> str:
+    return "R$ " + f"{valor:,.2f}".translate(str.maketrans(",.", ".,"))
+
+
+def _vinculos(registro: dict) -> list[str]:
+    return [frase for campo, frase in _VINCULOS_PF.items() if registro.get(campo) is True]
 
 
 def portal_nome_findings(entity: Entity) -> Iterable[Finding]:
     """Sanção, servidor federal e PEP pelo nome — base oficial da CGU."""
     nome = entity.value
     out: list[Finding] = []
+    erros = _PortalErros()
 
     # PEP — pessoa exposta politicamente. Muda o nível de diligência do caso.
-    for registro in (_portal_get("peps", {"nome": nome, "pagina": 1}) or [])[:10]:
+    for registro in _lista(_portal_get("peps", {"nome": nome, "pagina": 1}, erros))[:10]:
         pessoa = (registro.get("pessoa") or {})
         achado = pessoa.get("nome") or registro.get("nome") or ""
         if achado and not _mesma_pessoa(nome, achado):
@@ -165,7 +229,7 @@ def portal_nome_findings(entity: Entity) -> Iterable[Finding]:
         ))
 
     # Empresa/pessoa inidônea ou suspensa (CEIS).
-    for registro in (_portal_get("ceis", {"nomeSancionado": nome, "pagina": 1}) or [])[:10]:
+    for registro in _lista(_portal_get("ceis", {"nomeSancionado": nome, "pagina": 1}, erros))[:10]:
         pessoa = (registro.get("pessoa") or {})
         sancao = (registro.get("sancao") or {})
         nome_sancionado = pessoa.get("nome") or ""
@@ -183,7 +247,7 @@ def portal_nome_findings(entity: Entity) -> Iterable[Finding]:
         ))
 
     # Empresa punida por corrupção (CNEP — Lei Anticorrupção).
-    for registro in (_portal_get("cnep", {"nomeSancionado": nome, "pagina": 1}) or [])[:10]:
+    for registro in _lista(_portal_get("cnep", {"nomeSancionado": nome, "pagina": 1}, erros))[:10]:
         out.append(Finding(
             kind=FindingKind.LEGAL,
             value=f"SANÇÃO (CNEP): {(registro.get('pessoa') or {}).get('nome') or nome}",
@@ -195,7 +259,7 @@ def portal_nome_findings(entity: Entity) -> Iterable[Finding]:
         ))
 
     # Servidor público federal.
-    for registro in (_portal_get("servidores", {"nome": nome, "pagina": 1}) or [])[:10]:
+    for registro in _lista(_portal_get("servidores", {"nome": nome, "pagina": 1}, erros))[:10]:
         servidor = (registro.get("servidor") or registro)
         pessoa = (servidor.get("pessoa") or {})
         achado = pessoa.get("nome") or registro.get("nome") or ""
@@ -210,19 +274,54 @@ def portal_nome_findings(entity: Entity) -> Iterable[Finding]:
             raw=registro,
         ))
 
+    erros.conferir()
     return out
 
 
 def portal_cpf_findings(entity: Entity) -> Iterable[Finding]:
-    """CPF contra as listas oficiais: PEP, sanção e servidor."""
+    """
+    CPF contra a base da CGU. O recurso pessoa-fisica é o único caminho
+    oficial e gratuito de CPF → nome completo, e ainda diz em quais cadastros
+    federais a pessoa aparece (servidor, benefício, contrato, sanção).
+    """
     cpf = only_digits(entity.value)
     out: list[Finding] = []
+    erros = _PortalErros()
 
-    for registro in (_portal_get("peps", {"cpf": cpf, "pagina": 1}) or [])[:5]:
+    for pessoa in _lista(_portal_get("pessoa-fisica", {"cpf": cpf}, erros))[:1]:
+        nome = (pessoa.get("nome") or "").strip()
+        if nome:
+            out.append(Finding(
+                kind=FindingKind.NAME, value=nome,
+                source="portal_pf", source_label="Portal da Transparência — Pessoa física",
+                url=f"https://portaldatransparencia.gov.br/busca?termo={cpf}",
+                confidence=Confidence.CONFIRMED,
+                detail="Nome vinculado ao CPF na base oficial da CGU.",
+                raw=pessoa,
+            ))
+        vinc = _vinculos(pessoa)
+        if vinc:
+            out.append(Finding(
+                kind=FindingKind.NOTE,
+                value="Vínculos federais: " + "; ".join(vinc),
+                source="portal_pf", source_label="Portal da Transparência — Pessoa física",
+                url=f"https://portaldatransparencia.gov.br/busca?termo={cpf}",
+                confidence=Confidence.CONFIRMED,
+                detail="Cadastros federais em que o CPF aparece. Cada um tem detalhe "
+                       "(valor, órgão, período) na página do Portal.",
+            ))
+        if pessoa.get("nis"):
+            out.append(Finding(
+                kind=FindingKind.DOCUMENT, value=f"NIS {pessoa['nis']}",
+                source="portal_pf", source_label="Portal da Transparência — Pessoa física",
+                confidence=Confidence.CONFIRMED, detail="NIS/PIS vinculado ao CPF.",
+            ))
+
+    for registro in _lista(_portal_get("peps", {"cpf": cpf, "pagina": 1}, erros))[:5]:
         pessoa = (registro.get("pessoa") or {})
         out.append(Finding(
             kind=FindingKind.NOTE,
-            value=f"PESSOA POLITICAMENTE EXPOSTA: {pessoa.get('nome') or 'titular do CPF'}",
+            value=f"PESSOA POLITICAMENTE EXPOSTA: {pessoa.get('nome') or registro.get('nome') or 'titular do CPF'}",
             source="portal_pep", source_label="Portal da Transparência — PEP",
             url="https://portaldatransparencia.gov.br/pessoa-exposta-politicamente",
             confidence=Confidence.CONFIRMED,
@@ -230,38 +329,112 @@ def portal_cpf_findings(entity: Entity) -> Iterable[Finding]:
                    f"{registro.get('nomeOrgao') or 'órgão n/d'}",
             raw=registro,
         ))
-        if pessoa.get("nome"):
+        nome_pep = pessoa.get("nome") or registro.get("nome")
+        if nome_pep:
             out.append(Finding(
-                kind=FindingKind.NAME, value=pessoa["nome"],
+                kind=FindingKind.NAME, value=nome_pep,
                 source="portal_pep", source_label="Portal da Transparência — PEP",
                 confidence=Confidence.CONFIRMED, detail="Nome vinculado ao CPF na base oficial",
             ))
 
-    for registro in (_portal_get("ceis", {"codigoSancionado": cpf, "pagina": 1}) or [])[:5]:
+    for registro in _lista(_portal_get("servidores", {"cpf": cpf, "pagina": 1}, erros))[:5]:
+        servidor = registro.get("servidor") or registro
+        cargo = (registro.get("fichasCargoEfetivo") or [{}])
+        cargo = cargo[0] if isinstance(cargo, list) and cargo else {}
         out.append(Finding(
-            kind=FindingKind.LEGAL, value="CPF consta no CEIS (sancionado)",
-            source="portal_ceis", source_label="Portal da Transparência — CEIS",
-            url="https://portaldatransparencia.gov.br/sancoes/ceis",
+            kind=FindingKind.NOTE, value="Servidor público federal",
+            source="portal_servidores", source_label="Portal da Transparência — Servidores",
+            url="https://portaldatransparencia.gov.br/servidores",
             confidence=Confidence.CONFIRMED,
-            detail="Impedido de contratar com a administração pública.",
+            detail=", ".join(p for p in [
+                cargo.get("cargo") or "", cargo.get("orgaoLotacao") or "",
+                (servidor.get("situacao") or "") if isinstance(servidor, dict) else "",
+            ] if p) or "Cargo e remuneração são públicos no portal.",
             raw=registro,
         ))
+
+    for recurso, param, rotulo, texto in (
+        ("ceis", "codigoSancionado", "CEIS", "Impedido de contratar com a administração pública."),
+        ("cnep", "codigoSancionado", "CNEP", "Punição com base na Lei Anticorrupção (12.846/2013)."),
+        ("ceaf", "cpfSancionado", "CEAF", "Expulso da administração pública federal."),
+    ):
+        for registro in _lista(_portal_get(recurso, {param: cpf, "pagina": 1}, erros))[:5]:
+            sancao = registro.get("sancao") or {}
+            out.append(Finding(
+                kind=FindingKind.LEGAL, value=f"CPF consta no {rotulo} (sancionado)",
+                source=f"portal_{recurso}", source_label=f"Portal da Transparência — {rotulo}",
+                url=f"https://portaldatransparencia.gov.br/sancoes/{recurso}",
+                confidence=Confidence.CONFIRMED,
+                detail=f"{texto} Vigência: {sancao.get('dataInicioSancao') or registro.get('dataPublicacao') or '?'}"
+                       f" a {sancao.get('dataFimSancao') or '?'}",
+                raw=registro,
+            ))
+
+    erros.conferir()
     return out
 
 
 def portal_cnpj_findings(entity: Entity) -> Iterable[Finding]:
-    """Sanções e contratos federais de um CNPJ."""
+    """Vínculos, sanções, contratos e acordos de leniência de um CNPJ."""
     digits = only_digits(entity.value)
     out: list[Finding] = []
-    for registro in (_portal_get("ceis", {"codigoSancionado": digits, "pagina": 1}) or [])[:10]:
+    erros = _PortalErros()
+
+    for pj in _lista(_portal_get("pessoa-juridica", {"cnpj": digits}, erros))[:1]:
+        vinc = _vinculos(pj)
+        if vinc:
+            out.append(Finding(
+                kind=FindingKind.NOTE, value="Vínculos federais: " + "; ".join(vinc),
+                source="portal_pj", source_label="Portal da Transparência — Pessoa jurídica",
+                url=f"https://portaldatransparencia.gov.br/busca?termo={digits}",
+                confidence=Confidence.CONFIRMED,
+                detail="Cadastros federais em que o CNPJ aparece.",
+                raw=pj,
+            ))
+
+    for recurso, param, rotulo, texto in (
+        ("ceis", "codigoSancionado", "CEIS", "Inidônea/suspensa: impedida de contratar com a administração pública."),
+        ("cnep", "codigoSancionado", "CNEP", "Punida com base na Lei Anticorrupção (12.846/2013)."),
+        ("cepim", "cnpjSancionado", "CEPIM", "Entidade sem fins lucrativos impedida de receber transferências."),
+        ("acordos-leniencia", "cnpjSancionado", "Acordo de leniência", "Firmou acordo de leniência com a CGU."),
+    ):
+        for registro in _lista(_portal_get(recurso, {param: digits, "pagina": 1}, erros))[:10]:
+            sancao = registro.get("sancao") or {}
+            out.append(Finding(
+                kind=FindingKind.LEGAL, value=f"Empresa consta no {rotulo}",
+                source=f"portal_{recurso.replace('-', '_')}",
+                source_label=f"Portal da Transparência — {rotulo}",
+                url="https://portaldatransparencia.gov.br/sancoes",
+                confidence=Confidence.CONFIRMED,
+                detail=f"{texto} Vigência: {sancao.get('dataInicioSancao') or registro.get('dataInicioAcordo') or '?'}"
+                       f" a {sancao.get('dataFimSancao') or registro.get('dataFimAcordo') or '?'}",
+                raw=registro,
+            ))
+
+    contratos = _lista(_portal_get("contratos/cpf-cnpj", {"cpfCnpj": digits, "pagina": 1}, erros))
+    if contratos:
+        total = 0.0
+        for c in contratos:
+            try:
+                total += float(c.get("valorInicialCompra") or c.get("valorFinalCompra") or 0)
+            except (TypeError, ValueError):
+                pass
+        orgaos = sorted({
+            ((c.get("unidadeGestora") or {}).get("orgaoVinculado") or {}).get("nome")
+            or ((c.get("unidadeGestora") or {}).get("nome")) or ""
+            for c in contratos
+        } - {""})
         out.append(Finding(
-            kind=FindingKind.LEGAL, value="Empresa consta no CEIS (inidônea/suspensa)",
-            source="portal_ceis", source_label="Portal da Transparência — CEIS",
-            url="https://portaldatransparencia.gov.br/sancoes/ceis",
+            kind=FindingKind.NOTE,
+            value=f"{len(contratos)}+ contrato(s) com o governo federal"
+                  + (f", {_brl(total)} na 1ª página" if total else ""),
+            source="portal_contratos", source_label="Portal da Transparência — Contratos",
+            url=f"https://portaldatransparencia.gov.br/busca?termo={digits}",
             confidence=Confidence.CONFIRMED,
-            detail="Impedida de contratar com a administração pública no período da sanção.",
-            raw=registro,
+            detail=("Órgãos: " + "; ".join(orgaos[:6])) if orgaos else "Contratos federais do CNPJ.",
         ))
+
+    erros.conferir()
     return out
 
 
@@ -317,64 +490,90 @@ def registrobr_findings(entity: Entity) -> Iterable[Finding]:
 
 # ── Querido Diário: diários oficiais municipais ─────────────────────────────
 
+def _diario_busca(querystring: str) -> dict:
+    return net.get_json(
+        "https://api.queridodiario.ok.org.br/gazettes",
+        params={
+            "querystring": querystring,
+            "size": 10,
+            "excerpt_size": 400,
+            "number_of_excerpts": 1,
+            "sort_by": "descending_date",
+        },
+        timeout=25, ttl=24 * 3600,
+    ) or {}
+
+
 def querido_diario_findings(entity: Entity) -> Iterable[Finding]:
     """
     Busca o alvo em diários oficiais de mais de 3.000 municípios. É onde
     aparecem nomeação, licitação vencida, contrato com prefeitura, multa e
     processo administrativo — coisa que raramente está indexada no Google.
+
+    Para CPF, procura também a forma mascarada da LGPD (***.456.789-**), que
+    é como a maioria dos diários publica hoje. Achado só pelo miolo pode ser
+    outra pessoa, e sai com confiança menor.
     """
     termo = entity.value
     if len(termo) < 5:
         return []
-    try:
-        data = net.get_json(
-            "https://api.queridodiario.ok.org.br/gazettes",
-            params={
-                "querystring": f'"{termo}"',
-                "size": 10,
-                "excerpt_size": 400,
-                "number_of_excerpts": 1,
-                "sort_by": "descending_date",
-            },
-            timeout=25, ttl=24 * 3600,
-        ) or {}
-    except Exception:
-        return []
 
-    gazetas = data.get("gazettes") or []
-    if not gazetas:
-        return []
+    consultas: list[tuple[str, Confidence, str]] = []
+    if entity.type is EntityType.CPF:
+        consultas.append((f'"{termo}" | "{entity.get("digits", "")}"', Confidence.CONFIRMED, ""))
+        if entity.get("miolo"):
+            consultas.append((f'"{entity.get("miolo")}"', Confidence.POSSIBLE,
+                              "CPF mascarado (só o miolo bate): confira o nome no trecho. "))
+    elif entity.type is EntityType.CNPJ:
+        consultas.append((f'"{termo}" | "{entity.get("digits", "")}"', Confidence.CONFIRMED, ""))
+    else:
+        consultas.append((f'"{termo}"', Confidence.CONFIRMED, ""))
 
-    total = data.get("total_gazettes") or len(gazetas)
-    out: list[Finding] = [Finding(
-        kind=FindingKind.NOTE,
-        value=f"{total} menção(ões) em diários oficiais municipais",
-        source="querido_diario", source_label="Querido Diário (Open Knowledge Brasil)",
-        url=f"https://queridodiario.ok.org.br/pesquisa?term={termo.replace(' ', '+')}",
-        confidence=Confidence.CONFIRMED,
-        detail="Diários municipais raramente aparecem no Google — é onde saem "
-               "nomeação, contrato com prefeitura, licitação e sanção administrativa.",
-    )]
-
-    for g in gazetas[:8]:
-        municipio = g.get("territory_name") or "município n/d"
-        uf = g.get("state_code") or ""
-        data_pub = g.get("date") or ""
-        trecho = " ".join((g.get("excerpts") or [""])[0].split())[:280]
+    out: list[Finding] = []
+    vistos: set[str] = set()
+    falhas = 0
+    for querystring, confianca, aviso in consultas:
+        try:
+            data = _diario_busca(querystring)
+        except Exception:  # noqa: BLE001
+            falhas += 1
+            continue
+        gazetas = [g for g in (data.get("gazettes") or []) if g.get("url") not in vistos]
+        if not gazetas:
+            continue
+        total = data.get("total_gazettes") or len(gazetas)
         out.append(Finding(
-            kind=FindingKind.LEGAL,
-            value=f"Diário Oficial de {municipio}/{uf} — {data_pub}",
-            source="querido_diario", source_label="Querido Diário",
-            url=g.get("url"), confidence=Confidence.CONFIRMED,
-            detail=trecho or "Menção ao termo no diário oficial do município.",
-            raw={"territory_id": g.get("territory_id"), "date": data_pub},
+            kind=FindingKind.NOTE,
+            value=f"{total} menção(ões) em diários oficiais municipais"
+                  + (" (CPF mascarado)" if confianca is Confidence.POSSIBLE else ""),
+            source="querido_diario", source_label="Querido Diário (Open Knowledge Brasil)",
+            url=f"https://queridodiario.ok.org.br/pesquisa?term={termo.replace(' ', '+')}",
+            confidence=confianca,
+            detail=aviso + "Diários municipais raramente aparecem no Google — é onde saem "
+                   "nomeação, contrato com prefeitura, licitação e sanção administrativa.",
         ))
-        out.append(Finding(
-            kind=FindingKind.ADDRESS, value=f"{municipio}/{uf}",
-            source="querido_diario", source_label="Querido Diário",
-            url=g.get("url"), confidence=Confidence.POSSIBLE,
-            detail=f"Município onde o alvo é citado em diário oficial ({data_pub}).",
-        ))
+        for g in gazetas[:8]:
+            vistos.add(g.get("url"))
+            municipio = g.get("territory_name") or "município n/d"
+            uf = g.get("state_code") or ""
+            data_pub = g.get("date") or ""
+            trecho = " ".join((g.get("excerpts") or [""])[0].split())[:280]
+            out.append(Finding(
+                kind=FindingKind.LEGAL,
+                value=f"Diário Oficial de {municipio}/{uf} — {data_pub}",
+                source="querido_diario", source_label="Querido Diário",
+                url=g.get("url"), confidence=confianca,
+                detail=aviso + (trecho or "Menção ao termo no diário oficial do município."),
+                raw={"territory_id": g.get("territory_id"), "date": data_pub},
+            ))
+            out.append(Finding(
+                kind=FindingKind.ADDRESS, value=f"{municipio}/{uf}",
+                source="querido_diario", source_label="Querido Diário",
+                url=g.get("url"), confidence=Confidence.POSSIBLE,
+                detail=f"Município onde o alvo é citado em diário oficial ({data_pub}).",
+            ))
+    if falhas and falhas == len(consultas):
+        raise RuntimeError("API do Querido Diário não respondeu")
     return out
 
 

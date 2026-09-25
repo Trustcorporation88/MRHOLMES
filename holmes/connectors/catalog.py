@@ -3,8 +3,8 @@ Catálogo de deeplinks.
 
 Aqui mora a maior mudança prática do projeto: antes, os 89 serviços abriam
 a HOME e você redigitava o alvo. Agora cada um recebe um template e abre
-JÁ PESQUISADO. Onde o serviço exige login ou captcha, isso é declarado como
-MANUAL — o console não finge que funciona.
+JÁ PESQUISADO. Serviço que só abria a própria home (login, captcha, app)
+saiu do catálogo: link sem o alvo não é fonte, é ruído no dossiê.
 
 Template usa as variáveis do `Entity.variants`:
   {value} {digits} {e164} {local} {domain} {root} {handle} {quoted} {plus} ...
@@ -136,18 +136,6 @@ _CATALOG: list[tuple] = [
      'https://wa.me/{digits}', "Foto e nome de exibição, se a conta existir"),
     ("quemperturba", "Quem Perturba", "telefone", (P,), Mode.DEEPLINK,
      'https://www.quemperturba.com.br/numero/{digits}', "Base brasileira de denúncia de spam"),
-    ("getcontact", "GetContact", "telefone", (P,), Mode.MANUAL,
-     "https://www.getcontact.com/", "Como o número está salvo na agenda de terceiros (só no app)"),
-    ("callapp", "CallApp", "telefone", (P,), Mode.MANUAL,
-     "https://callapp.com/", "Caller ID por aplicativo"),
-    ("eyecon", "Eyecon", "telefone", (P,), Mode.MANUAL,
-     "https://www.eyecon-app.com/", "Foto do contato via agenda colaborativa"),
-    ("spydialer", "SpyDialer", "telefone", (P,), Mode.MANUAL,
-     "https://www.spydialer.com/", "Consulta reversa (formulário com captcha)"),
-    ("whosenumber", "WhoseNumber", "telefone", (P,), Mode.MANUAL,
-     "https://whosenumber.info/", "Consulta reversa"),
-    ("phonebook_cz", "Phonebook.cz", "telefone", (P, D, E), Mode.MANUAL,
-     "https://phonebook.cz/", "Base da Intelligence X (exige conta)"),
 
     # ── E-mail ──────────────────────────────────────────────────────────────
     ("emailrep", "EmailRep", "email", (E,), Mode.DEEPLINK,
@@ -157,26 +145,12 @@ _CATALOG: list[tuple] = [
     ("mxtoolbox", "MxToolbox", "email", (D, E), Mode.DEEPLINK,
      'https://mxtoolbox.com/SuperTool.aspx?action=mx%3a{domain}&run=toolpage',
      "MX, SPF, DMARC e blacklist"),
-    ("epieos", "Epieos", "email", (E, P), Mode.MANUAL,
-     "https://epieos.com/", "Contas Google/serviços por e-mail (exige conta)"),
 
     # ── Vazamentos ──────────────────────────────────────────────────────────
     ("intelx", "Intelligence X", "leaks", (E, D, P, N, CPF, CNPJ), Mode.DEEPLINK,
      'https://intelx.io/?s={value+}', "Documentos, pastes e leaks históricos"),
     ("dehashed", "Dehashed", "leaks", (E, U, P, N, D), Mode.DEEPLINK,
      'https://www.dehashed.com/search?query={value+}', "Base de credenciais vazadas (assinatura)"),
-    ("psbdmp", "PSBDMP", "leaks", (E, U, D), Mode.DEEPLINK,
-     'https://psbdmp.ws/search/{value}', "Pastes públicos que citam o alvo"),
-    ("hibp_dl", "Have I Been Pwned", "leaks", (E,), Mode.MANUAL,
-     "https://haveibeenpwned.com/", "Vazamentos por e-mail (formulário)"),
-    ("hudsonrock", "Hudson Rock", "leaks", (E, D, U), Mode.MANUAL,
-     "https://www.hudsonrock.com/free-tools", "Infostealer: máquina infectada com a credencial"),
-    ("leakcheck", "LeakCheck", "leaks", (E, U, P), Mode.MANUAL,
-     "https://leakcheck.io/", "Busca em leaks (exige conta)"),
-    ("osintleak", "OSINT Leak", "leaks", (E, U, P, N), Mode.MANUAL,
-     "https://app.osintleak.com/dashboard/search", "Dashboard próprio (API paga)"),
-    ("crackstation", "CrackStation", "leaks", (), Mode.MANUAL,
-     "https://crackstation.net/", "Reverte hash conhecido (só com o hash em mãos)"),
 
     # ── Domínio / infraestrutura ────────────────────────────────────────────
     ("webcheck", "Web-Check", "dominio", (D,), Mode.DEEPLINK,
@@ -205,8 +179,6 @@ _CATALOG: list[tuple] = [
      'https://search.censys.io/search?resource=hosts&q={value+}', "Hosts e certificados"),
     ("ipinfo_dl", "IPinfo", "rede", (I,), Mode.DEEPLINK,
      'https://ipinfo.io/{ip}', "ASN, organização e geolocalização"),
-    ("dnsdumpster", "DNSDumpster", "dominio", (D,), Mode.MANUAL,
-     "https://dnsdumpster.com/", "Mapa de DNS (formulário com token)"),
 
     # ── Arquivo e histórico ─────────────────────────────────────────────────
     ("wayback", "Wayback Machine", "arquivo", (D,), Mode.DEEPLINK,
@@ -221,21 +193,6 @@ _CATALOG: list[tuple] = [
      'https://www.google.com/search?tbm=isch&q=%22{value+}%22', "Fotos associadas ao nome"),
     ("yandex_img", "Yandex Imagens", "imagem", (N,), Mode.DEEPLINK,
      'https://yandex.com/images/search?text=%22{value+}%22', "Melhor motor para rosto"),
-    ("tineye", "TinEye", "imagem", (), Mode.MANUAL,
-     "https://tineye.com/", "Busca reversa por upload"),
-    ("google_lens", "Google Lens", "imagem", (), Mode.MANUAL,
-     "https://lens.google.com/", "Busca reversa por imagem"),
-    ("jimpl", "Jimpl", "imagem", (), Mode.MANUAL,
-     "https://jimpl.com/", "EXIF e coordenadas da foto"),
-    ("fotoforensics", "FotoForensics", "imagem", (), Mode.MANUAL,
-     "https://fotoforensics.com/", "Detecta edição na imagem"),
-    ("aperisolve", "Aperi'Solve", "imagem", (), Mode.MANUAL,
-     "https://www.aperisolve.com/", "Esteganografia"),
-    ("stegonline", "StegOnline", "imagem", (), Mode.MANUAL,
-     "https://georgeom.net/StegOnline/upload", "Análise de camadas de bit"),
-    ("invid", "InVID", "imagem", (), Mode.MANUAL,
-     "https://www.invid-project.eu/tools-and-services/invid-verification-plugin/",
-     "Verificação de vídeo"),
 
     # ── Corporativo e investigativo ─────────────────────────────────────────
     ("opencorporates", "OpenCorporates", "corporativo", (N, CNPJ, D), Mode.DEEPLINK,
@@ -246,20 +203,6 @@ _CATALOG: list[tuple] = [
     # ── Dark web ────────────────────────────────────────────────────────────
     ("ahmia", "Ahmia", "darkweb", (N, E, U, D), Mode.DEEPLINK,
      'https://ahmia.fi/search/?q={value+}', "Índice .onion pela clearnet"),
-
-    # ── Ferramentas que exigem instalação (referência, não fonte) ───────────
-    ("cyberchef", "CyberChef", "utilitario", (), Mode.MANUAL,
-     "https://gchq.github.io/CyberChef/", "Decodificação e transformação de dados"),
-    ("wigle", "WiGLE", "utilitario", (), Mode.MANUAL,
-     "https://wigle.net/", "Geolocalização por rede Wi-Fi"),
-    ("bellingcat_osm", "Bellingcat OSM Search", "utilitario", (), Mode.MANUAL,
-     "https://osm-search.bellingcat.com/", "Encontra lugar pela descrição do entorno"),
-    ("namechk", "Namechk", "username", (U,), Mode.MANUAL,
-     "https://namechk.com/", "Disponibilidade de handle (página em JS)"),
-    ("mind", "Mind Search", "pessoas", (N, CPF, P), Mode.MANUAL,
-     "https://mind-7.org/?r=fala_melo", "Busca de pessoas (seu link)"),
-    ("osintframework", "OSINT Framework", "pessoas", (), Mode.MANUAL,
-     "https://osintframework.com/", "Mapa de fontes por tipo de alvo"),
 ]
 
 # Repositórios: referência de arsenal, não fonte consultável.
@@ -299,9 +242,6 @@ ARSENAL_REPOS = [
 
 def register_catalog() -> None:
     for cid, label, category, accepts, mode, target, desc in _CATALOG:
-        if not accepts:
-            # Ferramenta sem alvo aplicável (upload de imagem, hash…): fica no arsenal.
-            continue
         if mode is Mode.DEEPLINK:
             fn = _make_deeplink(target)
             homepage = target.split("?")[0]
