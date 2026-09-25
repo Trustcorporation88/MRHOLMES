@@ -14,7 +14,7 @@ import streamlit as st
 
 from holmes import InvestigationConfig, investigate
 from holmes.connectors import ensure_registered, registry_stats
-from holmes.entity import detect
+from holmes.entity import detect, mascarar
 from holmes.findings import FindingKind
 
 _BADGE_COLOR = {
@@ -531,7 +531,9 @@ def _chips_rapidos() -> None:
             st.markdown('<div class="mh-hint-label">Recentes</div>', unsafe_allow_html=True)
             cols = st.columns(len(recentes))
             for i, alvo in enumerate(recentes):
-                rotulo = alvo if len(alvo) <= 28 else alvo[:27] + "…"
+                # O chip mostra o dado mascarado; o clique preenche o valor real.
+                rotulo = mascarar(alvo)
+                rotulo = rotulo if len(rotulo) <= 28 else rotulo[:27] + "…"
                 cols[i].button(f"🕘 {rotulo}", key=f"chip_rec_{i}",
                                on_click=_preencher_alvo, args=(alvo,))
         else:
@@ -578,7 +580,7 @@ def _painel_inicial() -> None:
     except Exception:
         pass
 
-    st.markdown("### Seu painel")
+    st.markdown('<div class="mh-section">Seu painel</div>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("Investigações salvas", f"{total_hist}+" if total_hist >= 200 else total_hist)
@@ -594,7 +596,7 @@ def _painel_inicial() -> None:
                   use_container_width=True, type="primary" if novos else "secondary",
                   on_click=_ir_para, args=("Monitoramento",))
 
-    st.markdown("### Ferramentas rápidas")
+    st.markdown('<div class="mh-section">Ferramentas rápidas</div>', unsafe_allow_html=True)
     with st.container(key="mh_tiles"):
         for inicio in range(0, len(_ATALHOS), 4):
             cols = st.columns(4)

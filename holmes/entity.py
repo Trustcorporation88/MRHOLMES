@@ -564,3 +564,47 @@ def detect_all(raw: str) -> list[Entity]:
             found.append(ent)
 
     return found
+
+
+def mascarar(raw: str) -> str:
+    """
+    Versão mascarada de um alvo, para exibir em lugares que outras pessoas
+    podem ver (ex.: chips de buscas recentes). O valor real continua salvo;
+    só o rótulo esconde o miolo do dado pessoal.
+    """
+    texto = (raw or "").strip()
+    if not texto:
+        return ""
+
+    # Qualquer coisa com muitos dígitos (CPF, CNPJ, telefone, "CPF 123…"):
+    # mantém os 3 primeiros e os 2 últimos dígitos, preserva a pontuação.
+    total = sum(c.isdigit() for c in texto)
+    if total >= 6:
+        vistos = 0
+        saida = []
+        for c in texto:
+            if c.isdigit():
+                vistos += 1
+                saida.append(c if vistos <= 3 or vistos > total - 2 else "*")
+            else:
+                saida.append(c)
+        return "".join(saida)
+
+    ent = detect(texto)
+    if ent.type is EntityType.EMAIL:
+        usuario, _, dominio = ent.value.partition("@")
+        return f"{usuario[:1]}***@{dominio}"
+    if ent.type is EntityType.PLACA:
+        return ent.value[:3] + "*" * max(len(ent.value) - 3, 1)
+    if ent.type is EntityType.NAME:
+        partes = texto.split()
+        if len(partes) == 1:
+            return partes[0]
+        return " ".join([partes[0]] + [f"{p[:1]}." for p in partes[1:]])
+    if ent.type is EntityType.USERNAME:
+        return f"@{ent.value[:2]}***"
+    if ent.type is EntityType.PROFILE_URL:
+        host = urlparse(texto if "://" in texto else f"https://{texto}").netloc
+        return f"{host}/***"
+    # Domínio, URL, IP e o resto não são dado pessoal direto: ficam como estão.
+    return texto
