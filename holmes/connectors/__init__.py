@@ -21,6 +21,29 @@ from .base import (  # noqa: F401
 _REGISTERED = False
 
 
+def _resolver_cnpj(findings) -> list:
+    """
+    Alvo é razão social: o CNPJ mais citado nos resultados vai direto à
+    Receita no mesmo salto. Sem isso, empresa → CNPJ → sócios exigiria dois
+    saltos de pivô e não caberia na profundidade padrão.
+    """
+    from collections import Counter
+
+    from .. import br
+    from ..entity import detect
+    from ..findings import FindingKind
+
+    cnpjs = Counter(f.value for f in findings
+                    if f.kind is FindingKind.DOCUMENT and (f.raw or {}).get("tipo") == "cnpj")
+    if not cnpjs:
+        return []
+    cnpj, _ = cnpjs.most_common(1)[0]
+    try:
+        return list(br.cnpj_findings(detect(cnpj)))
+    except Exception:
+        return []
+
+
 def _serp_connector():
     """A busca de superfície entra no fluxo como mais um conector."""
     from .. import serp
@@ -30,6 +53,8 @@ def _serp_connector():
         queries = serp.build_queries(entity, deep=True)
         hits = serp.search_many(queries, limit_each=8, max_queries=12)
         findings: list[Finding] = list(serp.hits_to_findings(hits, entity))
+        if entity.type is EntityType.NAME and serp.is_company_name(entity.value):
+            findings += _resolver_cnpj(findings)
         if findings:
             from ..findings import Confidence, FindingKind
 
