@@ -83,6 +83,68 @@ def _opensanctions_panel() -> None:
     )
 
 
+def _socios_panel() -> None:
+    """Índice local de sócios da Receita: status e botão de atualizar."""
+    from holmes import socios_rfb
+
+    st.markdown("**Sócios de todas as empresas do Brasil (Receita Federal)**")
+    s = socios_rfb.status()
+    if s["baixado"]:
+        st.success(
+            f"Índice pronto: {s['total_socios']:,} sócios · {s['tamanho_mb']} MB · "
+            f"referência {s['mes_referencia'] or 'n/d'} · atualizado em {s['atualizado_em'][:10]}",
+            icon="✅",
+        )
+    else:
+        st.caption(
+            "Ainda não baixado. Com ele, nome, CPF e CNPJ passam a mostrar as outras "
+            "empresas de cada sócio. São cerca de 26 milhões de linhas (3 a 4 GB em disco): "
+            "prefira rodar `python -m holmes.socios_rfb --update` num Railway Cron mensal, "
+            "com HOLMES_SOCIOS_DIR apontando para o Volume."
+        )
+    if st.button("⬇️ Baixar/atualizar sócios agora", key="socios_update"):
+        barra = st.progress(0.0)
+        try:
+            with st.spinner("Baixando e indexando os sócios (pode levar mais de 20 minutos)…"):
+                info = socios_rfb.update(progress=lambda f: barra.progress(min(1.0, f)))
+            barra.empty()
+            st.success(f"Pronto: {info['total_socios']:,} sócios ({info['mes_referencia']}).")
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Falha ao baixar/indexar: {exc}")
+
+
+def _yield_panel() -> None:
+    """Rendimento de cada fonte nas investigações reais: base para cortar fonte."""
+    from holmes import source_yield
+
+    st.markdown("**Rendimento das fontes (últimos 30 dias)**")
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        if st.button("Medir histórico salvo", key="yield_backfill"):
+            with st.spinner("Medindo investigações do histórico…"):
+                n = source_yield.backfill()
+            st.caption(f"{n} investigações medidas.")
+    linhas = source_yield.report()
+    if not linhas:
+        st.caption("Sem medições ainda: cada investigação passa a ser medida a partir de agora.")
+        return
+    cortar = [r["rotulo"] or r["fonte"] for r in linhas if r["veredito"] == "cortar"]
+    quebradas = [r["rotulo"] or r["fonte"] for r in linhas if r["veredito"] == "quebrada"]
+    with c2:
+        if cortar:
+            st.warning("Nunca trouxeram fato: " + ", ".join(cortar))
+        if quebradas:
+            st.error("Falham quase sempre: " + ", ".join(quebradas))
+    st.dataframe(
+        [{"veredito": r["veredito"], "fonte": r["rotulo"] or r["fonte"], "execuções": r["execucoes"],
+          "erros": r["erro"], "acerto": f"{r['taxa_acerto']:.0%}", "fatos": r["fatos"],
+          "exclusivos": r["exclusivos"], "ms médio": r["ms_medio"], "último erro": r["ultimo_erro"]}
+         for r in linhas],
+        use_container_width=True, hide_index=True,
+    )
+
+
 def _key_sidebar() -> None:
     """Chaves coladas aqui valem só nesta sessão — não vão para disco nem para o git."""
     from holmes import net
@@ -603,11 +665,14 @@ def display_investigar() -> None:
                 usar_llm = st.checkbox("Analisar com IA", value=True)
             with c3:
                 incluir_links = st.checkbox("Incluir deeplinks", value=True)
-                incluir_manual = st.checkbox("Incluir fontes manuais", value=True)
 
         with st.expander("🔧 Avançado — rastrear site e chaves de API"):
             _crawler_controls(alvo)
             _opensanctions_panel()
+            st.markdown("---")
+            _socios_panel()
+            st.markdown("---")
+            _yield_panel()
             st.markdown("---")
             _key_sidebar()
             env = environment_report()
@@ -618,7 +683,7 @@ def display_investigar() -> None:
         if rodar and alvo.strip():
             cfg = InvestigationConfig(
                 depth=1 if modo_rapido else depth,
-                include_deeplinks=incluir_links, include_manual=incluir_manual,
+                include_deeplinks=incluir_links,
                 max_pivots_per_hop=max_pivots, use_llm=usar_llm, global_timeout=timeout,
             )
             barra = st.progress(0.0)

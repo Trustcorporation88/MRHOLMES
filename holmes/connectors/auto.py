@@ -922,6 +922,57 @@ def register_auto_connectors() -> None:
         description="Percorre o site e extrai e-mail, telefone, cripto e perfis",
     ))
 
+    # ── Bright Data: páginas e perfis que só abriam como link ─────────────
+    # Pagos por requisição/registro: cada um tem interruptor próprio e, sem
+    # ele, aparece como "pulado" com o motivo, nunca como falha.
+    from .. import jusbrasil, social_brd, socios_rfb
+
+    class _UnlockerConnector(Connector):
+        def availability(self):
+            if not net.unlocker_enabled():
+                return False, "Web Unlocker desligado (BRIGHTDATA_API_KEY e HOLMES_UNLOCKER=1)"
+            return super().availability()
+
+    class _DatasetConnector(Connector):
+        def availability(self):
+            if not net.datasets_enabled():
+                return False, "coletores Bright Data desligados (BRIGHTDATA_API_KEY e HOLMES_BRD_DATASETS=1)"
+            return super().availability()
+
+    register(_UnlockerConnector(
+        id="jusbrasil", label="JusBrasil (Web Unlocker)", mode=Mode.AUTO,
+        accepts=(EntityType.NAME, EntityType.CNPJ), category="brasil",
+        run=jusbrasil.findings, timeout=150, cost="pago",
+        description="Lê a busca e a página da pessoa: empresas em que é sócia (com CNPJ e "
+                    "cargo), estados, diários oficiais e empresas relacionadas ao CNPJ",
+    ))
+    register(_DatasetConnector(
+        id="brd_linkedin", label="LinkedIn (coletor Bright Data)", mode=Mode.AUTO,
+        accepts=(EntityType.NAME, EntityType.PROFILE_URL), category="perfil",
+        run=social_brd.linkedin_findings, timeout=120, cost="pago",
+        description="Perfil completo sem login: cargo, empresa atual, experiência, formação e cidade",
+    ))
+    register(_DatasetConnector(
+        id="brd_instagram", label="Instagram (coletor Bright Data)", mode=Mode.AUTO,
+        accepts=(U, EntityType.PROFILE_URL), category="perfil",
+        run=social_brd.instagram_findings, timeout=120, cost="pago",
+        description="Bio, seguidores, categoria, link e contato comercial do perfil",
+    ))
+
+    class _SociosConnector(Connector):
+        def availability(self):
+            if not socios_rfb.disponivel():
+                return False, "índice de sócios não baixado (rode: python -m holmes.socios_rfb --update)"
+            return super().availability()
+
+    register(_SociosConnector(
+        id="socios_rfb", label="Sócios da Receita (índice local)", mode=Mode.AUTO,
+        accepts=(EntityType.NAME, EntityType.CPF, EntityType.CNPJ), category="brasil",
+        run=socios_rfb.findings, timeout=60,
+        description="Todas as empresas do Brasil: em quais o nome/CPF é sócio e as "
+                    "outras empresas dos sócios de um CNPJ",
+    ))
+
     # URL com caminho também merece as fontes de domínio e a busca.
     for cid in ("rdap", "crtsh", "registrobr", "hunter"):
         conn = _REGISTRY_GET(cid)

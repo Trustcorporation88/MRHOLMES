@@ -92,8 +92,30 @@ Só uma é realmente decisiva:
 | `PORTAL_TRANSPARENCIA_KEY` | PEP fica só via Câmara/Senado | PEP oficial, CEIS, CNEP e servidor federal (grátis) |
 | `OPENSANCTIONS_API_KEY` | Sanção/PEP internacional fica só nas bases brasileiras | reserva — a API deles cobra por consulta após 30 dias de teste |
 | `BRIGHTDATA_API_KEY` + `HOLMES_BRD_SERP_ZONE` | — | Google pela SERP API da Bright Data, alternativa ao Serper (sem bloqueio de IP). Teto por processo em `HOLMES_BRD_SERP_BUDGET` (padrão 500) |
+| `BRIGHTDATA_API_KEY` + `HOLMES_UNLOCKER=1` | JusBrasil fica só como link | Lê o JusBrasil: empresas em que a pessoa é sócia (CNPJ e cargo), estados, diários oficiais e empresas relacionadas ao CNPJ. Até 3 requisições por nome, 1 por CNPJ |
+| `BRIGHTDATA_API_KEY` + `HOLMES_BRD_DATASETS=1` | LinkedIn e Instagram ficam só como link | Perfil completo sem login pelos coletores prontos. Teto em `HOLMES_BRD_DATASETS_BUDGET` (padrão 40) |
 
 Configure no Railway em **Variables**, ou cole na própria página (vale só na sessão).
+
+### Sócios de todas as empresas do Brasil (índice local)
+
+```bash
+python -m holmes.socios_rfb --update          # baixa Socios0..9.zip do mês mais recente
+python -m holmes.socios_rfb --from-dir ./rfb  # ou indexa os zips já baixados
+```
+
+Cerca de 26 milhões de linhas, de 3 a 4 GB em disco. Aponte `HOLMES_SOCIOS_DIR`
+para o Volume e agende o `--update` num Railway Cron mensal. Com o índice, nome,
+CPF e CNPJ passam a mostrar as outras empresas de cada sócio. Se a Receita mudar
+o endereço dos arquivos, ajuste `HOLMES_RFB_CNPJ_BASE` (ou fixe o mês em
+`HOLMES_RFB_CNPJ_MES`).
+
+### Rendimento das fontes
+
+Toda investigação é medida por fonte (fatos trazidos, fatos exclusivos, falhas).
+`python -m holmes.source_yield --backfill` mede também o histórico já salvo e
+mostra o veredito de cada fonte: `manter`, `cortar`, `quebrada` ou `poucos dados`.
+O mesmo relatório está na aba Investigar → Avançado.
 
 ### Sanções/PEP internacional — o caminho grátis é o índice local, não a API
 

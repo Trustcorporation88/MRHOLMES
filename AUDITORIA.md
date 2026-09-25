@@ -101,39 +101,110 @@ Sem `HOLMES_BRD_SERP_ZONE` nada é cobrado: a chave sozinha não liga a busca.
 **A chave do Portal é a mudança de maior impacto para CPF.** Sem ela, CPF
 continua sem nome do titular. É gratuita.
 
-## 4. Propostas para as próximas etapas
+## 4. Segunda etapa (implementada)
 
-Em ordem de retorno sobre o esforço:
+As quatro propostas de maior retorno foram feitas.
 
-1. **Extrair dado das páginas que hoje são só link, pelo Web Unlocker.**
-   Escavador, JusBrasil, CNPJ.biz e Econodata abrem já pesquisados, mas o
-   motor não lê o conteúdo. Com o Unlocker (mesma chave), dá para buscar a
-   página, extrair partes, processos e sócios, e transformar link em fato.
-   Custo estimado: 3 a 6 requisições por alvo.
-2. **Empresas ligadas ao sócio.** Hoje o CNPJ entrega os sócios, mas não as
-   outras empresas deles. O caminho gratuito é indexar localmente os dados
-   abertos da Receita (arquivo de sócios, cerca de 25 milhões de linhas, mesmo
-   modelo do índice do OpenSanctions que já existe). Isso também resolve
-   "CPF de sócio → empresas", com o CPF mascarado que a Receita publica.
-3. **Datasets da Bright Data para redes sociais.** Os coletores prontos de
-   LinkedIn, Instagram e Facebook devolvem perfil estruturado a partir do
-   nome ou do link. Resolve o ponto mais fraco depois de CPF: rede social
-   que exige login.
-4. **Tribunais por CPF e CNPJ.** O e-SAJ (TJSP, TJSC, TJMS, TJAL, TJAM, TJCE)
-   aceita busca por documento da parte na URL, como já é feito para nome.
-   Passar pelo Unlocker contorna o captcha eventual.
-5. **Medir antes de cortar mais.** O próximo passo da limpeza é registrar,
-   por conector, quantos fatos cada fonte trouxe nas investigações reais
-   (o histórico em `holmes/store.py` já guarda os resultados). Fonte que
-   passar 30 dias sem trazer nada sai do catálogo com base em número, não em
-   impressão.
-6. **Opção "Incluir fontes manuais" na interface.** Depois da limpeza não
-   sobrou fonte manual, então a caixa pode sair de `holmes_ui.py`.
+### 4.1 Páginas lidas pelo Web Unlocker
 
-## 5. Limites desta auditoria
+Antes de escrever o extrator, testei ao vivo, pela Bright Data, cada site que
+era só link:
 
-* O container onde a revisão foi feita não tem acesso à internet, então as
-  fontes não foram testadas ao vivo. Os formatos de resposta seguem a
+| Site | Resultado real | Decisão |
+|---|---|---|
+| JusBrasil | Página entregue, com dados estruturados | **Extrator implementado** (`holmes/jusbrasil.py`) |
+| Escavador | Bright Data recusa sem verificação KYC da conta | Fica como link. Se a conta passar pelo KYC, vale implementar |
+| CNPJ.biz | "Acesso Bloqueado": o site barra qualquer proxy | Fica como link (funciona no navegador de quem clica) |
+| Econodata | "Você atingiu o limite de consultas" | Fica como link |
+
+O que o JusBrasil entrega agora, direto no dossiê:
+
+* **nome**: quantas pessoas têm aquele nome exato e a faixa etária; da página
+  da pessoa, **as empresas em que ela é sócia ou administradora, com CNPJ e
+  cargo**, os estados onde aparece e os dígitos do CPF que o site exibe;
+  menções em diários oficiais de tribunais;
+* **CNPJ**: empresas relacionadas (consórcios, sócias pessoa jurídica) e o
+  contato declarado.
+
+Os extratores foram escritos e testados sobre páginas reais capturadas nesta
+sessão (`tests/fixtures/`). Quando o Unlocker devolve bloqueio com HTTP 200
+(KYC, proxy barrado, limite), o motor reconhece e mostra o motivo em "fontes
+que não responderam", em vez de tratar como resultado vazio.
+
+Ligar: `HOLMES_UNLOCKER=1` (usa a mesma `BRIGHTDATA_API_KEY`; zona em
+`HOLMES_UNLOCKER_ZONE`, padrão `cli_unlocker`).
+
+### 4.2 Índice local dos sócios da Receita
+
+`holmes/socios_rfb.py` baixa os arquivos de sócios dos dados abertos do CNPJ
+(cerca de 26 milhões de linhas) e monta um SQLite local. Responde, sem rede:
+
+* **nome** → empresas em que alguém com esse nome é sócio, separando
+  homônimos pelo CPF mascarado;
+* **CPF** → empresas em que o CPF aparece como sócio. Com a chave do Portal,
+  o nome do titular confirma quais são dele; sem ela, lista os candidatos;
+* **CNPJ** → as outras empresas dos sócios desta (mesmo nome e mesmo CPF
+  mascarado).
+
+```
+python -m holmes.socios_rfb --update           # ou o botão em Investigar → Avançado
+HOLMES_SOCIOS_DIR=/data                          # Volume do Railway (3 a 4 GB)
+```
+
+O endereço dos arquivos da Receita muda de tempos em tempos. O módulo
+descobre o mês mais recente sozinho; se falhar, ajuste `HOLMES_RFB_CNPJ_BASE`
+ou baixe os `Socios*.zip` e use `--from-dir`.
+
+### 4.3 Coletores prontos de LinkedIn e Instagram
+
+`holmes/social_brd.py`, pela Web Scraper API da Bright Data:
+
+* **LinkedIn**: a partir do link do perfil, ou do nome (uma busca acha a URL
+  e só coleta se o título bater com o nome; se o perfil coletado for de outra
+  pessoa, é descartado). Traz cargo, empresa atual, experiência, formação,
+  cidade e foto. Página de empresa traz setor, porte, site e funcionários;
+* **Instagram**: a partir do @username ou do link. Traz bio, seguidores,
+  categoria, link da bio, foto e, em conta comercial, e-mail e telefone.
+
+Ligar: `HOLMES_BRD_DATASETS=1`, com teto em `HOLMES_BRD_DATASETS_BUDGET`
+(padrão 40 por processo) e cache de 7 dias. Os IDs dos coletores podem ser
+trocados por variável (`HOLMES_BRD_DS_LINKEDIN`, `HOLMES_BRD_DS_INSTAGRAM`).
+
+### 4.4 Medição do rendimento de cada fonte
+
+`holmes/source_yield.py` registra, no fim de toda investigação, o que cada
+fonte trouxe: fatos (link não conta), **fatos exclusivos** (que nenhuma outra
+fonte trouxe), falhas e tempo. O relatório dá o veredito:
+
+| Veredito | Regra |
+|---|---|
+| `cortar` | rodou 15 vezes ou mais e nunca trouxe um fato |
+| `quebrada` | falhou em 80% ou mais das vezes |
+| `manter` | trouxe fato |
+| `poucos dados` | rodou menos de 15 vezes |
+
+```
+python -m holmes.source_yield --backfill    # mede também o histórico já salvo
+```
+
+O mesmo relatório aparece em Investigar → Avançado, com o botão "Medir
+histórico salvo". A caixa "Incluir fontes manuais" saiu da interface, porque
+não sobrou nenhuma fonte manual.
+
+## 5. Próximas etapas
+
+1. Rodar o `--backfill` em produção e cortar o que sair como `cortar` ou
+   `quebrada`.
+2. Pedir o KYC na Bright Data e ligar o Escavador pelo mesmo caminho do
+   JusBrasil.
+3. Tribunais estaduais (e-SAJ) por CPF e CNPJ pelo Unlocker.
+
+## 6. Limites desta auditoria
+
+* O container onde o código roda nesta sessão não tem acesso à internet. As
+  páginas do JusBrasil, Escavador, CNPJ.biz e Econodata foram testadas ao vivo
+  pela Bright Data, mas o Portal, o Querido Diário, os coletores de LinkedIn e
+  Instagram e o download da Receita não foram. Os formatos de resposta seguem a
   documentação pública do Portal, da Bright Data e do Querido Diário, e o
   código tolera campo ausente. Vale rodar um CPF e um CNPJ conhecidos logo
   depois do deploy.

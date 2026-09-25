@@ -339,34 +339,52 @@ def unlocker_reset_stats() -> None:
         _unlocker_stats[k] = 0
 
 
-def unlocked_get_text(
+class UnlockerError(RuntimeError):
+    """O Unlocker respondeu, mas não entregou a página (bloqueio, KYC, cota)."""
+
+
+# Respostas que chegam com HTTP 200 mas não são a página pedida. Sem isto o
+# extrator lê "Acesso Bloqueado" como se fosse um resultado vazio.
+_UNLOCKER_BLOQUEIOS = (
+    ("Residential Failed", "a Bright Data exige verificação KYC da conta para este site"),
+    ("bad_endpoint", "a Bright Data exige verificação KYC da conta para este site"),
+    ("Acesso Bloqueado", "o site bloqueia acesso por proxy"),
+    ("atingiu o limite de consultas", "o site limitou as consultas"),
+)
+
+
+def unlocked_fetch(
     url: str,
     *,
     timeout: int | None = None,
     ttl: int = DEFAULT_TTL,
     country: str | None = None,
-) -> str | None:
+    data_format: str | None = None,
+) -> str:
     """
-    Busca a página pelo Web Unlocker da Bright Data. Devolve o HTML ou None.
+    Busca a página pelo Web Unlocker. `data_format="markdown"` pede a página já
+    convertida, que é o formato que os extratores do motor leem.
 
-    Cacheia igual ao resto da camada: repetir o mesmo alvo dentro do TTL não
-    custa uma segunda requisição paga.
+    Levanta `UnlockerError` quando não há página (desligado, teto, bloqueio),
+    para o conector aparecer em «fontes que não responderam» com o motivo.
     """
     if not unlocker_enabled():
-        return None
+        raise UnlockerError("Web Unlocker desligado (BRIGHTDATA_API_KEY e HOLMES_UNLOCKER=1)")
 
-    ck = f"UNLOCK:{url}:{country or ''}"
+    ck = f"UNLOCK:{url}:{country or ''}:{data_format or ''}"
     cached = cache_get(ck, ttl)
     if cached is not None:
         return cached
 
     if unlocker_budget_left() <= 0:
         _unlocker_stats["bloqueadas_por_teto"] += 1
-        return None
+        raise UnlockerError(f"teto de {UNLOCKER_BUDGET} chamadas do Unlocker atingido neste processo")
 
     payload: dict[str, Any] = {"zone": UNLOCKER_ZONE, "url": url, "format": "raw"}
     if country:
         payload["country"] = country
+    if data_format:
+        payload["data_format"] = data_format
 
     _unlocker_stats["usadas"] += 1
     try:
@@ -379,17 +397,42 @@ def unlocked_get_text(
             },
             timeout=timeout or UNLOCKER_TIMEOUT,
         )
-    except Exception:
+    except Exception as exc:
         _unlocker_stats["falha"] += 1
-        return None
+        raise UnlockerError(f"Unlocker não respondeu: {exc}") from exc
 
+    corpo = resp.text or ""
     if resp.status_code >= 400:
         _unlocker_stats["falha"] += 1
-        return None
+        motivo = resp.headers.get("x-brd-error") or corpo[:160]
+        for marca, texto in _UNLOCKER_BLOQUEIOS:
+            if marca in motivo:
+                motivo = texto
+                break
+        raise UnlockerError(f"Unlocker HTTP {resp.status_code}: {motivo}")
+    cabeca = corpo[:600]
+    for marca, texto in _UNLOCKER_BLOQUEIOS:
+        if marca in cabeca:
+            _unlocker_stats["falha"] += 1
+            raise UnlockerError(texto)
 
     _unlocker_stats["sucesso"] += 1
-    cache_set(ck, resp.text)
-    return resp.text
+    cache_set(ck, corpo)
+    return corpo
+
+
+def unlocked_get_text(
+    url: str,
+    *,
+    timeout: int | None = None,
+    ttl: int = DEFAULT_TTL,
+    country: str | None = None,
+) -> str | None:
+    """Versão tolerante: devolve o HTML ou None. Usada pelo WhatsMyName."""
+    try:
+        return unlocked_fetch(url, timeout=timeout, ttl=ttl, country=country)
+    except UnlockerError:
+        return None
 
 
 # ── Bright Data SERP API ────────────────────────────────────────────────────
@@ -470,3 +513,128 @@ def brd_serp_json(
     _brd_serp_stats["sucesso"] += 1
     cache_set(ck, data)
     return data
+
+
+# ── Bright Data Web Scraper API (coletores prontos) ─────────────────────────
+#
+# LinkedIn e Instagram exigem login para mostrar perfil. Os coletores prontos
+# da Bright Data devolvem o perfil já estruturado (nome, cargo, empresa,
+# seguidores, bio) a partir da URL. É cobrado por registro, então fica atrás
+# de um interruptor próprio e de um teto por processo.
+#
+#   export HOLMES_BRD_DATASETS=1
+#   export HOLMES_BRD_DATASETS_BUDGET=40
+
+DATASETS_ENDPOINT = "https://api.brightdata.com/datasets/v3"
+DATASETS_BUDGET = int(os.environ.get("HOLMES_BRD_DATASETS_BUDGET", "40"))
+DATASETS_WAIT = int(os.environ.get("HOLMES_BRD_DATASETS_WAIT", "75"))
+
+# IDs públicos dos coletores (os mesmos que o painel mostra em Web Scrapers).
+DATASET_IDS = {
+    "linkedin_person": os.environ.get("HOLMES_BRD_DS_LINKEDIN", "gd_l1viktl72bvl7bjuj0"),
+    "linkedin_company": os.environ.get("HOLMES_BRD_DS_LINKEDIN_CO", "gd_l1vikfnt1wgvvqz95w"),
+    "instagram_profile": os.environ.get("HOLMES_BRD_DS_INSTAGRAM", "gd_l1vikfch901nx3by4"),
+}
+
+_datasets_stats = {"usadas": 0, "sucesso": 0, "falha": 0, "bloqueadas_por_teto": 0}
+
+
+def datasets_enabled() -> bool:
+    if os.environ.get("HOLMES_BRD_DATASETS", "").strip().lower() not in ("1", "true", "sim", "on"):
+        return False
+    return has_key("brightdata")
+
+
+def datasets_stats() -> dict:
+    return dict(_datasets_stats, teto=DATASETS_BUDGET,
+                restante=max(0, DATASETS_BUDGET - _datasets_stats["usadas"]))
+
+
+def brd_dataset_scrape(dataset: str, url: str, *, ttl: int = 7 * 86400) -> dict | None:
+    """
+    Um registro de um coletor pronto. Tenta o modo síncrono (/scrape); se a
+    coleta passar do tempo dele, acompanha o snapshot até DATASETS_WAIT
+    segundos. Devolve o primeiro registro, ou None se o perfil não existe.
+    """
+    if not datasets_enabled():
+        raise RuntimeError("coletores Bright Data desligados (HOLMES_BRD_DATASETS=1)")
+    dataset_id = DATASET_IDS.get(dataset, dataset)
+
+    ck = f"BRDDS:{dataset_id}:{url}"
+    cached = cache_get(ck, ttl)
+    if cached is not None:
+        return cached or None
+
+    if _datasets_stats["usadas"] >= DATASETS_BUDGET:
+        _datasets_stats["bloqueadas_por_teto"] += 1
+        raise RuntimeError(f"teto de {DATASETS_BUDGET} coletas Bright Data atingido neste processo")
+
+    headers = {
+        "Authorization": f"Bearer {get_key('brightdata')}",
+        "Content-Type": "application/json",
+    }
+    _datasets_stats["usadas"] += 1
+    try:
+        resp = _SESSION.post(
+            f"{DATASETS_ENDPOINT}/scrape",
+            params={"dataset_id": dataset_id, "format": "json", "include_errors": "true"},
+            json={"input": [{"url": url}]},
+            headers=headers,
+            timeout=DATASETS_WAIT,
+        )
+        if resp.status_code == 202:
+            snapshot = (resp.json() or {}).get("snapshot_id")
+            if not snapshot:
+                raise RuntimeError("coleta aceita sem snapshot_id")
+            data = _dataset_wait(snapshot, headers)
+        elif resp.status_code >= 400:
+            raise requests.HTTPError(
+                f"Bright Data coletor HTTP {resp.status_code}: {resp.text[:160]}", response=resp)
+        else:
+            data = _json_or_lines(resp.text)
+    except Exception:
+        _datasets_stats["falha"] += 1
+        raise
+
+    registros = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+    registro = next((r for r in registros if isinstance(r, dict) and not r.get("error")), None)
+    if registro is None and registros and isinstance(registros[0], dict) and registros[0].get("error"):
+        erro = str(registros[0].get("error"))
+        # Perfil inexistente é resposta, não falha: cacheia o vazio.
+        if "not found" in erro.lower() or "dead_page" in erro.lower() or "404" in erro:
+            _datasets_stats["sucesso"] += 1
+            cache_set(ck, {})
+            return None
+        _datasets_stats["falha"] += 1
+        raise RuntimeError(f"coletor devolveu erro: {erro[:160]}")
+    _datasets_stats["sucesso"] += 1
+    cache_set(ck, registro or {})
+    return registro
+
+
+def _json_or_lines(texto: str):
+    texto = (texto or "").strip()
+    if not texto:
+        return []
+    try:
+        return json.loads(texto)
+    except ValueError:
+        # Alguns coletores respondem NDJSON (um registro por linha).
+        return [json.loads(linha) for linha in texto.splitlines() if linha.strip()]
+
+
+def _dataset_wait(snapshot: str, headers: dict):
+    limite = time.time() + DATASETS_WAIT
+    while time.time() < limite:
+        prog = _SESSION.get(f"{DATASETS_ENDPOINT}/progress/{snapshot}", headers=headers, timeout=20)
+        status = (prog.json() or {}).get("status") if prog.status_code < 400 else None
+        if status == "ready":
+            snap = _SESSION.get(f"{DATASETS_ENDPOINT}/snapshot/{snapshot}",
+                                params={"format": "json"}, headers=headers, timeout=30)
+            if snap.status_code >= 400:
+                raise requests.HTTPError(f"snapshot HTTP {snap.status_code}", response=snap)
+            return _json_or_lines(snap.text)
+        if status == "failed":
+            raise RuntimeError("coleta falhou no lado da Bright Data")
+        time.sleep(3)
+    raise TimeoutError(f"coleta não ficou pronta em {DATASETS_WAIT}s (snapshot {snapshot})")
