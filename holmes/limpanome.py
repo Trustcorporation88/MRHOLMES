@@ -20,6 +20,11 @@ Base legal usada (e só ela):
   REsp 1.316.117   os 5 anos correm do dia seguinte ao vencimento, não da inscrição
   CC art. 206 §3 V indenização por negativação indevida prescreve em 3 anos
   Lei 12.414/2011  Cadastro Positivo (histórico de pagamento a favor do consumidor)
+
+Protesto em cartório é outro regime (Lei 9.492/1997):
+  art. 26          cancelamento com o título ou a carta de anuência do credor
+  Tema 725 STJ     protesto legítimo: após pagar, cabe ao DEVEDOR pedir o cancelamento
+  O registro no cartório não cai sozinho com o tempo: precisa ser cancelado.
 """
 
 from __future__ import annotations
@@ -110,7 +115,8 @@ SITUACOES = {
     "minha_no_prazo": "É minha e ainda vale",
     "nao_sei": "Não sei / preciso confirmar",
 }
-BIROS = ("Serasa", "SPC Brasil", "Boa Vista", "Quod", "Outro")
+PROTESTO = "Cartório de protesto"
+BIROS = ("Serasa", "SPC Brasil", "Boa Vista", "Quod", PROTESTO, "Outro")
 NOTIFICADO = {"sim": "Sim", "nao": "Não", "nao_sei": "Não sei"}
 
 PILHAS = {
@@ -230,6 +236,8 @@ def analisar(r: Registro, hoje: date | None = None) -> Analise:
     """Classifica o registro e monta a estratégia. Determinístico e sem LLM:
     a regra é a lei, não uma opinião do modelo."""
     hoje = hoje or date.today()
+    if r.biro == PROTESTO:
+        return _analisar_protesto(r, hoje)
     venc = r.venc()
     # REsp 1.316.117/SC: o prazo começa no dia seguinte ao vencimento.
     limite = somar_anos(venc + timedelta(days=1), 5) if venc else None
@@ -324,6 +332,59 @@ def analisar(r: Registro, hoje: date | None = None) -> Analise:
     )
 
 
+def _analisar_protesto(r: Registro, hoje: date) -> Analise:
+    """Protesto não segue o art. 43 do CDC nem os prazos dos birôs: o caminho
+    é o cancelamento no cartório, e quem pede depende de o protesto ser devido."""
+    arg_cancel = Argumento(
+        "Cancelamento com carta de anuência",
+        "Lei 9.492/1997, art. 26, e Tema 725 do STJ",
+        "Pago o título, o cancelamento é pedido no cartório com a carta de anuência do credor. "
+        "Em protesto legítimo, quem pede é o devedor; o credor tem de fornecer a carta.",
+        3,
+    )
+    alerta = ""
+    if r.situacao == "ja_paguei":
+        pilha, prioridade = "errado", 1
+        args = [arg_cancel]
+        canal = "credor"
+        docs = ["pedido_carta_anuencia"]
+        passo = ("Peça a carta de anuência ao credor e leve ao cartório, ou cancele online pela CENPROT "
+                 "(resolve.cenprot.org.br). Há emolumentos a pagar no cancelamento.")
+        if not r.comprovante:
+            alerta = "Separe o comprovante de pagamento: o credor vai pedir antes de emitir a carta."
+    elif r.situacao in ("nao_reconheco", "valor_errado"):
+        pilha, prioridade = "errado", 4
+        args = [Argumento(
+            "Protesto indevido",
+            "Lei 9.492/1997 e CDC art. 6º, VIII",
+            "Título que não é seu, já pago antes do protesto ou com valor errado torna o protesto indevido. "
+            "Cabe ao credor dar a anuência sem custo para você; se recusar, o cancelamento é judicial, "
+            "com pedido de dano moral.",
+            3,
+        )]
+        canal = "credor"
+        docs = ["contestacao_protesto", "pedido_carta_anuencia"]
+        passo = ("Peça ao credor o título que originou o protesto e a carta de anuência. Sem resposta, "
+                 "o caminho é o Juizado: cancelamento do protesto e dano moral.")
+    elif r.situacao == "minha_no_prazo":
+        pilha, prioridade = "verdadeira", 5
+        args = [arg_cancel]
+        canal = "credor"
+        docs = ["roteiro_negociacao", "pedido_carta_anuencia"]
+        passo = ("Negocie com o credor e exija, no acordo, a entrega da carta de anuência. "
+                 "Depois de pagar, cancele no cartório ou pela CENPROT.")
+    else:
+        pilha, prioridade = "duvida", 6
+        args = []
+        canal = "credor"
+        docs = ["pedido_documento_origem"]
+        passo = ("Tire a certidão ou consulte o protesto na CENPROT (pesquisaprotesto.com.br) para ver "
+                 "credor, valor e cartório antes de decidir.")
+    alerta = alerta or "Protesto não cai sozinho em 5 anos como o registro do Serasa: no cartório ele só sai com cancelamento."
+    return Analise(pilha=pilha, prioridade=prioridade, limite_5_anos=None, dias_para_vencer_prazo=None,
+                   argumentos=args, canal=canal, documentos=docs, proximo_passo=passo, alerta=alerta)
+
+
 def ordem_de_ataque(caso: Caso, hoje: date | None = None) -> list[tuple[Registro, Analise]]:
     """Registros na ordem em que devem ser atacados: fácil primeiro."""
     pares = [(r, analisar(r, hoje)) for r in caso.registros]
@@ -361,9 +422,12 @@ def avisos_do_caso(caso: Caso, hoje: date | None = None) -> list[str]:
         avisos.append("Há registro sem data de vencimento. Sem ela não dá para usar o argumento dos 5 anos, "
                       "que é o mais forte. Peça o documento de origem antes de contestar.")
     biros = {r.biro for r, _ in pares}
-    if pares and len(biros) == 1:
-        avisos.append(f"Todos os registros são do {next(iter(biros))}. Consulte também os outros birôs: "
-                      "um registro pode estar só num deles.")
+    if pares and len(biros - {PROTESTO}) == 1:
+        avisos.append(f"Todos os registros são do {next(iter(biros - {PROTESTO}))}. Consulte também os outros "
+                      "birôs: um registro pode estar só num deles.")
+    if pares and PROTESTO not in biros:
+        avisos.append("Consulte também protesto em cartório (gratuito em pesquisaprotesto.com.br). Protesto "
+                      "é um registro separado do Serasa e segue regras próprias.")
     return avisos
 
 
@@ -439,6 +503,8 @@ DOCUMENTOS = {
     "pedido_documento_origem": "Pedido do documento de origem",
     "consumidor_gov": "Texto para o consumidor.gov.br",
     "roteiro_negociacao": "Roteiro de negociação",
+    "pedido_carta_anuencia": "Pedido de carta de anuência (protesto)",
+    "contestacao_protesto": "Contestação: protesto indevido",
 }
 
 
@@ -538,6 +604,26 @@ def gerar_documento(tipo: str, caso: Caso, r: Registro, hoje: date | None = None
                 f"Pedido: exclusão do registro negativo e confirmação por escrito da baixa nos birôs.\n"
                 f"Anexo os documentos que comprovam o relato.")
 
+    if tipo == "pedido_carta_anuencia":
+        pago = f" em {data_br(_data(r.data_pagamento))}" if r.data_pagamento else ""
+        motivo = (f"O título foi pago{pago}." if r.situacao in ("ja_paguei", "minha_no_prazo")
+                  else "O protesto é indevido, pelas razões que exponho em separado.")
+        return (f"{cab}\n\n{motivo}\n\n"
+                f"Pelo art. 26 da Lei 9.492/1997, o cancelamento do protesto é feito no cartório mediante a "
+                f"carta de anuência do credor. Solicito a emissão dessa carta, com firma reconhecida ou "
+                f"assinatura eletrônica válida, identificando o título, o valor e o cartório do protesto.\n\n"
+                + _fecho("Peço o envio da carta de anuência no prazo de 5 dias úteis."))
+
+    if tipo == "contestacao_protesto":
+        return (f"{cab}\n\n"
+                + ("Não reconheço esse título. Não contratei com a empresa nem autorizei a operação que o originou. "
+                   if r.situacao == "nao_reconheco" else
+                   f"O valor protestado não corresponde ao devido. {r.observacao}".strip() + " ")
+                + "\n\nSolicito a apresentação do título ou do documento que deu origem ao protesto, com a data de "
+                  "vencimento (CDC art. 6º, VIII). Sem essa comprovação, o protesto é indevido e cabe ao credor "
+                  "fornecer, sem custo para mim, a carta de anuência para o cancelamento (Lei 9.492/1997, art. 26).\n\n"
+                + _fecho("Peço a carta de anuência para o cancelamento do protesto ou a apresentação do título."))
+
     if tipo == "roteiro_negociacao":
         return roteiro_negociacao(r)
 
@@ -614,6 +700,7 @@ SINAIS_DE_GOLPE = [
 
 CHECKLIST = [
     "Puxei o relatório nos três birôs (Serasa, SPC e Boa Vista), não em um só",
+    "Consultei protesto em cartório na CENPROT (pesquisaprotesto.com.br)",
     "Separei os registros em errado, vencido e verdadeiro",
     "Tenho a data de vencimento de cada dívida, não só a data do registro",
     "O texto cita só legislação brasileira, sem lei inventada",
@@ -708,11 +795,12 @@ def link_watson(caso: Caso, r: Registro, hoje: date | None = None) -> str:
 
 _RE_VALOR = re.compile(r"R\$\s?([\d.]+,\d{2})")
 _RE_DATA = re.compile(r"\b(\d{2})/(\d{2})/(\d{4})\b")
-_RE_BIRO = re.compile(r"\b(serasa|spc|boa\s*vista|quod)\b", re.I)
+_RE_BIRO = re.compile(r"\b(serasa|spc|boa\s*vista|quod|protesto|cart[oó]rio|tabelionato)\b", re.I)
 _RE_ROTULO = re.compile(
     r"^(contrato|valor|vencimento|venc\.?|data|inclus[aã]o|situa[cç][aã]o|origem|natureza|"
     r"tipo|registrado|registro|d[ií]vida|d[ée]bito|cpf|cnpj|total|saldo)\b", re.I)
-_BIRO_NOME = {"serasa": "Serasa", "spc": "SPC Brasil", "boavista": "Boa Vista", "quod": "Quod"}
+_BIRO_NOME = {"serasa": "Serasa", "spc": "SPC Brasil", "boavista": "Boa Vista", "quod": "Quod",
+              "protesto": PROTESTO, "cartório": PROTESTO, "cartorio": PROTESTO, "tabelionato": PROTESTO}
 
 
 def _iso(m: tuple[str, str, str]) -> str:
@@ -792,7 +880,7 @@ def importar_texto(texto: str) -> list[Registro]:
 
 _SISTEMA_IA = """Você é um redator especializado em direito do consumidor brasileiro.
 Regras obrigatórias, sem exceção:
-1. Cite apenas legislação brasileira. Use só estas bases: Código de Defesa do Consumidor (art. 6º VIII, art. 43 e parágrafos), Súmulas 323, 359, 385, 404 e 548 do STJ, Lei 12.414/2011. Não invente número de lei, artigo, súmula ou julgado.
+1. Cite apenas legislação brasileira. Use só estas bases: Código de Defesa do Consumidor (art. 6º VIII, art. 43 e parágrafos), Súmulas 323, 359, 385, 404 e 548 do STJ, Lei 12.414/2011 e, para protesto em cartório, Lei 9.492/1997 art. 26 e Tema 725 do STJ. Não invente número de lei, artigo, súmula ou julgado.
 2. Nunca mencione leis estrangeiras (Fair Credit Reporting Act ou similares).
 3. Nunca prometa nem mencione aumento de score, nem prazo para "limpar o nome".
 4. Se faltar um dado para sustentar o pedido, diga qual falta em vez de completar sozinho.
@@ -830,10 +918,11 @@ def refinar_com_ia(texto: str, instrucao: str = "") -> str | None:
     return _chat(_SISTEMA_IA, pedido)
 
 
-_SISTEMA_EXTRACAO = """Você extrai registros de negativação de um texto colado de Serasa, SPC, Boa Vista ou Quod.
+_SISTEMA_EXTRACAO = """Você extrai registros de negativação de um texto colado de Serasa, SPC, Boa Vista, Quod ou de uma consulta de protesto em cartório (CENPROT).
 Devolva SOMENTE um JSON, uma lista de objetos com as chaves:
 credor (string), valor (número em reais, ponto decimal), vencimento (AAAA-MM-DD ou null),
-inclusao (AAAA-MM-DD ou null), biro (Serasa | SPC Brasil | Boa Vista | Quod | Outro), cnpj_credor (string ou "").
+inclusao (AAAA-MM-DD ou null), biro (Serasa | SPC Brasil | Boa Vista | Quod | Cartório de protesto | Outro), cnpj_credor (string ou "").
+Em consulta de protesto, o credor é o "apresentante" ou "cedente" e a data de vencimento é a do título.
 Não invente dados: campo desconhecido fica null ou "". Datas no texto estão em DD/MM/AAAA."""
 
 

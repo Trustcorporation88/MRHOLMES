@@ -324,3 +324,46 @@ def test_link_watson_codifica_o_caso_no_fragmento():
     assert dados["agente"] == "consumidor" and "Banco Ção" in dados["titulo"]
     assert dados["texto"] == ln.texto_para_watson(ln.Caso(registros=[r]), r, HOJE)
     assert len(dados["texto"]) <= 20000
+
+
+# ── protesto em cartório ────────────────────────────────────────────────────
+
+def test_protesto_pago_vai_para_cancelamento_pelo_devedor():
+    r = ln.Registro(credor="Fornecedor X", valor=800, vencimento="2018-01-01", biro=ln.PROTESTO,
+                    situacao="ja_paguei", comprovante=True)
+    a = ln.analisar(r, HOJE)
+    assert a.pilha == "errado" and a.prioridade == 1
+    assert a.limite_5_anos is None            # o prazo de 5 anos do CDC não se aplica ao cartório
+    assert "Tema 725" in a.argumento_principal.base
+    assert a.documentos == ["pedido_carta_anuencia"]
+    assert "CENPROT" in a.proximo_passo
+
+
+def test_protesto_antigo_nao_vira_baixa_por_prazo():
+    r = ln.Registro(credor="X", valor=1, vencimento="2015-01-01", biro=ln.PROTESTO, situacao="nao_sei")
+    a = ln.analisar(r, HOJE)
+    assert a.pilha == "duvida" and "pedido_baixa_prazo" not in a.documentos
+    assert "não cai sozinho" in a.alerta
+
+
+def test_protesto_indevido_pede_anuencia_sem_custo():
+    r = ln.Registro(credor="Loja Z", valor=10, vencimento="2025-01-01", biro=ln.PROTESTO, situacao="nao_reconheco")
+    a = ln.analisar(r, HOJE)
+    assert a.pilha == "errado" and "contestacao_protesto" in a.documentos
+    caso = ln.Caso(nome="Fulano", registros=[r])
+    for tipo in a.documentos:
+        txt = ln.gerar_documento(tipo, caso, r, HOJE)
+        assert "Loja Z" in txt and "R$ 10,00" in txt and "art. 26" in txt
+        assert "score" not in txt.lower()
+
+
+def test_importa_consulta_de_protesto():
+    regs = ln.importar_texto("Cartório de Protesto\nBANCO APRESENTANTE S.A.\nValor: R$ 3.100,00\nVencimento: 02/05/2023")
+    assert regs and regs[0].biro == ln.PROTESTO and regs[0].valor == 3100.0
+
+
+def test_aviso_para_consultar_protesto():
+    caso = ln.Caso(registros=[ln.Registro(credor="A", valor=1, vencimento="2019-01-01")])
+    assert any("protesto" in a for a in ln.avisos_do_caso(caso, HOJE))
+    caso.registros.append(ln.Registro(credor="B", valor=1, biro=ln.PROTESTO))
+    assert not any("pesquisaprotesto" in a for a in ln.avisos_do_caso(caso, HOJE))

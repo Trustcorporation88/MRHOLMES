@@ -104,7 +104,8 @@ def _aba_registros() -> None:
 
     with st.expander("📋 Colar o relatório do birô (Serasa, SPC, Boa Vista, Quod)", expanded=not caso.registros):
         st.caption("Abra o app ou site do birô, copie a lista de dívidas e cole aqui. "
-                   "Puxe nos três: um registro pode estar só num deles.")
+                   "Puxe nos três: um registro pode estar só num deles. Protesto em cartório é separado: "
+                   "consulte grátis na [CENPROT](https://www.pesquisaprotesto.com.br/) e cole aqui também.")
         texto = st.text_area("Texto copiado", key="ln_texto", height=160, label_visibility="collapsed",
                              placeholder="BANCO EXEMPLO S.A.\nValor: R$ 1.250,90\nVencimento: 10/03/2020\n\nLOJA EXEMPLO\nR$ 89,00\n01/02/2023")
         c1, c2 = st.columns(2)
@@ -518,6 +519,8 @@ def _aba_plano() -> None:
         '<a href="https://www.spcbrasil.org.br/" target="_blank">SPC Brasil</a>'
         '<a href="https://www.boavistaservicos.com.br/" target="_blank">Boa Vista</a>'
         '<a href="https://www.quod.com.br/" target="_blank">Quod</a>'
+        '<a href="https://www.pesquisaprotesto.com.br/" target="_blank">Protesto (CENPROT nacional)</a>'
+        '<a href="https://protestosp.com.br/consulta-gratuita-de-protesto" target="_blank">Protesto SP</a>'
         '<a href="https://www.bcb.gov.br/cidadaniafinanceira/registrato" target="_blank">Registrato (Banco Central)</a>'
         '<a href="https://www.consumidor.gov.br/" target="_blank">consumidor.gov.br</a>'
         '<a href="https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm" target="_blank">CDC (texto da lei)</a>'
@@ -535,6 +538,7 @@ def _aba_plano() -> None:
         ("CC art. 206 §3 V", "O pedido de indenização por negativação indevida prescreve em 3 anos."),
         ("CC art. 882", "Dívida prescrita continua existindo: não pode ser cobrada na Justiça, mas quem paga não pode pedir de volta."),
         ("Lei 12.414/2011 + LC 166/2019", "O Cadastro Positivo abre sozinho. Consulta e cancelamento são gratuitos em qualquer birô (brasilnopositivo.com.br)."),
+        ("Lei 9.492/97 art. 26 + Tema 725", "Protesto em cartório: pago o título, o devedor pede o cancelamento com a carta de anuência do credor. Não cai sozinho com o tempo."),
     ]:
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date' style='min-width:220px'>{_html.escape(base)}</div>"
                     f"<div>{_html.escape(texto)}</div></div>", unsafe_allow_html=True)

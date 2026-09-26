@@ -389,6 +389,10 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Contrato e licitação com prefeituras"),
             ("Reclame Aqui", f"https://www.reclameaqui.com.br/busca/?q={formatado}",
              "Reputação, volume de reclamação e resposta da empresa"),
+            ("Protesto em cartório (CENPROT nacional)", "https://www.pesquisaprotesto.com.br/",
+             "Protestos em todos os cartórios do país. Gratuito; digite o documento na página (tem captcha)"),
+            ("Protesto em cartório (IEPTB SP)", "https://protestosp.com.br/consulta-gratuita-de-protesto",
+             "Cartórios de São Paulo, com valor e cartório de cada título. Gratuito"),
         ]
     elif t is EntityType.CPF:
         digits = only_digits(entity.value)
@@ -400,6 +404,10 @@ def br_deeplinks(entity: Entity) -> list[tuple[str, str, str]]:
              "Diário oficial e edital publicam o CPF como ***.456.789-**"),
             ("Querido Diário", f"https://queridodiario.ok.org.br/pesquisa?term={quote_plus(entity.value)}",
              "Diários oficiais municipais que citam o CPF"),
+            ("Protesto em cartório (CENPROT nacional)", "https://www.pesquisaprotesto.com.br/",
+             "Protestos em todos os cartórios do país. Gratuito; digite o documento na página (tem captcha)"),
+            ("Protesto em cartório (IEPTB SP)", "https://protestosp.com.br/consulta-gratuita-de-protesto",
+             "Cartórios de São Paulo, com valor e cartório de cada título. Gratuito"),
         ]
     elif t is EntityType.PROCESSO:
         info = entity.get("cnj") or {}

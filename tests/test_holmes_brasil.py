@@ -130,7 +130,7 @@ def test_deeplinks_br_levam_o_alvo_na_url():
     # Descarta os que são formulário puro (captcha/SPA) — esses são links fixos.
     fixos = ("receita.fazenda.gov.br", "sintegra.fazenda", "fazenda.pr.gov.br",
              "cade.gov.br", "inpi.gov.br", "in.gov.br", "cvm.gov.br",
-             "divulgacandcontas")
+             "divulgacandcontas", "pesquisaprotesto.com.br", "protestosp.com.br")
     for entidade in ("Jose da Silva", "00.000.000/0001-91"):
         ent = detect(entidade)
         # O alvo pode ir na URL só com dígitos ou formatado (é assim que o
@@ -189,3 +189,9 @@ def test_portal_da_transparencia_e_pulado_sem_chave():
     res = conn.execute(detect("Jose da Silva"))
     assert res.status == "pulado"
     assert "chave" in (res.skipped_reason or "")
+
+
+def test_cpf_e_cnpj_tem_consulta_de_protesto():
+    for alvo in ("00.000.000/0001-91", "000.000.001-91"):
+        rotulos = " ".join(r for r, _u, _d in br_deeplinks(detect(alvo)))
+        assert "Protesto em cartório (CENPROT nacional)" in rotulos
