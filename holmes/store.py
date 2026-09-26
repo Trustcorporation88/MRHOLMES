@@ -153,4 +153,12 @@ create table if not exists holmes_alertas (
     lido boolean default false
 );
 create index if not exists holmes_alertas_quando_idx on holmes_alertas (quando desc);
+
+create table if not exists holmes_limpanome (
+    id text primary key,
+    nome text,
+    cpf_mascarado text,
+    dados jsonb,
+    atualizado text
+);
 """
