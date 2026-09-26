@@ -621,6 +621,89 @@ CHECKLIST = [
 ]
 
 
+# ── Passagem para o Holmes jurídico (Watson) ───────────────────────────────
+
+WATSON_URL = os.environ.get("HOLMES_WATSON_URL", "https://watson.trustcorp.com.br/")
+_LIMITE_WATSON = 18000   # o Watson aceita até 20.000 caracteres pelo fragmento
+
+
+def texto_para_watson(caso: Caso, r: Registro, hoje: date | None = None) -> str:
+    """
+    Resumo do caso já organizado para o agente jurídico: fatos, prazos,
+    argumentos com base legal, protocolos e o pedido. É o que ele precisaria
+    perguntar, entregue de uma vez.
+    """
+    hoje = hoje or date.today()
+    a = analisar(r, hoje)
+    linhas = [
+        "Caso enviado pelo Limpa Nome do Mr.Holmes. Sou o consumidor.",
+        "",
+        "FATOS",
+        f"- Credor: {r.credor}" + (f" (CNPJ {r.cnpj_credor})" if r.cnpj_credor else ""),
+        f"- Valor registrado: {r.valor_fmt()}",
+        f"- Birô: {r.biro}",
+        f"- Vencimento informado: {data_br(r.venc()) or 'não sei'}",
+        f"- Inclusão no birô: {data_br(_data(r.inclusao)) or 'não sei'}",
+        f"- Situação: {SITUACOES.get(r.situacao, r.situacao)}",
+        f"- Aviso prévio por escrito antes da inclusão: {NOTIFICADO.get(r.notificado, r.notificado)}",
+    ]
+    if r.situacao == "ja_paguei":
+        linhas.append(f"- Pagamento: {data_br(_data(r.data_pagamento)) or 'data não informada'}, "
+                      f"comprovante: {'sim' if r.comprovante else 'não'}")
+    if r.observacao:
+        linhas.append(f"- Observação: {r.observacao}")
+    if a.limite_5_anos:
+        estado = "já venceu" if (a.dias_para_vencer_prazo or 0) < 0 else "ainda não venceu"
+        linhas.append(f"- Teto de 5 anos (dia seguinte ao vencimento): {data_br(a.limite_5_anos)}, {estado}")
+
+    linhas += ["", f"CLASSIFICAÇÃO: {a.pilha_label}"]
+    if a.argumentos:
+        linhas.append("ARGUMENTOS JÁ IDENTIFICADOS")
+        linhas += [f"- {x.titulo} ({x.base})" for x in a.argumentos]
+
+    prots = [p for p in caso.protocolos if p.registro_id == r.id]
+    if prots:
+        linhas += ["", "O QUE JÁ FOI TENTADO"]
+        for p in sorted(prots, key=lambda x: x.data):
+            est = situacao_protocolo(p, hoje)
+            linha = f"- {CANAIS.get(p.canal, p.canal)} em {data_br(_data(p.data))}"
+            if p.numero:
+                linha += f", protocolo {p.numero}"
+            linha += f": {est['status']}"
+            if p.resposta:
+                linha += f". Resposta da empresa: {p.resposta[:600]}"
+            linhas.append(linha)
+
+    outros = [x for x in caso.registros if x.id != r.id]
+    if outros:
+        legitimas = [x for x in outros if analisar(x, hoje).pilha == "verdadeira"]
+        linhas += ["", f"OUTRAS NEGATIVAÇÕES NO MEU CPF: {len(outros)}"
+                   + (f", das quais {len(legitimas)} são dívidas verdadeiras e no prazo" if legitimas else "")]
+        linhas += [f"- {x.credor}, {x.valor_fmt()}, {x.biro}, {analisar(x, hoje).pilha_label}" for x in outros[:10]]
+
+    linhas += [
+        "",
+        "O QUE PRECISO",
+        "1. Red team antes de tudo: Súmula 385 (outras negativações), prova da notificação prévia, "
+        "data de vencimento, e se a dívida é de fato indevida. Diga com franqueza se vale entrar com ação.",
+        "2. Se valer: petição inicial para o Juizado Especial Cível com exclusão do registro, tutela de "
+        "urgência para suspender a negativação e dano moral com valor fundamentado.",
+        "3. Lista de provas que devo anexar.",
+    ]
+    return "\n".join(linhas)[:_LIMITE_WATSON]
+
+
+def link_watson(caso: Caso, r: Registro, hoje: date | None = None) -> str:
+    """URL do Watson com o caso no fragmento (#caso=...). O fragmento não vai ao
+    servidor: o navegador preenche a caixa do chat e o apaga da barra."""
+    import base64
+
+    dados = {"v": 1, "agente": "consumidor", "titulo": f"Limpa Nome: {r.credor}"[:120],
+             "texto": texto_para_watson(caso, r, hoje)}
+    b64 = base64.urlsafe_b64encode(json.dumps(dados, ensure_ascii=False).encode("utf-8")).decode("ascii")
+    return WATSON_URL.split("#")[0] + "#caso=" + b64.rstrip("=")
+
+
 # ── Importação de texto colado ─────────────────────────────────────────────
 
 _RE_VALOR = re.compile(r"R\$\s?([\d.]+,\d{2})")

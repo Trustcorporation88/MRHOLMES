@@ -283,7 +283,9 @@ def _aba_estrategia() -> None:
             f"<span class='mh-tl-src'>· canal: {ln.CANAIS[a.canal]}</span></div>{alerta_html}"
             f"</div>", unsafe_allow_html=True,
         )
-        c1, c2, _ = st.columns([1, 1, 3])
+        c1, c2, c3, _ = st.columns([1, 1, 1, 2])
+        c3.link_button("⚖️ Holmes jurídico", ln.link_watson(caso, r), use_container_width=True,
+                       help="Leva o caso organizado ao agente jurídico do Watson para uma segunda opinião.")
         c1.button("📄 Gerar documentos", key=f"ln_doc_{r.id}", use_container_width=True,
                   on_click=lambda rid=r.id: st.session_state.update(ln_doc_registro=rid, ln_aba="docs"))
         c2.button("🔎 Quem é esse credor?", key=f"ln_inv_{r.id}", use_container_width=True,
@@ -418,6 +420,11 @@ def _aba_protocolos() -> None:
             + (f"<div class='mh-fact-src'>Resposta: {_html.escape(p.resposta[:300])}</div>" if p.resposta else "")
             + "</div>", unsafe_allow_html=True,
         )
+        if r and (est["atrasado"] or est["status"] == "Recusado"):
+            st.link_button("⚖️ Levar ao Holmes jurídico", ln.link_watson(caso, r), type="primary",
+                           help="Abre o Watson com o caso pronto na caixa do chat e o agente de consumidor "
+                                "escolhido. Ele faz o red team e monta a petição do Juizado. Nada é enviado "
+                                "sem você apertar Enviar.")
         with st.expander("Atualizar este protocolo"):
             with st.form(f"ln_upd_{p.id}", border=False):
                 c1, c2 = st.columns([1, 2])
@@ -478,7 +485,8 @@ def _aba_plano() -> None:
         ("Credor ou birô", "Primeiro pedido, por escrito, com o documento desta ferramenta. Guarde o protocolo."),
         ("consumidor.gov.br", "Sem baixa em 5 dias úteis, ou sem resposta. Público, gratuito, 10 dias úteis de prazo."),
         ("Procon", "Se o consumidor.gov.br não resolver ou a empresa não estiver cadastrada nele."),
-        ("Juizado Especial Cível", "Registro indevido mantido: exclusão mais dano moral. Até 20 salários mínimos sem advogado."),
+        ("Juizado Especial Cível", "Registro indevido mantido: exclusão mais dano moral. Até 20 salários mínimos sem advogado. "
+                                   "O botão ⚖️ leva o caso ao Holmes jurídico, que faz o red team e a petição."),
     ], start=1):
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date'>{i}ª rodada</div>"
                     f"<div><strong>{etapa}</strong> <span class='mh-tl-src'>· {quando}</span></div></div>",
