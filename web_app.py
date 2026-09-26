@@ -10,6 +10,7 @@ from osint_premium import apply_pending_navigation, queue_navigation
 from osint_premium_ui import display_osint_premium
 from robin_workspace import sync_llm_keys_from_session
 from holmes_ui import display_investigar, display_historico, display_monitoramento
+from limpanome_ui import display_limpar_nome
 
 try:
     from dotenv import load_dotenv
@@ -625,6 +626,7 @@ def send_to_dorks(**kwargs):
 # page_id interno permanece estável para o resto do app
 NAV_OPTIONS = [
     "Investigar",
+    "Limpar Nome",
     "Monitoramento",
     "OSINT Premium",
     "Telefone",
@@ -643,6 +645,7 @@ NAV_OPTIONS = [
 ]
 NAV_LABEL = {
     "Investigar": "🔎 INVESTIGAR — caixa única",
+    "Limpar Nome": "🧹 Limpar Nome",
     "Monitoramento": "🔔 Monitoramento",
     "OSINT Premium": "★ OSINT Premium",
     "Telefone": "1 · Telefone",
@@ -667,14 +670,14 @@ def _nav_label(page_id: str) -> str:
 
 # Navegação por botões (menu de verdade, sem bolinha de rádio), agrupada.
 NAV_ICON = {
-    "Investigar": "🔎", "Monitoramento": "🔔", "OSINT Premium": "★",
+    "Investigar": "🔎", "Limpar Nome": "🧹", "Monitoramento": "🔔", "OSINT Premium": "★",
     "Telefone": "📱", "Email": "✉️", "Domínio": "🌐", "Dorks": "🧩",
     "OSINT Avançado": "👤", "Leaks": "🩸", "Rede": "📡", "Gráfico": "🕸️",
     "Ferramentas": "🧰", "Serviços Externos": "🔗", "Aprenda": "🎓",
     "Histórico": "🕘", "Sobre": "ℹ️",
 }
 NAV_SHORT = {
-    "Investigar": "Investigar", "Monitoramento": "Monitoramento",
+    "Investigar": "Investigar", "Limpar Nome": "Limpar Nome", "Monitoramento": "Monitoramento",
     "OSINT Premium": "OSINT Premium", "Telefone": "Telefone", "Email": "Email",
     "Domínio": "Domínio", "Dorks": "Dorks Google", "OSINT Avançado": "Username / Social",
     "Leaks": "Leaks", "Rede": "Rede / IP", "Gráfico": "Grafo",
@@ -682,7 +685,7 @@ NAV_SHORT = {
     "Aprenda": "Aprenda", "Histórico": "Histórico", "Sobre": "Sobre",
 }
 NAV_GROUPS = [
-    ("Principal", ["Investigar", "Monitoramento", "OSINT Premium"]),
+    ("Principal", ["Investigar", "Limpar Nome", "Monitoramento", "OSINT Premium"]),
     ("Ferramentas manuais", ["Telefone", "Email", "Domínio", "Dorks",
                              "OSINT Avançado", "Leaks", "Rede", "Gráfico",
                              "Ferramentas", "Serviços Externos"]),
@@ -754,6 +757,13 @@ with st.sidebar:
 # ── Investigar (caixa única — motor holmes/) ─────────────────────────────────
 if page == "Investigar":
     display_investigar()
+
+
+# ── Monitoramento ────────────────────────────────────────────────────────────
+elif page == "Limpar Nome":
+    page_header("Serviço", "Limpar Nome",
+                "Do relatório do birô até a baixa: classifica, escreve o pedido certo e acompanha os prazos.")
+    display_limpar_nome()
 
 
 # ── Monitoramento ────────────────────────────────────────────────────────────
