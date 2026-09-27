@@ -58,7 +58,11 @@ def _investigar_credor(nome: str) -> None:
 def _painel_caso() -> None:
     caso = _caso()
     with st.expander("👤 Dados do caso e casos salvos", expanded=not caso.registros):
-        c1, c2, c3 = st.columns([2, 2, 1])
+        c1, c2, c4, c3 = st.columns([2, 2, 2, 1])
+        with c4:
+            email = st.text_input("E-mail para lembretes", value=caso.email, key="ln_email",
+                                  placeholder="opcional",
+                                  help="Recebe aviso quando um prazo vencer. Vazio: vai para o e-mail padrão do sistema.")
         with c1:
             nome = st.text_input("Nome completo", value=caso.nome, key="ln_nome",
                                  placeholder="Como está no documento")
@@ -69,6 +73,7 @@ def _painel_caso() -> None:
             st.write("")
             if st.button("Salvar dados", key="ln_salvar_dados", use_container_width=True):
                 caso.nome = nome.strip()
+                caso.email = email.strip()
                 if cpf_raw.strip():
                     from holmes.entity import format_cpf, mascarar, valid_cpf
 
@@ -102,7 +107,34 @@ def _painel_caso() -> None:
 def _aba_registros() -> None:
     caso = _caso()
 
-    with st.expander("📋 Colar o relatório do birô (Serasa, SPC, Boa Vista, Quod)", expanded=not caso.registros):
+    with st.expander("📄 Enviar o relatório em PDF ou print", expanded=not caso.registros):
+        from holmes import limpanome_arquivos as lna
+
+        st.caption("Baixe o relatório no site ou app do Serasa, SPC, Boa Vista ou da CENPROT (protesto) "
+                   "e envie aqui. Pode mandar vários de uma vez. A IA lê e monta a tabela; você revisa depois.")
+        if not lna.disponivel():
+            st.info("Para ler arquivos, configure ANTHROPIC_API_KEY ou OPENAI_API_KEY no Railway. "
+                    "Enquanto isso, use a opção de colar o texto.", icon="🔑")
+        else:
+            arquivos = st.file_uploader("Relatórios", type=list(lna.TIPOS), accept_multiple_files=True,
+                                        key="ln_arquivos", label_visibility="collapsed")
+            biro_arq = st.selectbox("Esses arquivos são de", ["Detectar sozinho"] + list(ln.BIROS),
+                                    key="ln_biro_arq")
+            if arquivos and st.button("Ler arquivos", key="ln_ler_arquivos", type="primary"):
+                total = 0
+                for arq in arquivos:
+                    with st.spinner(f"Lendo {arq.name}…"):
+                        regs, msg = lna.extrair_de_arquivo(
+                            arq.name, arq.getvalue(),
+                            None if biro_arq == "Detectar sozinho" else biro_arq)
+                    (st.success if regs else st.warning)(msg)
+                    caso.registros += regs
+                    total += len(regs)
+                if total:
+                    _salvar()
+                    st.rerun()
+
+    with st.expander("📋 Colar o relatório do birô (Serasa, SPC, Boa Vista, Quod)", expanded=False):
         st.caption("Abra o app ou site do birô, copie a lista de dívidas e cole aqui. "
                    "Puxe nos três: um registro pode estar só num deles. Protesto em cartório é separado: "
                    "consulte grátis na [CENPROT](https://www.pesquisaprotesto.com.br/) e cole aqui também.")
@@ -312,6 +344,8 @@ def _aba_documentos() -> None:
     st.caption(f"Estratégia: **{a.pilha_label}** · canal sugerido: **{ln.CANAIS[a.canal]}**. "
                "Os textos citam só lei brasileira e não prometem score. Revise antes de enviar.")
 
+    _botoes_kit(caso, r, "docs")
+
     tipos = a.documentos
     abas = st.tabs([ln.DOCUMENTOS[t] for t in tipos])
     for aba, tipo in zip(abas, tipos):
@@ -387,6 +421,44 @@ def _form_protocolo(r: ln.Registro, canal_padrao: str = "consumidor.gov.br", cha
             st.success("Protocolo registrado. Acompanhe na aba 4.")
 
 
+def _botoes_kit(caso: ln.Caso, r: ln.Registro, chave: str) -> None:
+    """Kit do Juizado e do Procon: PDF quando há reportlab, Markdown sempre."""
+    from holmes import limpanome_kit as kit
+
+    nome = "".join(c if c.isalnum() else "_" for c in r.credor)[:40] or "credor"
+    c1, c2 = st.columns(2)
+    if kit.disponivel_pdf():
+        try:
+            c1.download_button("📕 Kit do Juizado (PDF)", kit.kit_pdf(caso, r), file_name=f"kit_juizado_{nome}.pdf",
+                               mime="application/pdf", use_container_width=True, key=f"ln_kit_pdf_{chave}_{r.id}",
+                               help="Linha do tempo, protocolos, fundamentos, pedidos e provas. Para o Procon ou o Juizado.")
+        except Exception:
+            c1.caption("Não consegui gerar o PDF agora. Use a versão em texto.")
+    c2.download_button("📝 Kit em texto", kit.kit_markdown(caso, r), file_name=f"kit_juizado_{nome}.md",
+                       mime="text/markdown", use_container_width=True, key=f"ln_kit_md_{chave}_{r.id}")
+
+
+def _lembretes() -> None:
+    from holmes import notify
+
+    caso = _caso()
+    pend = ln.pendencias_de_prazo(caso)
+    with st.expander(f"📧 Lembretes por e-mail{f' ({len(pend)} pendente(s))' if pend else ''}"):
+        if not notify.configured():
+            st.caption("Para receber aviso quando um prazo vencer, configure no Railway: SMTP_HOST, SMTP_PORT, "
+                       "SMTP_USER, SMTP_PASSWORD (senha de app) e ALERT_EMAIL. Para o envio automático diário, "
+                       "crie um Cron no Railway rodando `python -m holmes.limpanome`.")
+            return
+        destino = caso.email or "o e-mail padrão do sistema"
+        st.caption(f"Os avisos deste caso vão para {destino}. Cada prazo vencido é avisado uma vez. "
+                   "Para o envio automático diário, crie um Cron no Railway rodando `python -m holmes.limpanome`.")
+        if pend and st.button(f"Enviar {len(pend)} lembrete(s) agora", key="ln_lembrete_agora"):
+            n = ln.enviar_lembretes(casos=[caso])
+            (st.success if n else st.error)("E-mail enviado." if n else "Não consegui enviar. Confira o SMTP.")
+        elif not pend:
+            st.caption("Nenhum prazo vencido sem aviso neste caso.")
+
+
 # ── Aba 4: protocolos ──────────────────────────────────────────────────────
 
 def _aba_protocolos() -> None:
@@ -404,6 +476,7 @@ def _aba_protocolos() -> None:
     atrasados = [p for p in caso.protocolos if ln.situacao_protocolo(p)["atrasado"]]
     if atrasados:
         st.warning(f"{len(atrasados)} protocolo(s) com prazo vencido. Veja a ação sugerida em cada um.", icon="⏰")
+    _lembretes()
 
     for p in sorted(caso.protocolos, key=lambda x: x.data, reverse=True):
         r = caso.registro(p.registro_id)
@@ -422,10 +495,14 @@ def _aba_protocolos() -> None:
             + "</div>", unsafe_allow_html=True,
         )
         if r and (est["atrasado"] or est["status"] == "Recusado"):
-            st.link_button("⚖️ Levar ao Holmes jurídico", ln.link_watson(caso, r), type="primary",
+            b1, b2 = st.columns([1, 2])
+            b1.link_button("⚖️ Levar ao Holmes jurídico", ln.link_watson(caso, r), type="primary",
+                           use_container_width=True,
                            help="Abre o Watson com o caso pronto na caixa do chat e o agente de consumidor "
                                 "escolhido. Ele faz o red team e monta a petição do Juizado. Nada é enviado "
                                 "sem você apertar Enviar.")
+            with b2:
+                _botoes_kit(caso, r, f"prot_{p.id}")
         with st.expander("Atualizar este protocolo"):
             with st.form(f"ln_upd_{p.id}", border=False):
                 c1, c2 = st.columns([1, 2])
