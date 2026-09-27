@@ -86,6 +86,38 @@ def _painel_caso() -> None:
     _metricas(caso)
 
 
+
+def botoes_cnpj(cnpj: str, prefixo: str) -> None:
+    """Comprovante oficial da Receita e, como opção, o relatório completo do
+    CNPJ Trust (sócios, Simples, MEI, inscrições estaduais, capital)."""
+    from holmes import cnpj_trust
+
+    if not cnpj_trust.configurado():
+        return
+    nome = cnpj.replace("/", "-").replace(".", "")
+    b1, b2 = st.columns(2)
+    if b1.button("📄 Comprovante do CNPJ (PDF da Receita)", key=f"{prefixo}_comprovante", use_container_width=True,
+                 help="Documento oficial de inscrição e situação cadastral. O Juizado pede junto com o pedido."):
+        with st.spinner("Emitindo o comprovante…"):
+            pdf = cnpj_trust.comprovante_pdf(cnpj)
+        if pdf:
+            b1.download_button("⬇️ Baixar comprovante", pdf, file_name=f"comprovante_{nome}.pdf",
+                               mime="application/pdf", key=f"{prefixo}_comprovante_dl", use_container_width=True)
+        else:
+            b1.warning("Não consegui emitir o comprovante agora. Tente de novo em instantes.")
+    if b2.button("🏢 CNPJ completo (sócios, Simples, inscrições)", key=f"{prefixo}_cnpj_completo",
+                 use_container_width=True,
+                 help="Relatório com tudo o que o CNPJ Trust encontrou: quadro de sócios, porte, "
+                      "Simples e MEI, capital social, contatos e inscrições estaduais."):
+        with st.spinner("Montando o relatório completo…"):
+            rel = cnpj_trust.relatorio(cnpj)
+        if rel:
+            conteudo, ext, mime = rel
+            b2.download_button("⬇️ Baixar CNPJ completo", conteudo, file_name=f"cnpj_completo_{nome}.{ext}",
+                               mime=mime, key=f"{prefixo}_cnpj_completo_dl", use_container_width=True)
+        else:
+            b2.warning("Não consegui consultar o CNPJ completo agora. Tente de novo em instantes.")
+
 def _dados_empresa(caso: ln.Caso) -> None:
     c1, c2, c3 = st.columns([2, 1, 1])
     cnpj = c1.text_input("CNPJ", value=caso.cnpj, key="ln_cnpj", placeholder="00.000.000/0001-00")
@@ -100,18 +132,8 @@ def _dados_empresa(caso: ln.Caso) -> None:
             _salvar()
             st.success(f"{caso.razao_social}: {ln.PORTES.get(caso.porte, 'porte não informado')}.")
     email = c3.text_input("E-mail para lembretes", value=caso.email, key="ln_email_pj", placeholder="opcional")
-    from holmes import cnpj_trust
-
-    if caso.cnpj and cnpj_trust.configurado():
-        if st.button("📄 Comprovante do CNPJ (PDF da Receita)", key="ln_comprovante",
-                     help="Documento oficial de inscrição e situação cadastral. O Juizado pede junto com o pedido."):
-            with st.spinner("Emitindo o comprovante…"):
-                pdf = cnpj_trust.comprovante_pdf(caso.cnpj)
-            if pdf:
-                st.download_button("⬇️ Baixar comprovante", pdf, file_name=f"comprovante_{caso.cnpj.replace('/', '-')}.pdf",
-                                   mime="application/pdf", key="ln_comprovante_dl")
-            else:
-                st.warning("Não consegui emitir o comprovante agora. Tente de novo em instantes.")
+    if caso.cnpj:
+        botoes_cnpj(caso.cnpj, "ln")
     d1, d2, d3 = st.columns([2, 1, 1])
     razao = d1.text_input("Razão social", value=caso.razao_social, key="ln_razao")
     portes = list(ln.PORTES)

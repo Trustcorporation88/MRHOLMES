@@ -28,7 +28,6 @@ st.set_page_config(
 
 # ── Design system ────────────────────────────────────────────────────────────
 # Injeta CSS no documento pai (markdown do Streamlit novo remove <style> e mostra texto)
-import streamlit.components.v1 as _components
 
 _CSS = r"""
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -575,22 +574,9 @@ if "tema_escuro" not in st.session_state:
     st.session_state["tema_escuro"] = st.query_params.get("tema") == "escuro"
 _TEMA_CSS = _CSS + (_CSS_DARK if st.session_state["tema_escuro"] else "")
 
-_components.html(
-    f"""<script>
-    (function() {{
-      const doc = window.parent.document;
-      let s = doc.getElementById('mh-theme');
-      if (!s) {{
-        s = doc.createElement('style');
-        s.id = 'mh-theme';
-        doc.head.appendChild(s);
-      }}
-      s.textContent = {_TEMA_CSS!r};
-    }})();
-    </script>""",
-    height=0,
-    width=0,
-)
+# st.html com só <style> vai para o container de eventos: não ocupa espaço
+# na página e, como não fica em iframe, o CSS vale para o app inteiro.
+st.html("<style>" + _TEMA_CSS + "</style>")
 
 
 def page_header(eyebrow: str, title: str, desc: str = ""):

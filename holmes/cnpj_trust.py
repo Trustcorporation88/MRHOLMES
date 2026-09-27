@@ -208,3 +208,122 @@ def comprovante_pdf(cnpj: str) -> bytes | None:
     if r.status_code != 200 or not r.content.startswith(b"%PDF"):
         return None
     return r.content
+
+
+def _moeda(v) -> str:
+    if not isinstance(v, (int, float)):
+        return ""
+    return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _sim_nao(v) -> str:
+    return "não informado" if v is None else ("sim" if v else "não")
+
+
+def secoes_relatorio(d: dict) -> list[tuple[str, list[str]]]:
+    """[(título, [linhas])] do relatório completo. Base do PDF e do Markdown."""
+    cadastro = [linha for linha in (
+        f"Razão social: {d.get('razao_social')}" if d.get("razao_social") else "",
+        f"Nome fantasia: {d.get('fantasia')}" if d.get("fantasia") else "",
+        f"CNPJ: {d.get('cnpj')}" if d.get("cnpj") else "",
+        f"Situação cadastral: {d.get('situacao')}" if d.get("situacao") else "",
+        f"Abertura: {d.get('abertura')}" if d.get("abertura") else "",
+        f"Natureza jurídica: {d.get('natureza')}" if d.get("natureza") else "",
+        f"Atividade principal: {d.get('atividade')}" if d.get("atividade") else "",
+    ) if linha]
+    tributario = [
+        f"Porte: {d.get('porte') or 'não informado'}",
+        f"Optante do Simples Nacional: {_sim_nao(d.get('simples'))}",
+        f"MEI: {_sim_nao(d.get('mei'))}",
+    ]
+    if _moeda(d.get("capital_social")):
+        tributario.append(f"Capital social: {_moeda(d.get('capital_social'))}")
+    contato = ([f"Endereço: {d['endereco']}"] if d.get("endereco") else []) \
+        + [f"Telefone: {t}" for t in d.get("telefones") or []] \
+        + [f"E-mail: {e}" for e in d.get("emails") or []]
+    socios = []
+    for s in d.get("socios") or []:
+        extra = ", ".join(p for p in (s.get("qualificacao"),
+                                      f"desde {s['desde']}" if s.get("desde") else "",
+                                      f"faixa etária {s['faixa_etaria']}" if s.get("faixa_etaria") else "",
+                                      f"documento {s['documento']}" if s.get("documento") else "") if p)
+        socios.append(f"{s['nome']}" + (f" ({extra})" if extra else ""))
+    inscricoes = [f"IE {i['numero']} ({i['uf']}): {'ativa' if i.get('ativa') else 'inativa'}"
+                  + (f", {i['situacao']}" if i.get("situacao") else "")
+                  + (f", {i['tipo']}" if i.get("tipo") else "")
+                  for i in d.get("inscricoes") or []]
+    return [
+        ("Cadastro", cadastro or ["Sem dados cadastrais."]),
+        ("Porte e tributação", tributario),
+        ("Contato", contato or ["Sem contato cadastral."]),
+        (f"Quadro de sócios ({len(socios)})", socios or ["Nenhum sócio informado pela fonte."]),
+        (f"Inscrições estaduais ({len(inscricoes)})", inscricoes or ["Nenhuma inscrição estadual encontrada."]),
+    ]
+
+
+def relatorio_markdown(d: dict, hoje=None) -> str:
+    from datetime import date
+
+    hoje = hoje or date.today()
+    partes = [f"# CNPJ completo: {d.get('razao_social') or d.get('cnpj')}",
+              f"_Fonte: CNPJ Trust ({d.get('provedor')}), consultado em {hoje.strftime('%d/%m/%Y')}._", ""]
+    for titulo, linhas in secoes_relatorio(d):
+        partes.append(f"## {titulo}")
+        partes += [f"- {l}" for l in linhas]
+        partes.append("")
+    return "\n".join(partes)
+
+
+def relatorio_pdf(d: dict, hoje=None) -> bytes:
+    """PDF do relatório completo. Levanta ImportError se reportlab faltar."""
+    import io
+    from datetime import date
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import HRFlowable, ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
+
+    hoje = hoje or date.today()
+
+    def esc(t) -> str:
+        return str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=18 * mm, bottomMargin=18 * mm,
+                            leftMargin=18 * mm, rightMargin=18 * mm, title=f"CNPJ completo: {d.get('cnpj')}")
+    ss = getSampleStyleSheet()
+    eyebrow = ParagraphStyle("eb", parent=ss["Normal"], fontSize=8, textColor=colors.HexColor("#5b5bf0"))
+    h1 = ParagraphStyle("h1", parent=ss["Title"], fontSize=18, alignment=0, spaceAfter=2,
+                        textColor=colors.HexColor("#1d2239"))
+    meta = ParagraphStyle("meta", parent=ss["Normal"], fontSize=9, textColor=colors.HexColor("#5d6480"))
+    h2 = ParagraphStyle("h2", parent=ss["Heading2"], fontSize=12, spaceBefore=10, spaceAfter=4,
+                        textColor=colors.HexColor("#1d2239"))
+    body = ParagraphStyle("body", parent=ss["Normal"], fontSize=10, leading=14)
+    el: list = [
+        Paragraph("CNPJ COMPLETO · MR.HOLMES", eyebrow),
+        Paragraph(esc(d.get("razao_social") or d.get("cnpj")), h1),
+        Paragraph(f"{esc(d.get('cnpj'))} · fonte CNPJ Trust ({esc(d.get('provedor'))}) · "
+                  f"consultado em {hoje.strftime('%d/%m/%Y')}", meta),
+        Spacer(1, 6),
+        HRFlowable(width="100%", thickness=2, color=colors.HexColor("#5b5bf0")),
+    ]
+    for titulo, linhas in secoes_relatorio(d):
+        el.append(Paragraph(esc(titulo), h2))
+        el.append(ListFlowable([ListItem(Paragraph(esc(l), body), leftIndent=10) for l in linhas],
+                               bulletType="bullet", start="•", leftIndent=12))
+    doc.build(el)
+    return buf.getvalue()
+
+
+def relatorio(cnpj: str) -> tuple[bytes, str, str] | None:
+    """(conteúdo, extensão, mime) do relatório completo: PDF se houver reportlab,
+    senão Markdown. None se a consulta falhar."""
+    d = consultar(cnpj)
+    if not d:
+        return None
+    try:
+        return relatorio_pdf(d), "pdf", "application/pdf"
+    except ImportError:
+        return relatorio_markdown(d).encode("utf-8"), "md", "text/markdown"
