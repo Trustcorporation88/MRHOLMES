@@ -58,31 +58,14 @@ def _investigar_credor(nome: str) -> None:
 def _painel_caso() -> None:
     caso = _caso()
     with st.expander("👤 Dados do caso e casos salvos", expanded=not caso.registros):
-        c1, c2, c4, c3 = st.columns([2, 2, 2, 1])
-        with c4:
-            email = st.text_input("E-mail para lembretes", value=caso.email, key="ln_email",
-                                  placeholder="opcional",
-                                  help="Recebe aviso quando um prazo vencer. Vazio: vai para o e-mail padrão do sistema.")
-        with c1:
-            nome = st.text_input("Nome completo", value=caso.nome, key="ln_nome",
-                                 placeholder="Como está no documento")
-        with c2:
-            cpf_raw = st.text_input("CPF", value="", key="ln_cpf", placeholder="000.000.000-00",
-                                    help="Fica salvo só mascarado (000.***.***-00). O número completo nunca vai para o disco.")
-        with c3:
-            st.write("")
-            if st.button("Salvar dados", key="ln_salvar_dados", use_container_width=True):
-                caso.nome = nome.strip()
-                caso.email = email.strip()
-                if cpf_raw.strip():
-                    from holmes.entity import format_cpf, mascarar, valid_cpf
-
-                    if valid_cpf(cpf_raw):
-                        caso.cpf_mascarado = mascarar(format_cpf(cpf_raw))
-                    else:
-                        st.error("CPF inválido: confira os dígitos.")
-                _salvar()
-                st.success("Salvo.")
+        tipo = st.radio("Quem está com o nome sujo?", ["pf", "pj"], index=1 if caso.pj else 0, horizontal=True,
+                        format_func={"pf": "👤 Pessoa física (CPF)", "pj": "🏢 Empresa (CNPJ)"}.get, key="ln_tipo")
+        if tipo == "pj":
+            _dados_empresa(caso)
+        else:
+            if caso.pj:
+                caso.tipo = "pf"
+            _dados_pessoa(caso)
 
         salvos = ln.listar_casos()
         if salvos:
@@ -94,6 +77,81 @@ def _painel_caso() -> None:
                                            on_click=_abrir, args=(c["id"],))
         st.button("➕ Novo caso", key="ln_novo", on_click=_novo)
 
+    if caso.pj:
+        porte = ln.PORTES.get(caso.porte, "porte não informado")
+        juizado = "pode usar o Juizado" if caso.pode_juizado else "não cabe no Juizado"
+        st.caption(f"🏢 {caso.razao_social or caso.nome or 'Empresa'} · CNPJ {caso.cnpj or 'não informado'} · "
+                   f"{porte} · {juizado}"
+                   + (f" · situação {caso.situacao_cadastral}" if caso.situacao_cadastral else ""))
+    _metricas(caso)
+
+
+def _dados_empresa(caso: ln.Caso) -> None:
+    c1, c2, c3 = st.columns([2, 1, 1])
+    cnpj = c1.text_input("CNPJ", value=caso.cnpj, key="ln_cnpj", placeholder="00.000.000/0001-00")
+    c2.write("")
+    if c2.button("🔎 Buscar na Receita", key="ln_buscar_cnpj", use_container_width=True,
+                 help="Preenche razão social, porte e situação cadastral pela consulta pública do CNPJ."):
+        with st.spinner("Consultando a Receita…"):
+            erro = ln.preencher_empresa(caso, cnpj)
+        if erro:
+            st.warning(erro)
+        else:
+            _salvar()
+            st.success(f"{caso.razao_social}: {ln.PORTES.get(caso.porte, 'porte não informado')}.")
+    email = c3.text_input("E-mail para lembretes", value=caso.email, key="ln_email_pj", placeholder="opcional")
+    d1, d2, d3 = st.columns([2, 1, 1])
+    razao = d1.text_input("Razão social", value=caso.razao_social, key="ln_razao")
+    portes = list(ln.PORTES)
+    porte = d2.selectbox("Porte", portes, index=portes.index(caso.porte) if caso.porte in portes else len(portes) - 1,
+                         format_func=ln.PORTES.get, key="ln_porte",
+                         help="MEI, ME e EPP podem usar o Juizado Especial. Só o MEI usa o consumidor.gov.br.")
+    d3.write("")
+    if d3.button("Salvar dados", key="ln_salvar_pj", use_container_width=True):
+        from holmes.entity import format_cnpj, valid_cnpj
+
+        if cnpj.strip() and not valid_cnpj(cnpj):
+            st.error("CNPJ inválido: confira os dígitos.")
+            return
+        caso.tipo = "pj"
+        caso.cnpj = format_cnpj(cnpj) if cnpj.strip() else caso.cnpj
+        caso.razao_social = razao.strip()
+        caso.nome = caso.razao_social or caso.nome
+        caso.porte = porte
+        caso.email = email.strip()
+        _salvar()
+        st.success("Salvo.")
+
+
+def _dados_pessoa(caso: ln.Caso) -> None:
+    c1, c2, c4, c3 = st.columns([2, 2, 2, 1])
+    with c4:
+        email = st.text_input("E-mail para lembretes", value=caso.email, key="ln_email",
+                              placeholder="opcional",
+                              help="Recebe aviso quando um prazo vencer. Vazio: vai para o e-mail padrão do sistema.")
+    with c1:
+        nome = st.text_input("Nome completo", value=caso.nome, key="ln_nome",
+                             placeholder="Como está no documento")
+    with c2:
+        cpf_raw = st.text_input("CPF", value="", key="ln_cpf", placeholder="000.000.000-00",
+                                help="Fica salvo só mascarado (000.***.***-00). O número completo nunca vai para o disco.")
+    with c3:
+        st.write("")
+        if st.button("Salvar dados", key="ln_salvar_dados", use_container_width=True):
+            caso.nome = nome.strip()
+            caso.email = email.strip()
+            if cpf_raw.strip():
+                from holmes.entity import format_cpf, mascarar, valid_cpf
+
+                if valid_cpf(cpf_raw):
+                    caso.cpf_mascarado = mascarar(format_cpf(cpf_raw))
+                else:
+                    st.error("CPF inválido: confira os dígitos.")
+            _salvar()
+            st.success("Salvo.")
+
+
+def _metricas(caso: ln.Caso) -> None:
     s = ln.resumo(caso)
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Registros", s["registros"])
@@ -339,7 +397,7 @@ def _aba_documentos() -> None:
     idx = ids.index(padrao) if padrao in ids else 0
     r = st.selectbox("Registro", caso.registros, index=idx, key="ln_doc_sel",
                      format_func=lambda x: f"{x.credor} · {x.valor_fmt()} · {x.biro}")
-    a = ln.analisar(r)
+    a = ln.analisar(r, caso=caso)
 
     st.caption(f"Estratégia: **{a.pilha_label}** · canal sugerido: **{ln.CANAIS[a.canal]}**. "
                "Os textos citam só lei brasileira e não prometem score. Revise antes de enviar.")
@@ -561,20 +619,25 @@ def _aba_plano() -> None:
     n4.metric("0", "formas legais de apagar dívida verdadeira")
 
     st.markdown('<div class="mh-section">Escalada, quando o canal não resolve</div>', unsafe_allow_html=True)
-    for i, (etapa, quando) in enumerate([
-        ("Credor ou birô", "Primeiro pedido, por escrito, com o documento desta ferramenta. Guarde o protocolo."),
-        ("consumidor.gov.br", "Sem baixa em 5 dias úteis, ou sem resposta. Público, gratuito, 10 dias úteis de prazo."),
-        ("Procon", "Se o consumidor.gov.br não resolver ou a empresa não estiver cadastrada nele."),
-        ("Juizado Especial Cível", "Registro indevido mantido: exclusão mais dano moral. Até 20 salários mínimos sem advogado. "
-                                   "O botão ⚖️ leva o caso ao Holmes jurídico, que faz o red team e a petição."),
-    ], start=1):
+    for i, (etapa, quando) in enumerate(ln.escalada(caso), start=1):
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date'>{i}ª rodada</div>"
-                    f"<div><strong>{etapa}</strong> <span class='mh-tl-src'>· {quando}</span></div></div>",
+                    f"<div><strong>{_html.escape(etapa)}</strong> <span class='mh-tl-src'>· {_html.escape(quando)}</span></div></div>",
                     unsafe_allow_html=True)
+    st.caption("O botão ⚖️ nos protocolos leva o caso ao Holmes jurídico, que faz o red team e a petição.")
+
+    if caso.pj:
+        st.markdown('<div class="mh-section">Certidões da empresa</div>', unsafe_allow_html=True)
+        st.caption("Para empresa, nome limpo não é só Serasa: banco, fornecedor e licitação pedem as certidões. "
+                   "Todas são gratuitas. Marque conforme tirar.")
+        for i, (titulo, url, texto) in enumerate(ln.CERTIDOES_PJ):
+            a, b = st.columns([1, 3])
+            a.checkbox(titulo, key=f"ln_cert_{i}")
+            b.markdown(f"<div class='mh-soft'><a href='{url}' target='_blank'>Abrir</a> · {_html.escape(texto)}</div>",
+                       unsafe_allow_html=True)
 
     st.markdown('<div class="mh-section">Plano de 12 meses, depois da baixa</div>', unsafe_allow_html=True)
     st.caption("Contestar e subir score são coisas diferentes. Isto é o que move o score de verdade.")
-    for item in ln.plano_12_meses(s["baixados"]):
+    for item in (ln.plano_12_meses_pj() if caso.pj else ln.plano_12_meses(s["baixados"])):
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date'>Mês {item['mes']}</div>"
                     f"<div>{_html.escape(item['acao'])} <span class='mh-tl-src'>· {_html.escape(item['porque'])}</span></div></div>",
                     unsafe_allow_html=True)
@@ -591,7 +654,8 @@ def _aba_plano() -> None:
                         f"<span class='mh-fact-val'>{_html.escape(titulo)}</span>"
                         f"<div class='mh-fact-detail'>{_html.escape(texto)}</div></div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="mh-section">Consulte o seu CPF de graça</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="mh-section">Consulte o seu {"CNPJ" if caso.pj else "CPF"} de graça</div>',
+                unsafe_allow_html=True)
     st.markdown(
         '<div class="mh-quick-links">'
         '<a href="https://www.serasa.com.br/" target="_blank">Serasa</a>'
@@ -617,6 +681,9 @@ def _aba_plano() -> None:
         ("CC art. 206 §3 V", "O pedido de indenização por negativação indevida prescreve em 3 anos."),
         ("CC art. 882", "Dívida prescrita continua existindo: não pode ser cobrada na Justiça, mas quem paga não pode pedir de volta."),
         ("Lei 12.414/2011 + LC 166/2019", "O Cadastro Positivo abre sozinho. Consulta e cancelamento são gratuitos em qualquer birô (brasilnopositivo.com.br)."),
+        ("Súmula 227 + AgRg REsp 860.704", "Empresa também sofre dano moral por negativação indevida, sem precisar provar prejuízo."),
+        ("Lei 9.099/95 art. 8º §1º II", "MEI, microempresa e empresa de pequeno porte podem entrar no Juizado Especial."),
+        ("Lei 10.522/2002 art. 2º §5º", "Dívida com o governo paga ou parcelada: baixa no CADIN em 5 dias úteis."),
         ("Lei 9.492/97 art. 26 + Tema 725", "Protesto em cartório: pago o título, o devedor pede o cancelamento com a carta de anuência do credor. Não cai sozinho com o tempo."),
     ]:
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date' style='min-width:220px'>{_html.escape(base)}</div>"
