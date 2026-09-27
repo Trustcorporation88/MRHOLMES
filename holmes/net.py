@@ -52,6 +52,7 @@ _KEY_ALIASES = {
     "anthropic": ("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
     "brightdata": ("BRIGHTDATA_API_KEY", "BRIGHT_DATA_API_KEY", "BRD_API_KEY"),
     "github": ("HOLMES_GITHUB_TOKEN",),
+    "cnpj_trust": ("CNPJ_TRUST_KEY",),
 }
 
 # Chaves coladas na UI nesta sessão (não persistem em disco).

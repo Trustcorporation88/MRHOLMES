@@ -812,6 +812,16 @@ def register_auto_connectors() -> None:
         accepts=(EntityType.CNPJ,), category="brasil", run=br.cnpj_findings,
         description="Razão social, endereço, contatos e quadro societário",
     ))
+    from .. import cnpj_trust
+
+    register(Connector(
+        id="cnpj_trust", label="CNPJ Trust (consulta completa)", mode=Mode.AUTO,
+        accepts=(EntityType.CNPJ,), category="brasil", run=cnpj_trust.findings,
+        requires_key="cnpj_trust", cost="pago", timeout=35,
+        description="Sócios com cargo e data de entrada, Simples e MEI confirmados, inscrições "
+                    "estaduais e capital social, via cnpj.trustcorp.com.br (CNPJá e SintegraWS)",
+        homepage="https://cnpj.trustcorp.com.br",
+    ))
 
     # ── Sanções/PEP no mundo todo + Wikipédia/Wikidata ──────────────────────
     from .. import sanctions, wiki

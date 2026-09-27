@@ -1264,6 +1264,17 @@ def preencher_empresa(caso: Caso, cnpj: str, consulta=None) -> str | None:
     caso.tipo = "pj"
     caso.cnpj = format_cnpj(cnpj)
     if consulta is None:
+        # CNPJ Trust primeiro: confirma MEI e Simples, que a consulta gratuita nem sempre traz.
+        from . import cnpj_trust
+
+        if cnpj_trust.configurado():
+            d = cnpj_trust.consultar(caso.cnpj)
+            if d:
+                caso.razao_social = (d["razao_social"] or caso.razao_social)[:160]
+                caso.nome = caso.nome or caso.razao_social
+                caso.porte = d["porte"] or caso.porte
+                caso.situacao_cadastral = (d["situacao"] or "")[:40]
+                return None
         from .br import consulta_cnpj as consulta
     try:
         dados = consulta(caso.cnpj) or {}

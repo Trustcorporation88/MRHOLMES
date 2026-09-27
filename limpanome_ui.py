@@ -100,6 +100,18 @@ def _dados_empresa(caso: ln.Caso) -> None:
             _salvar()
             st.success(f"{caso.razao_social}: {ln.PORTES.get(caso.porte, 'porte não informado')}.")
     email = c3.text_input("E-mail para lembretes", value=caso.email, key="ln_email_pj", placeholder="opcional")
+    from holmes import cnpj_trust
+
+    if caso.cnpj and cnpj_trust.configurado():
+        if st.button("📄 Comprovante do CNPJ (PDF da Receita)", key="ln_comprovante",
+                     help="Documento oficial de inscrição e situação cadastral. O Juizado pede junto com o pedido."):
+            with st.spinner("Emitindo o comprovante…"):
+                pdf = cnpj_trust.comprovante_pdf(caso.cnpj)
+            if pdf:
+                st.download_button("⬇️ Baixar comprovante", pdf, file_name=f"comprovante_{caso.cnpj.replace('/', '-')}.pdf",
+                                   mime="application/pdf", key="ln_comprovante_dl")
+            else:
+                st.warning("Não consegui emitir o comprovante agora. Tente de novo em instantes.")
     d1, d2, d3 = st.columns([2, 1, 1])
     razao = d1.text_input("Razão social", value=caso.razao_social, key="ln_razao")
     portes = list(ln.PORTES)
