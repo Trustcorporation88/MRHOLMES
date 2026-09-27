@@ -879,8 +879,8 @@ def display_monitoramento() -> None:
             st.caption("📧 Aviso por e-mail ativo — novidades são enviadas para você.")
         else:
             st.caption(
-                "📧 Aviso por e-mail desligado. Configure SMTP_HOST, SMTP_USER, "
-                "SMTP_PASSWORD e ALERT_EMAIL no Railway para receber as novidades por e-mail."
+                "📧 Aviso por e-mail desligado. Configure RESEND_API_KEY, RESEND_FROM e ALERT_EMAIL "
+                "(ou SMTP_HOST, SMTP_USER e SMTP_PASSWORD) no Railway para receber as novidades por e-mail."
             )
     except Exception:
         pass

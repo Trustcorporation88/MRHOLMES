@@ -1,16 +1,20 @@
 """
 Notificação por e-mail.
 
-Quando o monitoramento acha novidade num alvo, manda um e-mail para você.
-Usa SMTP puro (biblioteca padrão) — funciona com Gmail (senha de app),
-Outlook, ou qualquer servidor SMTP. Sem serviço pago, sem dependência nova.
+Quando o monitoramento acha novidade num alvo, ou um prazo do Limpa Nome
+vence, manda um e-mail. Dois caminhos, nesta ordem:
 
-Configuração por variáveis de ambiente (no Railway):
-  SMTP_HOST      ex.: smtp.gmail.com
-  SMTP_PORT      ex.: 587
-  SMTP_USER      seu e-mail de envio
-  SMTP_PASSWORD  senha de app (NÃO a senha normal da conta)
-  ALERT_EMAIL    para onde mandar o alerta (se vazio, usa SMTP_USER)
+1. Resend (API HTTP, recomendado): só uma chave, melhor entrega.
+     RESEND_API_KEY  chave re_... do painel do Resend
+     RESEND_FROM     remetente, ex.: "Mr.Holmes <alertas@trustcorp.com.br>"
+                     (o domínio precisa estar verificado no Resend; sem isso,
+                     o Resend só aceita onboarding@resend.dev e só entrega
+                     para o e-mail dono da conta)
+2. SMTP (biblioteca padrão), ex.: Gmail com senha de app.
+     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+
+Em ambos:
+  ALERT_EMAIL    destino padrão dos alertas (se vazio, usa SMTP_USER)
 """
 
 from __future__ import annotations
@@ -20,20 +24,68 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
+RESEND_URL = "https://api.resend.com/emails"
 
-def configured() -> bool:
+
+def _env(nome: str) -> str:
+    return (os.environ.get(nome) or "").strip().strip('"').strip("'")
+
+
+def resend_configurado() -> bool:
+    return bool(_env("RESEND_API_KEY"))
+
+
+def smtp_configurado() -> bool:
     return bool(os.environ.get("SMTP_HOST") and os.environ.get("SMTP_USER")
                 and os.environ.get("SMTP_PASSWORD"))
+
+
+def configured() -> bool:
+    return resend_configurado() or smtp_configurado()
+
+
+def provedor() -> str:
+    """Nome do canal que vai ser usado, para mostrar na tela."""
+    if resend_configurado():
+        return "Resend"
+    if smtp_configurado():
+        return "SMTP"
+    return ""
 
 
 def _destino() -> str:
     return (os.environ.get("ALERT_EMAIL") or os.environ.get("SMTP_USER") or "").strip()
 
 
+def _send_resend(assunto: str, corpo: str, destino: str) -> bool:
+    import requests
+
+    remetente = _env("RESEND_FROM") or "Mr.Holmes <onboarding@resend.dev>"
+    try:
+        resp = requests.post(
+            RESEND_URL,
+            headers={"Authorization": f"Bearer {_env('RESEND_API_KEY')}", "Content-Type": "application/json"},
+            json={"from": remetente, "to": [destino], "subject": assunto, "text": corpo},
+            timeout=20,
+        )
+        return 200 <= resp.status_code < 300
+    except Exception:
+        return False
+
+
 def send(assunto: str, corpo: str, destino: str | None = None) -> bool:
     """Envia um e-mail simples. Devolve True se saiu; nunca levanta exceção.
-    Sem `destino`, vai para ALERT_EMAIL (ou o próprio SMTP_USER)."""
+    Sem `destino`, vai para ALERT_EMAIL (ou o próprio SMTP_USER).
+    Resend primeiro; se falhar e houver SMTP, tenta o SMTP."""
     if not configured():
+        return False
+    alvo = (destino or "").strip() or _destino()
+    if resend_configurado() and alvo:
+        if _send_resend(assunto, corpo, alvo):
+            return True
+        if not smtp_configurado():
+            return False
+    if not smtp_configurado():
         return False
     host = os.environ["SMTP_HOST"].strip()
     port = int(os.environ.get("SMTP_PORT", "587"))

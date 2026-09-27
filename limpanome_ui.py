@@ -445,16 +445,18 @@ def _lembretes() -> None:
     pend = ln.pendencias_de_prazo(caso)
     with st.expander(f"📧 Lembretes por e-mail{f' ({len(pend)} pendente(s))' if pend else ''}"):
         if not notify.configured():
-            st.caption("Para receber aviso quando um prazo vencer, configure no Railway: SMTP_HOST, SMTP_PORT, "
-                       "SMTP_USER, SMTP_PASSWORD (senha de app) e ALERT_EMAIL. Para o envio automático diário, "
+            st.caption("Para receber aviso quando um prazo vencer, configure no Railway RESEND_API_KEY, "
+                       "RESEND_FROM e ALERT_EMAIL (ou, no lugar do Resend, SMTP_HOST, SMTP_PORT, SMTP_USER e "
+                       "SMTP_PASSWORD). Para o envio automático diário, "
                        "crie um Cron no Railway rodando `python -m holmes.limpanome`.")
             return
         destino = caso.email or "o e-mail padrão do sistema"
-        st.caption(f"Os avisos deste caso vão para {destino}. Cada prazo vencido é avisado uma vez. "
+        st.caption(f"Os avisos deste caso vão para {destino}, via {notify.provedor()}. Cada prazo vencido é avisado uma vez. "
                    "Para o envio automático diário, crie um Cron no Railway rodando `python -m holmes.limpanome`.")
         if pend and st.button(f"Enviar {len(pend)} lembrete(s) agora", key="ln_lembrete_agora"):
             n = ln.enviar_lembretes(casos=[caso])
-            (st.success if n else st.error)("E-mail enviado." if n else "Não consegui enviar. Confira o SMTP.")
+            (st.success if n else st.error)("E-mail enviado." if n else
+                                            f"Não consegui enviar. Confira a configuração do {notify.provedor()}.")
         elif not pend:
             st.caption("Nenhum prazo vencido sem aviso neste caso.")
 
