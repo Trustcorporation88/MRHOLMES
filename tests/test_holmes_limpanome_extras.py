@@ -79,6 +79,25 @@ def test_pdf_vai_como_documento_para_a_anthropic(monkeypatch):
     assert bloco["type"] == "document" and bloco["source"]["media_type"] == "application/pdf"
 
 
+def test_modelo_inexistente_passa_para_o_proximo(monkeypatch):
+    modelos = []
+
+    def _post(url, headers=None, json=None, timeout=None):
+        modelos.append(json["model"])
+        if json["model"] == "claude-sonnet-5":
+            return _Resp(404, {"error": {"type": "not_found_error", "message": "model: claude-sonnet-5"}})
+        return _Resp(200, {"content": [{"type": "text", "text": JSON_IA}]})
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.delenv("HOLMES_VISAO_MODELO", raising=False)
+    monkeypatch.setattr(lna.requests, "post", _post)
+    regs, _ = lna.extrair_de_arquivo("a.pdf", b"%PDF")
+    assert len(regs) == 2 and modelos == ["claude-sonnet-5", "claude-sonnet-4-5"]
+    # modelo escolhido por variável vem primeiro
+    monkeypatch.setenv("HOLMES_VISAO_MODELO", "claude-opus-5")
+    assert lna._modelos_anthropic()[0] == "claude-opus-5"
+
+
 def test_print_cai_para_openai_se_anthropic_falhar(monkeypatch):
     chamadas = []
 

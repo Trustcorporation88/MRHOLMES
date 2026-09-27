@@ -48,10 +48,30 @@ def disponivel() -> bool:
     return bool(_chave("ANTHROPIC_API_KEY") or _chave("OPENAI_API_KEY"))
 
 
+# O primeiro modelo que a conta aceitar. O Watson, na mesma conta, confere
+# claude-sonnet-5 na inicialização; o 4.5 fica como reserva.
+_MODELOS_ANTHROPIC = ("claude-sonnet-5", "claude-sonnet-4-5")
+
+
+def _modelos_anthropic() -> list[str]:
+    preferido = _chave("HOLMES_VISAO_MODELO")
+    return list(dict.fromkeys([m for m in (preferido, *_MODELOS_ANTHROPIC) if m]))
+
+
 def _anthropic(mime: str, dados: bytes) -> str | None:
     chave = _chave("ANTHROPIC_API_KEY")
     if not chave:
         return None
+    for modelo in _modelos_anthropic():
+        saida, tentar_outro = _anthropic_modelo(chave, modelo, mime, dados)
+        if saida or not tentar_outro:
+            return saida
+    return None
+
+
+def _anthropic_modelo(chave: str, modelo: str, mime: str, dados: bytes) -> tuple[str | None, bool]:
+    """(texto, vale tentar outro modelo). Modelo inexistente (404) ou recusado
+    (400 citando o modelo) passa para o próximo; outros erros param."""
     bloco_tipo = "document" if mime == "application/pdf" else "image"
     conteudo = [
         {"type": bloco_tipo, "source": {"type": "base64", "media_type": mime,
@@ -61,14 +81,18 @@ def _anthropic(mime: str, dados: bytes) -> str | None:
     resp = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        json={"model": os.environ.get("HOLMES_VISAO_MODELO", "claude-sonnet-4-5"), "max_tokens": 4096,
+        json={"model": modelo, "max_tokens": 4096,
               "system": ln._SISTEMA_EXTRACAO, "messages": [{"role": "user", "content": conteudo}]},
         timeout=120,
     )
     if resp.status_code >= 400:
-        return None
+        try:
+            erro = str(resp.json())
+        except Exception:
+            erro = ""
+        return None, resp.status_code == 404 or (resp.status_code == 400 and "model" in erro)
     blocos = resp.json().get("content") or []
-    return "".join(b.get("text", "") for b in blocos if b.get("type") == "text").strip() or None
+    return "".join(b.get("text", "") for b in blocos if b.get("type") == "text").strip() or None, False
 
 
 def _openai(nome: str, mime: str, dados: bytes) -> str | None:
