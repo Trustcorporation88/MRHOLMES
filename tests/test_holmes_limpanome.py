@@ -292,3 +292,78 @@ def test_moeda_e_data_em_portugues():
     assert ln.moeda(0) == "R$ 0,00"
     assert ln.data_br(date(2026, 9, 26)) == "26/09/2026"
     assert ln.data_br(None) == ""
+
+
+# ── passagem para o Watson ─────────────────────────────────────────────────
+
+def test_texto_para_watson_leva_fatos_prazos_e_protocolos():
+    r = ln.Registro(credor="Banco X", valor=1234.5, vencimento="2020-03-10", situacao="nao_reconheco",
+                    notificado="nao", cnpj_credor="11.222.333/0001-81")
+    outra = ln.Registro(credor="Loja Y", valor=50, vencimento="2025-01-01", situacao="minha_no_prazo")
+    caso = ln.Caso(nome="Fulano", cpf_mascarado="529.***.***-25", registros=[r, outra])
+    caso.protocolos.append(ln.Protocolo(registro_id=r.id, canal="consumidor.gov.br", data="2026-09-01",
+                                        numero="123", aceito=False, resposta="Dívida legítima."))
+    txt = ln.texto_para_watson(caso, r, HOJE)
+    for trecho in ("Banco X", "R$ 1.234,50", "11/03/2025", "já venceu", "Não reconheço",
+                   "protocolo 123", "Recusado", "Dívida legítima.", "Súmula 385", "Juizado Especial Cível",
+                   "1 são dívidas verdadeiras"):
+        assert trecho in txt, trecho
+    assert "529" not in txt           # CPF, nem mascarado, vai para o outro site
+
+
+def test_link_watson_codifica_o_caso_no_fragmento():
+    import base64
+    import json as _json
+
+    r = ln.Registro(credor="Banco Ção", valor=10, vencimento="2020-01-01")
+    url = ln.link_watson(ln.Caso(registros=[r]), r, HOJE)
+    assert url.startswith("https://watson.trustcorp.com.br/#caso=")
+    b64 = url.split("#caso=", 1)[1]
+    assert "=" not in b64 and "+" not in b64 and "/" not in b64
+    dados = _json.loads(base64.urlsafe_b64decode(b64 + "=" * (-len(b64) % 4)).decode("utf-8"))
+    assert dados["agente"] == "consumidor" and "Banco Ção" in dados["titulo"]
+    assert dados["texto"] == ln.texto_para_watson(ln.Caso(registros=[r]), r, HOJE)
+    assert len(dados["texto"]) <= 20000
+
+
+# ── protesto em cartório ────────────────────────────────────────────────────
+
+def test_protesto_pago_vai_para_cancelamento_pelo_devedor():
+    r = ln.Registro(credor="Fornecedor X", valor=800, vencimento="2018-01-01", biro=ln.PROTESTO,
+                    situacao="ja_paguei", comprovante=True)
+    a = ln.analisar(r, HOJE)
+    assert a.pilha == "errado" and a.prioridade == 1
+    assert a.limite_5_anos is None            # o prazo de 5 anos do CDC não se aplica ao cartório
+    assert "Tema 725" in a.argumento_principal.base
+    assert a.documentos == ["pedido_carta_anuencia"]
+    assert "CENPROT" in a.proximo_passo
+
+
+def test_protesto_antigo_nao_vira_baixa_por_prazo():
+    r = ln.Registro(credor="X", valor=1, vencimento="2015-01-01", biro=ln.PROTESTO, situacao="nao_sei")
+    a = ln.analisar(r, HOJE)
+    assert a.pilha == "duvida" and "pedido_baixa_prazo" not in a.documentos
+    assert "não cai sozinho" in a.alerta
+
+
+def test_protesto_indevido_pede_anuencia_sem_custo():
+    r = ln.Registro(credor="Loja Z", valor=10, vencimento="2025-01-01", biro=ln.PROTESTO, situacao="nao_reconheco")
+    a = ln.analisar(r, HOJE)
+    assert a.pilha == "errado" and "contestacao_protesto" in a.documentos
+    caso = ln.Caso(nome="Fulano", registros=[r])
+    for tipo in a.documentos:
+        txt = ln.gerar_documento(tipo, caso, r, HOJE)
+        assert "Loja Z" in txt and "R$ 10,00" in txt and "art. 26" in txt
+        assert "score" not in txt.lower()
+
+
+def test_importa_consulta_de_protesto():
+    regs = ln.importar_texto("Cartório de Protesto\nBANCO APRESENTANTE S.A.\nValor: R$ 3.100,00\nVencimento: 02/05/2023")
+    assert regs and regs[0].biro == ln.PROTESTO and regs[0].valor == 3100.0
+
+
+def test_aviso_para_consultar_protesto():
+    caso = ln.Caso(registros=[ln.Registro(credor="A", valor=1, vencimento="2019-01-01")])
+    assert any("protesto" in a for a in ln.avisos_do_caso(caso, HOJE))
+    caso.registros.append(ln.Registro(credor="B", valor=1, biro=ln.PROTESTO))
+    assert not any("pesquisaprotesto" in a for a in ln.avisos_do_caso(caso, HOJE))

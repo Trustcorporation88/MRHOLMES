@@ -104,7 +104,8 @@ def _aba_registros() -> None:
 
     with st.expander("📋 Colar o relatório do birô (Serasa, SPC, Boa Vista, Quod)", expanded=not caso.registros):
         st.caption("Abra o app ou site do birô, copie a lista de dívidas e cole aqui. "
-                   "Puxe nos três: um registro pode estar só num deles.")
+                   "Puxe nos três: um registro pode estar só num deles. Protesto em cartório é separado: "
+                   "consulte grátis na [CENPROT](https://www.pesquisaprotesto.com.br/) e cole aqui também.")
         texto = st.text_area("Texto copiado", key="ln_texto", height=160, label_visibility="collapsed",
                              placeholder="BANCO EXEMPLO S.A.\nValor: R$ 1.250,90\nVencimento: 10/03/2020\n\nLOJA EXEMPLO\nR$ 89,00\n01/02/2023")
         c1, c2 = st.columns(2)
@@ -283,7 +284,9 @@ def _aba_estrategia() -> None:
             f"<span class='mh-tl-src'>· canal: {ln.CANAIS[a.canal]}</span></div>{alerta_html}"
             f"</div>", unsafe_allow_html=True,
         )
-        c1, c2, _ = st.columns([1, 1, 3])
+        c1, c2, c3, _ = st.columns([1, 1, 1, 2])
+        c3.link_button("⚖️ Holmes jurídico", ln.link_watson(caso, r), use_container_width=True,
+                       help="Leva o caso organizado ao agente jurídico do Watson para uma segunda opinião.")
         c1.button("📄 Gerar documentos", key=f"ln_doc_{r.id}", use_container_width=True,
                   on_click=lambda rid=r.id: st.session_state.update(ln_doc_registro=rid, ln_aba="docs"))
         c2.button("🔎 Quem é esse credor?", key=f"ln_inv_{r.id}", use_container_width=True,
@@ -418,6 +421,11 @@ def _aba_protocolos() -> None:
             + (f"<div class='mh-fact-src'>Resposta: {_html.escape(p.resposta[:300])}</div>" if p.resposta else "")
             + "</div>", unsafe_allow_html=True,
         )
+        if r and (est["atrasado"] or est["status"] == "Recusado"):
+            st.link_button("⚖️ Levar ao Holmes jurídico", ln.link_watson(caso, r), type="primary",
+                           help="Abre o Watson com o caso pronto na caixa do chat e o agente de consumidor "
+                                "escolhido. Ele faz o red team e monta a petição do Juizado. Nada é enviado "
+                                "sem você apertar Enviar.")
         with st.expander("Atualizar este protocolo"):
             with st.form(f"ln_upd_{p.id}", border=False):
                 c1, c2 = st.columns([1, 2])
@@ -478,7 +486,8 @@ def _aba_plano() -> None:
         ("Credor ou birô", "Primeiro pedido, por escrito, com o documento desta ferramenta. Guarde o protocolo."),
         ("consumidor.gov.br", "Sem baixa em 5 dias úteis, ou sem resposta. Público, gratuito, 10 dias úteis de prazo."),
         ("Procon", "Se o consumidor.gov.br não resolver ou a empresa não estiver cadastrada nele."),
-        ("Juizado Especial Cível", "Registro indevido mantido: exclusão mais dano moral. Até 20 salários mínimos sem advogado."),
+        ("Juizado Especial Cível", "Registro indevido mantido: exclusão mais dano moral. Até 20 salários mínimos sem advogado. "
+                                   "O botão ⚖️ leva o caso ao Holmes jurídico, que faz o red team e a petição."),
     ], start=1):
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date'>{i}ª rodada</div>"
                     f"<div><strong>{etapa}</strong> <span class='mh-tl-src'>· {quando}</span></div></div>",
@@ -510,6 +519,8 @@ def _aba_plano() -> None:
         '<a href="https://www.spcbrasil.org.br/" target="_blank">SPC Brasil</a>'
         '<a href="https://www.boavistaservicos.com.br/" target="_blank">Boa Vista</a>'
         '<a href="https://www.quod.com.br/" target="_blank">Quod</a>'
+        '<a href="https://www.pesquisaprotesto.com.br/" target="_blank">Protesto (CENPROT nacional)</a>'
+        '<a href="https://protestosp.com.br/consulta-gratuita-de-protesto" target="_blank">Protesto SP</a>'
         '<a href="https://www.bcb.gov.br/cidadaniafinanceira/registrato" target="_blank">Registrato (Banco Central)</a>'
         '<a href="https://www.consumidor.gov.br/" target="_blank">consumidor.gov.br</a>'
         '<a href="https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm" target="_blank">CDC (texto da lei)</a>'
@@ -527,6 +538,7 @@ def _aba_plano() -> None:
         ("CC art. 206 §3 V", "O pedido de indenização por negativação indevida prescreve em 3 anos."),
         ("CC art. 882", "Dívida prescrita continua existindo: não pode ser cobrada na Justiça, mas quem paga não pode pedir de volta."),
         ("Lei 12.414/2011 + LC 166/2019", "O Cadastro Positivo abre sozinho. Consulta e cancelamento são gratuitos em qualquer birô (brasilnopositivo.com.br)."),
+        ("Lei 9.492/97 art. 26 + Tema 725", "Protesto em cartório: pago o título, o devedor pede o cancelamento com a carta de anuência do credor. Não cai sozinho com o tempo."),
     ]:
         st.markdown(f"<div class='mh-tl-row'><div class='mh-tl-date' style='min-width:220px'>{_html.escape(base)}</div>"
                     f"<div>{_html.escape(texto)}</div></div>", unsafe_allow_html=True)
