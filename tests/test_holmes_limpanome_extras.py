@@ -252,8 +252,102 @@ def test_notify_send_aceita_destino(monkeypatch):
         def send_message(self, msg):
             enviados.append(msg["To"])
 
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
     for k, v in {"SMTP_HOST": "h", "SMTP_USER": "u@x.com", "SMTP_PASSWORD": "p", "ALERT_EMAIL": "a@x.com"}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.setattr(notify.smtplib, "SMTP", _SMTP)
     assert notify.send("s", "c", "cliente@x.com") and notify.send("s", "c")
     assert enviados == ["cliente@x.com", "a@x.com"]
+
+
+# ── Resend ──────────────────────────────────────────────────────────────────
+
+def _sem_smtp(monkeypatch):
+    for k in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"):
+        monkeypatch.delenv(k, raising=False)
+
+
+def test_resend_envia_pela_api(monkeypatch):
+    from holmes import notify
+
+    chamadas = []
+
+    def _post(url, headers=None, json=None, timeout=None):
+        chamadas.append((url, headers, json))
+        return _Resp(200, {"id": "abc"})
+
+    _sem_smtp(monkeypatch)
+    monkeypatch.setenv("RESEND_API_KEY", "re_teste")
+    monkeypatch.setenv("RESEND_FROM", "Mr.Holmes <alertas@trustcorp.com.br>")
+    monkeypatch.setenv("ALERT_EMAIL", "dono@x.com")
+    import requests
+    monkeypatch.setattr(requests, "post", _post)
+    assert notify.configured() and notify.provedor() == "Resend"
+    assert notify.send("Assunto", "Corpo", "cliente@x.com")
+    assert notify.send("Assunto", "Corpo")
+    url, headers, corpo = chamadas[0]
+    assert url == "https://api.resend.com/emails"
+    assert headers["Authorization"] == "Bearer re_teste"
+    assert corpo == {"from": "Mr.Holmes <alertas@trustcorp.com.br>", "to": ["cliente@x.com"],
+                     "subject": "Assunto", "text": "Corpo"}
+    assert chamadas[1][2]["to"] == ["dono@x.com"]
+
+
+def test_resend_falhou_cai_para_smtp(monkeypatch):
+    from holmes import notify
+
+    enviados = []
+
+    class _SMTP:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self, **k):
+            pass
+
+        def login(self, *a):
+            pass
+
+        def send_message(self, msg):
+            enviados.append(msg["To"])
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(422, {"message": "domínio não verificado"}))
+    monkeypatch.setattr(notify.smtplib, "SMTP", _SMTP)
+    monkeypatch.setenv("RESEND_API_KEY", "re_teste")
+    for k, v in {"SMTP_HOST": "h", "SMTP_USER": "u@x.com", "SMTP_PASSWORD": "p", "ALERT_EMAIL": "a@x.com"}.items():
+        monkeypatch.setenv(k, v)
+    assert notify.send("s", "c", "cliente@x.com")
+    assert enviados == ["cliente@x.com"]
+
+
+def test_resend_falhou_sem_smtp_devolve_falso(monkeypatch):
+    from holmes import notify
+    import requests
+
+    _sem_smtp(monkeypatch)
+    monkeypatch.setenv("RESEND_API_KEY", "re_teste")
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(401, {}))
+    assert notify.send("s", "c", "x@x.com") is False
+    monkeypatch.delenv("ALERT_EMAIL", raising=False)
+    assert notify.send("s", "c") is False      # sem destino nenhum
+
+
+def test_resend_remetente_padrao(monkeypatch):
+    from holmes import notify
+    import requests
+
+    corpos = []
+    _sem_smtp(monkeypatch)
+    monkeypatch.setenv("RESEND_API_KEY", "re_teste")
+    monkeypatch.delenv("RESEND_FROM", raising=False)
+    monkeypatch.setattr(requests, "post", lambda url, headers=None, json=None, timeout=None:
+                        corpos.append(json) or _Resp(200, {}))
+    notify.send("s", "c", "x@x.com")
+    assert corpos[0]["from"] == "Mr.Holmes <onboarding@resend.dev>"
