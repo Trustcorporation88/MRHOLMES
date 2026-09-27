@@ -116,7 +116,8 @@ SITUACOES = {
     "nao_sei": "Não sei / preciso confirmar",
 }
 PROTESTO = "Cartório de protesto"
-BIROS = ("Serasa", "SPC Brasil", "Boa Vista", "Quod", PROTESTO, "Outro")
+DIVIDA_ATIVA = "Dívida ativa / CADIN"
+BIROS = ("Serasa", "SPC Brasil", "Boa Vista", "Quod", PROTESTO, DIVIDA_ATIVA, "Outro")
 NOTIFICADO = {"sim": "Sim", "nao": "Não", "nao_sei": "Não sei"}
 
 PILHAS = {
@@ -167,11 +168,19 @@ class Protocolo:
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
 
+PORTES = {"MEI": "MEI", "ME": "Microempresa", "EPP": "Empresa de pequeno porte", "DEMAIS": "Demais portes", "": "Não informado"}
+
+
 @dataclass
 class Caso:
     nome: str = ""
     cpf_mascarado: str = ""
     email: str = ""                    # para os lembretes de prazo; vazio = ALERT_EMAIL
+    tipo: str = "pf"                   # pf | pj
+    cnpj: str = ""                     # dado público da empresa; guardado inteiro
+    razao_social: str = ""
+    porte: str = ""                    # MEI | ME | EPP | DEMAIS | ""
+    situacao_cadastral: str = ""
     registros: list[Registro] = field(default_factory=list)
     protocolos: list[Protocolo] = field(default_factory=list)
     criado: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
@@ -180,6 +189,21 @@ class Caso:
 
     def registro(self, rid: str) -> Registro | None:
         return next((r for r in self.registros if r.id == rid), None)
+
+    @property
+    def pj(self) -> bool:
+        return self.tipo == "pj"
+
+    @property
+    def pode_juizado(self) -> bool:
+        """Pessoa física sempre; empresa só se for MEI, ME ou EPP (Lei 9.099/95, art. 8º §1º)."""
+        return not self.pj or self.porte in ("MEI", "ME", "EPP")
+
+    @property
+    def identificacao(self) -> str:
+        if self.pj:
+            return f"{self.razao_social or self.nome or '[razão social]'}, CNPJ {self.cnpj or '[CNPJ]'}"
+        return f"{self.nome or '[nome]'}, CPF {self.cpf_mascarado or '[CPF]'}"
 
 
 # ── Análise de cada registro ───────────────────────────────────────────────
@@ -234,12 +258,18 @@ def _arg_notificacao() -> Argumento:
     )
 
 
-def analisar(r: Registro, hoje: date | None = None) -> Analise:
+def analisar(r: Registro, hoje: date | None = None, caso: "Caso | None" = None) -> Analise:
     """Classifica o registro e monta a estratégia. Determinístico e sem LLM:
-    a regra é a lei, não uma opinião do modelo."""
+    a regra é a lei, não uma opinião do modelo. Com `caso` de empresa, os
+    canais e argumentos se ajustam à pessoa jurídica."""
     hoje = hoje or date.today()
-    if r.biro == PROTESTO:
-        return _analisar_protesto(r, hoje)
+    if r.biro == DIVIDA_ATIVA:
+        return _analisar_divida_ativa(r, hoje, caso)
+    a = _analisar_protesto(r, hoje) if r.biro == PROTESTO else _analisar_biro(r, hoje)
+    return _ajustar_pj(a, r, caso) if caso is not None and caso.pj else a
+
+
+def _analisar_biro(r: Registro, hoje: date) -> Analise:
     venc = r.venc()
     # REsp 1.316.117/SC: o prazo começa no dia seguinte ao vencimento.
     limite = somar_anos(venc + timedelta(days=1), 5) if venc else None
@@ -334,6 +364,83 @@ def analisar(r: Registro, hoje: date | None = None) -> Analise:
     )
 
 
+def _ajustar_pj(a: Analise, r: Registro, caso: "Caso") -> Analise:
+    """
+    Empresa: o consumidor.gov.br só aceita pessoa física e MEI; fora disso o
+    pedido vai direto ao credor ou ao birô. Registro indevido de empresa
+    também gera dano moral (Súmula 227), que o STJ trata como presumido.
+    """
+    if caso.porte != "MEI":
+        if a.canal == "consumidor.gov.br":
+            a.canal = "biro" if a.pilha == "vencido" else "credor"
+        a.documentos = [d for d in a.documentos if d != "consumidor_gov"] or ["pedido_documento_origem"]
+    if caso.porte != "MEI":
+        for x in a.argumentos:
+            if "6º, VIII" in x.base:
+                x.base = "CPC art. 373 e CDC art. 43 §3"
+                x.texto = ("Quem inscreve e cobra precisa provar que a dívida existe, com o contrato ou o documento "
+                           "de origem. Sem prova, o registro cai. O CDC só vale para a empresa quando ela é "
+                           "consumidora final ou vulnerável diante do fornecedor.")
+    if a.pilha in ("errado", "vencido"):
+        a.argumentos.append(Argumento(
+            "Empresa também sofre dano moral",
+            "Súmula 227 do STJ e AgRg no REsp 860.704",
+            "Negativação ou protesto indevido de empresa gera dano moral presumido, sem precisar provar "
+            "prejuízo. Vale a ressalva da Súmula 385 se houver outra negativação legítima.",
+            1,
+        ))
+    if not caso.pode_juizado and a.pilha == "errado":
+        a.alerta = (a.alerta + " " if a.alerta else "") + (
+            "Pelo porte, a empresa não pode usar o Juizado Especial: se o credor não resolver, "
+            "a ação vai para a Justiça comum, com advogado.")
+    return a
+
+
+def _analisar_divida_ativa(r: Registro, hoje: date, caso: "Caso | None") -> Analise:
+    """Dívida com o poder público (União, Estado, Município): o caminho é o
+    órgão credor, não o birô. Federal: PGFN Regularize."""
+    pequena = caso is not None and caso.porte in ("MEI", "ME", "EPP")
+    if r.situacao == "ja_paguei":
+        pilha, prioridade = "errado", 1
+        args = [Argumento(
+            "Pago ou parcelado: o nome sai do CADIN",
+            "Lei 10.522/2002, art. 2º §5º",
+            "Comprovada a regularização (pagamento, parcelamento ou suspensão da cobrança), o órgão "
+            "tem 5 dias úteis para dar baixa no CADIN. Na PGFN a baixa é automática.",
+            3,
+        )]
+        docs = ["pedido_baixa_cadin"]
+        passo = "Peça a baixa ao órgão credor com o comprovante. Na PGFN, confira no Regularize se já saiu."
+    elif r.situacao in ("nao_reconheco", "valor_errado"):
+        pilha, prioridade = "errado", 3
+        args = [Argumento(
+            "Débito inscrito com erro",
+            "Revisão administrativa no órgão credor",
+            "Se o débito não é devido ou o valor está errado, peça a revisão ao órgão que inscreveu. "
+            "Na dívida federal, o pedido é feito no portal Regularize da PGFN.",
+            2,
+        )]
+        docs = ["pedido_revisao_divida_ativa"]
+        passo = "Peça a revisão da dívida inscrita no órgão credor, com os documentos que mostram o erro."
+    else:
+        pilha, prioridade = ("verdadeira", 5) if r.situacao == "minha_no_prazo" else ("duvida", 6)
+        args = [Argumento(
+            "Negociar com o poder público",
+            "Lei 13.988/2020 (transação tributária) e parcelamentos",
+            "Dívida federal pode ser paga, parcelada ou negociada com desconto por transação no Regularize. "
+            + ("ME e EPP têm mais prazo: entrada em até 12 meses e saldo em até 133 parcelas."
+               if pequena else "A entrada e o número de parcelas dependem da modalidade."),
+            2,
+        )]
+        docs = ["roteiro_divida_ativa"]
+        passo = ("Consulte o débito no Regularize (federal) ou na Secretaria da Fazenda do Estado ou do "
+                 "Município, e veja as opções de parcelamento ou transação. Parcelado, o nome sai do CADIN.")
+    return Analise(pilha=pilha, prioridade=prioridade, limite_5_anos=None, dias_para_vencer_prazo=None,
+                   argumentos=args, canal="regularize", documentos=docs, proximo_passo=passo,
+                   alerta="Dívida ativa pode virar protesto da certidão (CDA) e execução fiscal: "
+                          "o prazo de 5 anos dos birôs não se aplica aqui.")
+
+
 def _analisar_protesto(r: Registro, hoje: date) -> Analise:
     """Protesto não segue o art. 43 do CDC nem os prazos dos birôs: o caminho
     é o cancelamento no cartório, e quem pede depende de o protesto ser devido."""
@@ -389,7 +496,7 @@ def _analisar_protesto(r: Registro, hoje: date) -> Analise:
 
 def ordem_de_ataque(caso: Caso, hoje: date | None = None) -> list[tuple[Registro, Analise]]:
     """Registros na ordem em que devem ser atacados: fácil primeiro."""
-    pares = [(r, analisar(r, hoje)) for r in caso.registros]
+    pares = [(r, analisar(r, hoje, caso)) for r in caso.registros]
     return sorted(pares, key=lambda p: (p[1].prioridade, -p[0].valor))
 
 
@@ -423,9 +530,20 @@ def avisos_do_caso(caso: Caso, hoje: date | None = None) -> list[str]:
     if any(a.pilha == "duvida" for _, a in pares):
         avisos.append("Há registro sem data de vencimento. Sem ela não dá para usar o argumento dos 5 anos, "
                       "que é o mais forte. Peça o documento de origem antes de contestar.")
+    if caso.pj:
+        if caso.situacao_cadastral and caso.situacao_cadastral.upper() != "ATIVA":
+            avisos.append(f"A situação cadastral do CNPJ é {caso.situacao_cadastral}. Regularize na Receita: "
+                          "empresa inapta ou suspensa não tira certidão nem crédito.")
+        if not caso.porte:
+            avisos.append("Informe o porte da empresa: ele decide se ela pode usar o Juizado Especial e o "
+                          "consumidor.gov.br (só MEI).")
+        if pares and not any(r.biro == DIVIDA_ATIVA for r, _ in pares):
+            avisos.append("Confira também a dívida ativa e as certidões (federal, FGTS e trabalhista): para empresa, "
+                          "nome limpo não é só Serasa.")
     biros = {r.biro for r, _ in pares}
-    if pares and len(biros - {PROTESTO}) == 1:
-        avisos.append(f"Todos os registros são do {next(iter(biros - {PROTESTO}))}. Consulte também os outros "
+    privados = biros - {PROTESTO, DIVIDA_ATIVA}
+    if pares and len(privados) == 1:
+        avisos.append(f"Todos os registros são do {next(iter(privados))}. Consulte também os outros "
                       "birôs: um registro pode estar só num deles.")
     if pares and PROTESTO not in biros:
         avisos.append("Consulte também protesto em cartório (gratuito em pesquisaprotesto.com.br). Protesto "
@@ -444,6 +562,7 @@ CANAIS = {
     "biro": "Direto no birô",
     "credor": "Direto com o credor",
     "procon": "Procon",
+    "regularize": "Órgão credor (PGFN Regularize, Sefaz ou prefeitura)",
 }
 
 
@@ -507,10 +626,18 @@ DOCUMENTOS = {
     "roteiro_negociacao": "Roteiro de negociação",
     "pedido_carta_anuencia": "Pedido de carta de anuência (protesto)",
     "contestacao_protesto": "Contestação: protesto indevido",
+    "pedido_baixa_cadin": "Pedido de baixa no CADIN (dívida paga ou parcelada)",
+    "pedido_revisao_divida_ativa": "Pedido de revisão de dívida ativa",
+    "roteiro_divida_ativa": "Roteiro: negociar dívida ativa",
 }
 
 
 def _cabecalho(caso: Caso, r: Registro) -> str:
+    if caso.pj:
+        return (f"A empresa {caso.identificacao}, por seu representante legal, vem tratar do registro "
+                f"negativo lançado por {r.credor}, no valor de {r.valor_fmt()}"
+                + (f", com vencimento informado em {data_br(r.venc())}" if r.venc() else "")
+                + f", que consta no {r.biro}.")
     quem = caso.nome or "o consumidor abaixo identificado"
     return (f"Eu, {quem}, CPF {caso.cpf_mascarado or '[CPF]'}, venho tratar do registro "
             f"negativo lançado por {r.credor}, no valor de {r.valor_fmt()}"
@@ -526,7 +653,7 @@ def _fecho(pedido: str) -> str:
 def gerar_documento(tipo: str, caso: Caso, r: Registro, hoje: date | None = None) -> str:
     """Texto pronto, sem LLM: só lei brasileira, sem promessa de score."""
     hoje = hoje or date.today()
-    a = analisar(r, hoje)
+    a = analisar(r, hoje, caso)
     cab = _cabecalho(caso, r)
 
     if tipo == "reclamacao_pos_pagamento":
@@ -548,8 +675,9 @@ def gerar_documento(tipo: str, caso: Caso, r: Registro, hoje: date | None = None
                 f"qualquer operação que a justifique.\n\n"
                 f"Solicito que a empresa apresente o contrato assinado ou o documento que deu origem ao débito, "
                 f"com a data de vencimento. Cabe a quem inscreve provar a existência da dívida "
-                f"(CDC art. 6º, VIII, e art. 43, §3). Sem essa comprovação, o registro é indevido e deve ser "
-                f"excluído. Se a origem for uso indevido do meu CPF, informo desde já que registrarei boletim "
+                f"({'CPC art. 373 e CDC art. 43, §3' if caso.pj and caso.porte != 'MEI' else 'CDC art. 6º, VIII, e art. 43, §3'}). "
+                f"Sem essa comprovação, o registro é indevido e deve ser "
+                f"excluído. Se a origem for uso indevido do meu {'CNPJ' if caso.pj else 'CPF'}, informo desde já que registrarei boletim "
                 f"de ocorrência.{extra}\n\n"
                 + _fecho("Peço a exclusão do registro ou, no mínimo, sua suspensão até a apresentação da prova."))
 
@@ -626,6 +754,38 @@ def gerar_documento(tipo: str, caso: Caso, r: Registro, hoje: date | None = None
                   "fornecer, sem custo para mim, a carta de anuência para o cancelamento (Lei 9.492/1997, art. 26).\n\n"
                 + _fecho("Peço a carta de anuência para o cancelamento do protesto ou a apresentação do título."))
 
+    if tipo == "pedido_baixa_cadin":
+        pago = f" em {data_br(_data(r.data_pagamento))}" if r.data_pagamento else ""
+        return (f"{cab}\n\nO débito foi regularizado{pago}, por pagamento ou parcelamento, conforme comprovante "
+                f"anexo.\n\nPelo art. 2º, §5º, da Lei 10.522/2002, comprovada a regularização, o órgão responsável "
+                f"deve dar baixa no CADIN no prazo de 5 dias úteis.\n\n"
+                + _fecho("Peço a baixa do registro no CADIN e a confirmação por escrito."))
+
+    if tipo == "pedido_revisao_divida_ativa":
+        motivo = ("O débito não é devido." if r.situacao == "nao_reconheco"
+                  else f"O valor inscrito está errado. {r.observacao}".strip())
+        return (f"{cab}\n\n{motivo}\n\nSolicito a revisão da inscrição em dívida ativa, com a análise dos "
+                f"documentos anexos, e a suspensão das medidas de cobrança (CADIN e protesto da certidão) "
+                f"enquanto o pedido é analisado.\n\n"
+                + _fecho("Peço o cancelamento ou a retificação da inscrição."))
+
+    if tipo == "roteiro_divida_ativa":
+        pequena = caso.porte in ("MEI", "ME", "EPP")
+        return "\n".join([
+            f"Roteiro: dívida ativa de {r.credor}, {r.valor_fmt()}",
+            "",
+            "1. Descubra de quem é a dívida: União (PGFN), Estado (Sefaz) ou Município (prefeitura).",
+            "2. Federal: entre no Regularize (regularize.pgfn.gov.br) com o gov.br da empresa e consulte os débitos.",
+            "3. Compare as opções: pagamento à vista, parcelamento e transação (Lei 13.988/2020), que pode dar "
+            "desconto conforme a capacidade de pagamento.",
+            ("4. Por ser ME ou EPP, a transação por capacidade de pagamento permite entrada em até 12 meses e "
+             "saldo em até 133 parcelas." if pequena else
+             "4. A entrada e o número de parcelas dependem da modalidade escolhida."),
+            "5. Parcelado ou pago, o nome sai do CADIN em até 5 dias úteis (Lei 10.522/2002, art. 2º §5º).",
+            "6. Se a certidão da dívida foi protestada, depois de regularizar peça o cancelamento do protesto.",
+            "7. Tire a certidão federal (positiva com efeitos de negativa, se parcelado) para voltar a contratar.",
+        ])
+
     if tipo == "roteiro_negociacao":
         return roteiro_negociacao(r)
 
@@ -670,6 +830,60 @@ def roteiro_negociacao(r: Registro) -> str:
         "5. Não pague por boleto enviado por mensagem: gere o boleto no site ou app oficial do credor ou do birô.",
     ]
     return "\n".join(linhas)
+
+
+def escalada(caso: Caso | None = None) -> list[tuple[str, str]]:
+    """Rodadas quando o canal não resolve. Muda para empresa."""
+    if caso is not None and caso.pj:
+        passos = [("Credor ou birô", "Pedido por escrito com o documento desta ferramenta. Guarde o protocolo.")]
+        if caso.porte == "MEI":
+            passos.append(("consumidor.gov.br", "O MEI pode usar. Público, gratuito, 10 dias de prazo."))
+        passos.append(("Procon", "Atende empresa quando ela é consumidora final e vulnerável; as regras variam por "
+                                 "estado (alguns exigem ser MEI, ME ou EPP)."))
+        if caso.pode_juizado:
+            passos.append(("Juizado Especial Cível", "MEI, ME e EPP podem entrar como autoras (Lei 9.099/95, "
+                                                     "art. 8º §1º II). Até 20 salários mínimos sem advogado; "
+                                                     "até 40 com advogado."))
+        else:
+            passos.append(("Justiça comum", "Pelo porte, a empresa não pode usar o Juizado: ação com advogado."))
+        return passos
+    return [
+        ("Credor ou birô", "Primeiro pedido, por escrito, com o documento desta ferramenta. Guarde o protocolo."),
+        ("consumidor.gov.br", "Sem baixa em 5 dias úteis, ou sem resposta. Público, gratuito, 10 dias de prazo."),
+        ("Procon", "Se o consumidor.gov.br não resolver ou a empresa não estiver cadastrada nele."),
+        ("Juizado Especial Cível", "Registro indevido mantido: exclusão mais dano moral. Até 20 salários mínimos "
+                                   "sem advogado."),
+    ]
+
+
+# Certidões que dizem se a empresa está com o nome limpo. Todas gratuitas.
+CERTIDOES_PJ = [
+    ("Federal (Receita e PGFN)", "https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj",
+     "Tributos federais e dívida ativa da União. Pode sair negativa, positiva com efeitos de negativa "
+     "(débito parcelado ou suspenso) ou positiva."),
+    ("FGTS (CRF da Caixa)", "https://consulta-crf.caixa.gov.br/", "Regularidade com o FGTS dos empregados."),
+    ("Trabalhista (CNDT do TST)", "https://cndt-certidao.tst.jus.br/", "Dívidas trabalhistas reconhecidas na Justiça."),
+    ("Protesto (CENPROT)", "https://www.pesquisaprotesto.com.br/", "Protestos em cartório no país todo, inclusive de CDA."),
+    ("Dívida ativa federal (Regularize)", "https://www.regularize.pgfn.gov.br/", "Débitos inscritos, parcelamento e transação."),
+    ("Serasa para empresas", "https://www.serasa.com.br/limpa-nome-online/", "Dívidas negativadas do CNPJ e ofertas de acordo."),
+]
+
+
+def plano_12_meses_pj() -> list[dict]:
+    return [
+        {"mes": "1", "acao": "Confirme a baixa em todos os birôs e no cartório, e tire as certidões federal, FGTS e trabalhista.",
+         "porque": "Banco, fornecedor e licitação pedem as certidões, não só o Serasa."},
+        {"mes": "1", "acao": "Atualize os dados do CNPJ na Receita (endereço, e-mail, atividade).",
+         "porque": "Cadastro desatualizado atrapalha notificação e análise de crédito."},
+        {"mes": "1 a 3", "acao": "Mantenha o Cadastro Positivo da empresa ativo e pague fornecedores e tributos no vencimento.",
+         "porque": "Histórico de pagamento em dia é o que mais pesa no score da empresa."},
+        {"mes": "2 a 6", "acao": "Parcele ou negocie a dívida ativa que sobrou (transação no Regularize).",
+         "porque": "Parcelada, a certidão federal sai positiva com efeitos de negativa."},
+        {"mes": "2 a 12", "acao": "Não deixe duplicata vencer: combine prazo com o cliente antes do vencimento.",
+         "porque": "Duplicata vencida vira protesto rápido, e protesto só sai com cancelamento."},
+        {"mes": "6 e 12", "acao": "Refaça a consulta no Serasa, no protesto e as certidões.",
+         "porque": "Registro novo pode aparecer. O acompanhamento é parte do processo."},
+    ]
 
 
 def plano_12_meses(registros_baixados: int = 0) -> list[dict]:
@@ -723,9 +937,14 @@ def texto_para_watson(caso: Caso, r: Registro, hoje: date | None = None) -> str:
     perguntar, entregue de uma vez.
     """
     hoje = hoje or date.today()
-    a = analisar(r, hoje)
+    a = analisar(r, hoje, caso)
     linhas = [
-        "Caso enviado pelo Limpa Nome do Mr.Holmes. Sou o consumidor.",
+        ("Caso enviado pelo Limpa Nome do Mr.Holmes. Sou a empresa "
+         f"{caso.identificacao}, porte {PORTES.get(caso.porte, 'não informado')}"
+         + (f", situação cadastral {caso.situacao_cadastral}" if caso.situacao_cadastral else "")
+         + (". Pelo porte, posso usar o Juizado Especial." if caso.pode_juizado
+            else ". Pelo porte, não posso usar o Juizado Especial.")
+         if caso.pj else "Caso enviado pelo Limpa Nome do Mr.Holmes. Sou o consumidor."),
         "",
         "FATOS",
         f"- Credor: {r.credor}" + (f" (CNPJ {r.cnpj_credor})" if r.cnpj_credor else ""),
@@ -765,18 +984,21 @@ def texto_para_watson(caso: Caso, r: Registro, hoje: date | None = None) -> str:
 
     outros = [x for x in caso.registros if x.id != r.id]
     if outros:
-        legitimas = [x for x in outros if analisar(x, hoje).pilha == "verdadeira"]
-        linhas += ["", f"OUTRAS NEGATIVAÇÕES NO MEU CPF: {len(outros)}"
+        legitimas = [x for x in outros if analisar(x, hoje, caso).pilha == "verdadeira"]
+        linhas += ["", f"OUTRAS NEGATIVAÇÕES NO MEU {'CNPJ' if caso.pj else 'CPF'}: {len(outros)}"
                    + (f", das quais {len(legitimas)} são dívidas verdadeiras e no prazo" if legitimas else "")]
-        linhas += [f"- {x.credor}, {x.valor_fmt()}, {x.biro}, {analisar(x, hoje).pilha_label}" for x in outros[:10]]
+        linhas += [f"- {x.credor}, {x.valor_fmt()}, {x.biro}, {analisar(x, hoje, caso).pilha_label}" for x in outros[:10]]
 
     linhas += [
         "",
         "O QUE PRECISO",
         "1. Red team antes de tudo: Súmula 385 (outras negativações), prova da notificação prévia, "
         "data de vencimento, e se a dívida é de fato indevida. Diga com franqueza se vale entrar com ação.",
-        "2. Se valer: petição inicial para o Juizado Especial Cível com exclusão do registro, tutela de "
-        "urgência para suspender a negativação e dano moral com valor fundamentado.",
+        ("2. Se valer: petição inicial para o Juizado Especial Cível com exclusão do registro, tutela de "
+         "urgência para suspender a negativação e dano moral com valor fundamentado."
+         if caso.pode_juizado else
+         "2. Se valer: petição inicial para a Justiça comum (a empresa não cabe no Juizado pelo porte) com "
+         "exclusão do registro, tutela de urgência e dano moral da pessoa jurídica (Súmula 227)."),
         "3. Lista de provas que devo anexar.",
     ]
     return "\n".join(linhas)[:_LIMITE_WATSON]
@@ -787,7 +1009,9 @@ def link_watson(caso: Caso, r: Registro, hoje: date | None = None) -> str:
     servidor: o navegador preenche a caixa do chat e o apaga da barra."""
     import base64
 
-    dados = {"v": 1, "agente": "consumidor", "titulo": f"Limpa Nome: {r.credor}"[:120],
+    # Empresa que não é MEI raramente é consumidora: o agente cível do Watson cuida melhor.
+    agente = "civel" if caso.pj and caso.porte != "MEI" else "consumidor"
+    dados = {"v": 1, "agente": agente, "titulo": f"Limpa Nome: {r.credor}"[:120],
              "texto": texto_para_watson(caso, r, hoje)}
     b64 = base64.urlsafe_b64encode(json.dumps(dados, ensure_ascii=False).encode("utf-8")).decode("ascii")
     return WATSON_URL.split("#")[0] + "#caso=" + b64.rstrip("=")
@@ -1016,6 +1240,55 @@ def listar_casos() -> list[dict]:
     return out
 
 
+def porte_da_receita(dados: dict) -> str:
+    """Normaliza o porte vindo da BrasilAPI, Minha Receita ou ReceitaWS."""
+    if dados.get("opcao_pelo_mei") in (True, "S", "SIM", "Sim"):
+        return "MEI"
+    porte = str(dados.get("porte") or dados.get("descricao_porte") or "").upper()
+    if "MICRO" in porte or porte.strip() in ("ME", "01", "1"):
+        return "ME"
+    if "PEQUENO" in porte or porte.strip() in ("EPP", "03", "3"):
+        return "EPP"
+    if "DEMAIS" in porte or porte.strip() in ("05", "5"):
+        return "DEMAIS"
+    return ""
+
+
+def preencher_empresa(caso: Caso, cnpj: str, consulta=None) -> str | None:
+    """Busca razão social, porte e situação na Receita. Devolve erro ou None.
+    `consulta` existe para o teste; por padrão usa holmes.br.consulta_cnpj."""
+    from .entity import format_cnpj, valid_cnpj
+
+    if not valid_cnpj(cnpj):
+        return "CNPJ inválido: confira os dígitos."
+    caso.tipo = "pj"
+    caso.cnpj = format_cnpj(cnpj)
+    if consulta is None:
+        # CNPJ Trust primeiro: confirma MEI e Simples, que a consulta gratuita nem sempre traz.
+        from . import cnpj_trust
+
+        if cnpj_trust.configurado():
+            d = cnpj_trust.consultar(caso.cnpj)
+            if d:
+                caso.razao_social = (d["razao_social"] or caso.razao_social)[:160]
+                caso.nome = caso.nome or caso.razao_social
+                caso.porte = d["porte"] or caso.porte
+                caso.situacao_cadastral = (d["situacao"] or "")[:40]
+                return None
+        from .br import consulta_cnpj as consulta
+    try:
+        dados = consulta(caso.cnpj) or {}
+    except Exception:
+        dados = {}
+    if not dados:
+        return "Não consegui consultar a Receita agora. Preencha o porte à mão."
+    caso.razao_social = str(dados.get("razao_social") or dados.get("nome") or caso.razao_social)[:160]
+    caso.nome = caso.nome or caso.razao_social
+    caso.porte = porte_da_receita(dados) or caso.porte
+    caso.situacao_cadastral = str(dados.get("descricao_situacao_cadastral") or dados.get("situacao") or "")[:40]
+    return None
+
+
 def carregar_todos() -> list[Caso]:
     """Todos os casos. Supabase quando ligado (é o que o cron enxerga), senão disco."""
     try:
@@ -1109,6 +1382,8 @@ def _de_dict(d: dict) -> Caso:
     prots = [Protocolo(**{k: v for k, v in p.items() if k in Protocolo.__dataclass_fields__})
              for p in d.get("protocolos", [])]
     return Caso(nome=d.get("nome", ""), cpf_mascarado=d.get("cpf_mascarado", ""), email=d.get("email", ""),
+                tipo=d.get("tipo", "pf"), cnpj=d.get("cnpj", ""), razao_social=d.get("razao_social", ""),
+                porte=d.get("porte", ""), situacao_cadastral=d.get("situacao_cadastral", ""),
                 registros=regs, protocolos=prots, criado=d.get("criado", ""),
                 atualizado=d.get("atualizado", ""), id=d.get("id") or uuid.uuid4().hex[:10])
 

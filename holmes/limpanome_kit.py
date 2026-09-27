@@ -15,7 +15,7 @@ from . import limpanome as ln
 
 
 def _linha_do_tempo(caso: ln.Caso, r: ln.Registro, hoje: date) -> list[tuple[date, str]]:
-    a = ln.analisar(r, hoje)
+    a = ln.analisar(r, hoje, caso)
     eventos: list[tuple[date, str]] = []
     if r.venc():
         eventos.append((r.venc(), f"Vencimento informado da dívida ({r.valor_fmt()})"))
@@ -44,10 +44,14 @@ def _linha_do_tempo(caso: ln.Caso, r: ln.Registro, hoje: date) -> list[tuple[dat
     return sorted(eventos, key=lambda e: e[0])
 
 
-def _provas(r: ln.Registro, a: ln.Analise, tem_protocolo: bool) -> list[str]:
-    provas = [
-        f"Documento de identidade e CPF",
-        f"Comprovante de residência",
+def _provas(r: ln.Registro, a: ln.Analise, tem_protocolo: bool, pj: bool = False) -> list[str]:
+    provas = ([
+        "Contrato social (ou certificado do MEI) e documento do representante legal",
+        "Cartão CNPJ e comprovante do porte (ME, EPP ou MEI), se for ao Juizado",
+    ] if pj else [
+        "Documento de identidade e CPF",
+        "Comprovante de residência",
+    ]) + [
         f"Print ou relatório do {r.biro} mostrando o registro, com data da consulta",
     ]
     if r.situacao == "ja_paguei":
@@ -70,12 +74,17 @@ def _provas(r: ln.Registro, a: ln.Analise, tem_protocolo: bool) -> list[str]:
 def secoes_do_kit(caso: ln.Caso, r: ln.Registro, hoje: date | None = None) -> list[tuple[str, list[str]]]:
     """[(título da seção, [linhas])]. Base comum do PDF e do Markdown."""
     hoje = hoje or date.today()
-    a = ln.analisar(r, hoje)
+    a = ln.analisar(r, hoje, caso)
     prots = [p for p in caso.protocolos if p.registro_id == r.id]
 
-    identificacao = [
+    identificacao = ([
+        f"Empresa: {caso.razao_social or caso.nome or '[razão social]'}",
+        f"CNPJ: {caso.cnpj or '[CNPJ]'}, porte {ln.PORTES.get(caso.porte, 'não informado')}"
+        + (f", situação {caso.situacao_cadastral}" if caso.situacao_cadastral else ""),
+    ] if caso.pj else [
         f"Consumidor: {caso.nome or '[nome completo]'}",
         f"CPF: {caso.cpf_mascarado or '[CPF]'} (informar o número completo no atendimento)",
+    ]) + [
         f"Credor: {r.credor}" + (f", CNPJ {r.cnpj_credor}" if r.cnpj_credor else ""),
         f"Valor registrado: {r.valor_fmt()}",
         f"Onde consta: {r.biro}",
@@ -108,17 +117,16 @@ def secoes_do_kit(caso: ln.Caso, r: ln.Registro, hoje: date | None = None) -> li
     else:
         pedidos.append("Exclusão do registro negativo em todos os birôs")
     pedidos.append("Tutela de urgência para suspender a negativação enquanto o caso é julgado")
-    pedidos.append("Indenização por dano moral, se não houver outra negativação legítima (Súmula 385 do STJ)")
+    pedidos.append("Indenização por dano moral"
+                   + (" da pessoa jurídica (Súmula 227 do STJ)" if caso.pj else "")
+                   + ", se não houver outra negativação legítima (Súmula 385 do STJ)")
 
     avisos = ln.avisos_do_caso(caso, hoje)
     if a.alerta:
         avisos.insert(0, a.alerta)
 
-    onde = [
-        "Procon da sua cidade: atendimento gratuito, notifica a empresa.",
-        "Juizado Especial Cível: causas até 40 salários mínimos; até 20, sem advogado (Lei 9.099/95).",
-        "O pedido de indenização prescreve em 3 anos (Código Civil, art. 206 §3 V).",
-    ]
+    onde = [f"{etapa}: {texto}" for etapa, texto in ln.escalada(caso)[1:]]
+    onde.append("O pedido de indenização prescreve em 3 anos (Código Civil, art. 206 §3 V).")
 
     return [
         ("Identificação", identificacao),
@@ -126,7 +134,7 @@ def secoes_do_kit(caso: ln.Caso, r: ln.Registro, hoje: date | None = None) -> li
         ("O que já foi tentado", tentativas),
         (f"Fundamentos ({a.pilha_label})", argumentos),
         ("Pedidos", pedidos),
-        ("Provas para juntar", _provas(r, a, bool(prots))),
+        ("Provas para juntar", _provas(r, a, bool(prots), caso.pj)),
         ("Atenção", avisos or ["Sem alertas para este caso."]),
         ("Onde levar", onde),
     ]
