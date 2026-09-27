@@ -163,6 +163,7 @@ class Protocolo:
     data_resposta: str | None = None
     aceito: bool | None = None
     data_baixa: str | None = None
+    avisos_enviados: list[str] = field(default_factory=list)   # status já avisados por e-mail
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
 
@@ -170,6 +171,7 @@ class Protocolo:
 class Caso:
     nome: str = ""
     cpf_mascarado: str = ""
+    email: str = ""                    # para os lembretes de prazo; vazio = ALERT_EMAIL
     registros: list[Registro] = field(default_factory=list)
     protocolos: list[Protocolo] = field(default_factory=list)
     criado: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
@@ -1014,12 +1016,99 @@ def listar_casos() -> list[dict]:
     return out
 
 
+def carregar_todos() -> list[Caso]:
+    """Todos os casos. Supabase quando ligado (é o que o cron enxerga), senão disco."""
+    try:
+        from . import store
+
+        if store.enabled():
+            linhas = store.select("holmes_limpanome", {"select": "dados"})
+            if linhas is not None:
+                return [_de_dict(l["dados"]) for l in linhas if l.get("dados")]
+    except Exception:
+        pass
+    casos = []
+    if CASOS_DIR.exists():
+        for arq in CASOS_DIR.glob("*.json"):
+            try:
+                casos.append(_de_dict(json.loads(arq.read_text(encoding="utf-8"))))
+            except Exception:
+                continue
+    return casos
+
+
+# ── Lembretes de prazo por e-mail ──────────────────────────────────────────
+
+def pendencias_de_prazo(caso: Caso, hoje: date | None = None) -> list[tuple[Protocolo, Registro, dict]]:
+    """Protocolos com prazo vencido que ainda não foram avisados neste estado."""
+    out = []
+    for p in caso.protocolos:
+        r = caso.registro(p.registro_id)
+        if not r:
+            continue
+        est = situacao_protocolo(p, hoje)
+        if est["atrasado"] and est["status"] not in p.avisos_enviados:
+            out.append((p, r, est))
+    return out
+
+
+def texto_lembrete(caso: Caso, pendencias: list[tuple[Protocolo, Registro, dict]]) -> tuple[str, str]:
+    quem = caso.nome or "seu caso"
+    assunto = (f"[Limpa Nome] {len(pendencias)} prazo(s) vencido(s): {quem}" if len(pendencias) > 1
+               else f"[Limpa Nome] prazo vencido: {pendencias[0][1].credor}")
+    linhas = [f"Limpa Nome · {quem}", ""]
+    for p, r, est in pendencias:
+        num = f" (protocolo {p.numero})" if p.numero else ""
+        linhas += [
+            f"• {r.credor}, {r.valor_fmt()}, {CANAIS.get(p.canal, p.canal)}{num}",
+            f"  Situação: {est['status']}",
+            f"  O que fazer: {est['acao']}",
+            "",
+        ]
+    linhas.append("Abra o Mr.Holmes > Limpar Nome > Protocolos para atualizar o caso, gerar o kit do "
+                  "Juizado ou levar o caso ao Holmes jurídico.")
+    return assunto, "\n".join(linhas)
+
+
+def enviar_lembretes(hoje: date | None = None, casos: list[Caso] | None = None, enviar=None) -> int:
+    """
+    Manda um e-mail por caso com os prazos vencidos ainda não avisados e marca
+    o aviso, para não repetir. Devolve quantos e-mails saíram. `enviar` existe
+    para o teste; por padrão usa holmes.notify.
+    """
+    if enviar is None:
+        from . import notify
+
+        if not notify.configured():
+            return 0
+        enviar = notify.send
+    enviados = 0
+    for caso in (casos if casos is not None else carregar_todos()):
+        pend = pendencias_de_prazo(caso, hoje)
+        if not pend:
+            continue
+        assunto, corpo = texto_lembrete(caso, pend)
+        if enviar(assunto, corpo, caso.email or None):
+            for p, _r, est in pend:
+                p.avisos_enviados.append(est["status"])
+            salvar(caso)
+            enviados += 1
+    return enviados
+
+
+def main() -> int:
+    """Para o Railway Cron: `python -m holmes.limpanome` uma vez por dia."""
+    n = enviar_lembretes()
+    print(f"[holmes.limpanome] {n} lembrete(s) de prazo enviado(s).")
+    return 0
+
+
 def _de_dict(d: dict) -> Caso:
     regs = [Registro(**{k: v for k, v in r.items() if k in Registro.__dataclass_fields__})
             for r in d.get("registros", [])]
     prots = [Protocolo(**{k: v for k, v in p.items() if k in Protocolo.__dataclass_fields__})
              for p in d.get("protocolos", [])]
-    return Caso(nome=d.get("nome", ""), cpf_mascarado=d.get("cpf_mascarado", ""),
+    return Caso(nome=d.get("nome", ""), cpf_mascarado=d.get("cpf_mascarado", ""), email=d.get("email", ""),
                 registros=regs, protocolos=prots, criado=d.get("criado", ""),
                 atualizado=d.get("atualizado", ""), id=d.get("id") or uuid.uuid4().hex[:10])
 
@@ -1050,3 +1139,7 @@ def data_br(d: date | None) -> str:
 def moeda(v: float) -> str:
     s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {s}"
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

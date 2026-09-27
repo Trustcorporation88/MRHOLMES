@@ -30,15 +30,16 @@ def _destino() -> str:
     return (os.environ.get("ALERT_EMAIL") or os.environ.get("SMTP_USER") or "").strip()
 
 
-def send(assunto: str, corpo: str) -> bool:
-    """Envia um e-mail simples. Devolve True se saiu; nunca levanta exceção."""
+def send(assunto: str, corpo: str, destino: str | None = None) -> bool:
+    """Envia um e-mail simples. Devolve True se saiu; nunca levanta exceção.
+    Sem `destino`, vai para ALERT_EMAIL (ou o próprio SMTP_USER)."""
     if not configured():
         return False
     host = os.environ["SMTP_HOST"].strip()
     port = int(os.environ.get("SMTP_PORT", "587"))
     user = os.environ["SMTP_USER"].strip()
     pwd = os.environ["SMTP_PASSWORD"]
-    destino = _destino()
+    destino = (destino or "").strip() or _destino()
     if not destino:
         return False
 
