@@ -167,11 +167,19 @@ class Protocolo:
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
 
+PORTES = {"MEI": "MEI", "ME": "Microempresa", "EPP": "Empresa de pequeno porte", "DEMAIS": "Demais portes", "": "Não informado"}
+
+
 @dataclass
 class Caso:
     nome: str = ""
     cpf_mascarado: str = ""
     email: str = ""                    # para os lembretes de prazo; vazio = ALERT_EMAIL
+    tipo: str = "pf"                   # pf | pj
+    cnpj: str = ""                     # dado público da empresa; guardado inteiro
+    razao_social: str = ""
+    porte: str = ""                    # MEI | ME | EPP | DEMAIS | ""
+    situacao_cadastral: str = ""
     registros: list[Registro] = field(default_factory=list)
     protocolos: list[Protocolo] = field(default_factory=list)
     criado: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
@@ -180,6 +188,21 @@ class Caso:
 
     def registro(self, rid: str) -> Registro | None:
         return next((r for r in self.registros if r.id == rid), None)
+
+    @property
+    def pj(self) -> bool:
+        return self.tipo == "pj"
+
+    @property
+    def pode_juizado(self) -> bool:
+        """Pessoa física sempre; empresa só se for MEI, ME ou EPP (Lei 9.099/95, art. 8º §1º)."""
+        return not self.pj or self.porte in ("MEI", "ME", "EPP")
+
+    @property
+    def identificacao(self) -> str:
+        if self.pj:
+            return f"{self.razao_social or self.nome or '[razão social]'}, CNPJ {self.cnpj or '[CNPJ]'}"
+        return f"{self.nome or '[nome]'}, CPF {self.cpf_mascarado or '[CPF]'}"
 
 
 # ── Análise de cada registro ───────────────────────────────────────────────
@@ -1016,6 +1039,44 @@ def listar_casos() -> list[dict]:
     return out
 
 
+def porte_da_receita(dados: dict) -> str:
+    """Normaliza o porte vindo da BrasilAPI, Minha Receita ou ReceitaWS."""
+    if dados.get("opcao_pelo_mei") in (True, "S", "SIM", "Sim"):
+        return "MEI"
+    porte = str(dados.get("porte") or dados.get("descricao_porte") or "").upper()
+    if "MICRO" in porte or porte.strip() in ("ME", "01", "1"):
+        return "ME"
+    if "PEQUENO" in porte or porte.strip() in ("EPP", "03", "3"):
+        return "EPP"
+    if "DEMAIS" in porte or porte.strip() in ("05", "5"):
+        return "DEMAIS"
+    return ""
+
+
+def preencher_empresa(caso: Caso, cnpj: str, consulta=None) -> str | None:
+    """Busca razão social, porte e situação na Receita. Devolve erro ou None.
+    `consulta` existe para o teste; por padrão usa holmes.br.consulta_cnpj."""
+    from .entity import format_cnpj, valid_cnpj
+
+    if not valid_cnpj(cnpj):
+        return "CNPJ inválido: confira os dígitos."
+    caso.tipo = "pj"
+    caso.cnpj = format_cnpj(cnpj)
+    if consulta is None:
+        from .br import consulta_cnpj as consulta
+    try:
+        dados = consulta(caso.cnpj) or {}
+    except Exception:
+        dados = {}
+    if not dados:
+        return "Não consegui consultar a Receita agora. Preencha o porte à mão."
+    caso.razao_social = str(dados.get("razao_social") or dados.get("nome") or caso.razao_social)[:160]
+    caso.nome = caso.nome or caso.razao_social
+    caso.porte = porte_da_receita(dados) or caso.porte
+    caso.situacao_cadastral = str(dados.get("descricao_situacao_cadastral") or dados.get("situacao") or "")[:40]
+    return None
+
+
 def carregar_todos() -> list[Caso]:
     """Todos os casos. Supabase quando ligado (é o que o cron enxerga), senão disco."""
     try:
@@ -1109,6 +1170,8 @@ def _de_dict(d: dict) -> Caso:
     prots = [Protocolo(**{k: v for k, v in p.items() if k in Protocolo.__dataclass_fields__})
              for p in d.get("protocolos", [])]
     return Caso(nome=d.get("nome", ""), cpf_mascarado=d.get("cpf_mascarado", ""), email=d.get("email", ""),
+                tipo=d.get("tipo", "pf"), cnpj=d.get("cnpj", ""), razao_social=d.get("razao_social", ""),
+                porte=d.get("porte", ""), situacao_cadastral=d.get("situacao_cadastral", ""),
                 registros=regs, protocolos=prots, criado=d.get("criado", ""),
                 atualizado=d.get("atualizado", ""), id=d.get("id") or uuid.uuid4().hex[:10])
 
