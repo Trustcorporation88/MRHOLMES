@@ -387,14 +387,13 @@ def _render_dossier(dossier) -> None:
     # Grafo de conexões — o mapa "pessoa → empresa → sócio".
     try:
         from holmes import graph as _graph
-        import streamlit.components.v1 as _components
 
         g = _graph.stats(dossier)
         if g["nos"] > 1:
             with st.expander(f"🕸️ Grafo de conexões ({g['nos']} nós, {g['conexoes']} ligações)",
                              expanded=False):
-                _components.html(_graph.to_html(dossier, escuro=bool(st.session_state.get("tema_escuro"))),
-                                 height=580, scrolling=False)
+                st.iframe(_graph.to_html(dossier, escuro=bool(st.session_state.get("tema_escuro"))),
+                          height=580)
     except Exception:
         pass
 
@@ -455,6 +454,15 @@ def _render_export(dossier) -> None:
             "🧾 JSON", dossier.to_json(), file_name=f"dossie_{alvo}.json",
             mime="application/json", use_container_width=True,
         )
+
+    # CNPJ: comprovante da Receita e relatório completo do CNPJ Trust.
+    if dossier.entity.type.value == "cnpj":
+        try:
+            from limpanome_ui import botoes_cnpj
+
+            botoes_cnpj(dossier.entity.value, "hx")
+        except Exception:
+            pass
 
     # PDF caprichado (reportlab).
     try:

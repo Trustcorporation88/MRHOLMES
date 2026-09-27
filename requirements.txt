@@ -5,7 +5,7 @@ requests>=2.31.0
 pdfkit==1.0.0
 beautifulsoup4>=4.9.3
 stem>=1.4.0
-streamlit>=1.32.0
+streamlit==1.64.0
 dnspython>=2.4.0
 networkx>=2.6.3,<3.0
 matplotlib>=3.7.0
