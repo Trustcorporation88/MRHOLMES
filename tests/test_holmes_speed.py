@@ -16,7 +16,8 @@ from holmes.orchestrator import InvestigationConfig, _run_batches_parallel  # no
 _SLEEP = 0.5
 
 
-def _fake_batch(entity, modes, config, progress, base, span):
+def _fake_batch(entity, modes, config, progress, base, span, pivot=False):
+    assert pivot, "pivôs devem rodar com pivot=True (fontes caras ficam de fora)"
     time.sleep(_SLEEP)
     return [ConnectorResult(
         connector_id="fake", connector_label="Fake", ok=True,
