@@ -181,7 +181,8 @@ def run_once(investigate_fn=None, config=None) -> list[dict]:
             if d and d.get("tem_novidade"):
                 resumo = _resumir_diff(d)
                 alerta = {"alvo": alvo, "quando": int(time.time()), "tipo": "novidade",
-                          "texto": resumo, "detalhe": d["mudancas"], "lido": False}
+                          "texto": resumo, "detalhe": d["mudancas"], "lido": False,
+                          "dossie_id": novo_id}
                 _push_alert(alerta)
                 novos.append(alerta)
 
@@ -212,6 +213,42 @@ def _resumir_diff(d: dict) -> str:
         if m.get("novos"):
             partes.append(f"{len(m['novos'])} em {secao}")
     return "Novidade: " + ", ".join(partes) if partes else "Mudança detectada"
+
+
+def detalhes_alerta(alerta: dict) -> list[dict]:
+    """O que o alerta encontrou, seção a seção, com fonte, detalhe e links.
+
+    O alerta guarda só os valores novos; o resto (de onde veio, link) está no
+    dossiê salvo. Alertas antigos não têm dossie_id: aí vale o último dossiê
+    do alvo na vigilância, que é o da verificação que gerou o alerta enquanto
+    não houver outra depois dela.
+    """
+    mudancas = alerta.get("detalhe") or {}
+    if not isinstance(mudancas, dict) or not mudancas:
+        return []
+    dossie_id = alerta.get("dossie_id")
+    if not dossie_id:
+        alvo = (alerta.get("alvo") or "").lower()
+        dossie_id = next((t.get("ultimo_id") for t in watchlist()
+                          if (t.get("alvo") or "").lower() == alvo), None)
+    fatos: dict[str, dict] = {}
+    registro = history.load(dossie_id) if dossie_id else None
+    for lista in ((registro or {}).get("dossie") or {}).get("fatos", {}).values():
+        for f in lista:
+            if f.get("value"):
+                fatos.setdefault(f["value"], f)
+    out = []
+    for secao, m in mudancas.items():
+        novos = [{"valor": v,
+                  "detalhe": (fatos.get(v) or {}).get("detail") or "",
+                  "fontes": list((fatos.get(v) or {}).get("sources") or []),
+                  "links": [u for u in (fatos.get(v) or {}).get("urls") or [] if u][:3],
+                  "confianca": (fatos.get(v) or {}).get("confidence") or ""}
+                 for v in m.get("novos") or []]
+        if novos or m.get("sumidos"):
+            out.append({"secao": secao, "novos": novos, "sumidos": list(m.get("sumidos") or [])})
+    out.sort(key=lambda s: -len(s["novos"]))
+    return out
 
 
 def main() -> int:
