@@ -43,9 +43,14 @@ def _run_batch(
     progress: ProgressFn | None,
     progress_base: float,
     progress_span: float,
+    pivot: bool = False,
 ) -> list[ConnectorResult]:
     """Dispara todos os conectores aplicáveis a um alvo, em paralelo."""
     conns = connectors_for(entity, modes)
+    if pivot:
+        # Fonte cobrada por consulta roda só no alvo informado; nos pivôs
+        # (sócios, parentes) o custo se multiplicaria sem ninguém pedir.
+        conns = [c for c in conns if c.on_pivots]
     if not conns:
         return []
 
@@ -116,7 +121,7 @@ def _run_batches_parallel(
     done = 0
     pool = ThreadPoolExecutor(max_workers=workers)
     futures = {
-        pool.submit(_run_batch, e, {Mode.AUTO}, config, None, 0.0, 0.0): e
+        pool.submit(_run_batch, e, {Mode.AUTO}, config, None, 0.0, 0.0, True): e
         for e in entities
     }
     restante = max(1.0, deadline_ts - time.time())

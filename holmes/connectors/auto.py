@@ -822,6 +822,23 @@ def register_auto_connectors() -> None:
                     "estaduais e capital social, via cnpj.trustcorp.com.br (CNPJá e SintegraWS)",
         homepage="https://cnpj.trustcorp.com.br",
     ))
+    from .. import bigdatacorp
+
+    class _BigDataCorpConnector(Connector):
+        def availability(self):
+            if bigdatacorp.configurado():
+                return True, None
+            return False, "BIGDATACORP_ACCESS_TOKEN e BIGDATACORP_TOKEN_ID não configurados"
+
+    register(_BigDataCorpConnector(
+        id="bigdatacorp", label="BigDataCorp (dados principais)", mode=Mode.AUTO,
+        accepts=(EntityType.CPF, EntityType.CNPJ), category="brasil", run=bigdatacorp.findings,
+        cost="pago", on_pivots=False, timeout=60,
+        description="Identificação, telefones, e-mails, endereços, ocupação, vínculos, sócios, "
+                    "risco financeiro e KYC. Só no alvo informado; processos e pesquisa completa "
+                    "saem por botão no dossiê",
+        homepage="https://plataforma.bigdatacorp.com.br",
+    ))
 
     # ── Sanções/PEP no mundo todo + Wikipédia/Wikidata ──────────────────────
     from .. import sanctions, wiki

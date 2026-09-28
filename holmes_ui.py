@@ -358,6 +358,35 @@ def _render_timeline(dossier) -> None:
         st.markdown("".join(linhas), unsafe_allow_html=True)
 
 
+def _render_bigdatacorp(dossier) -> None:
+    """Consultas pagas da BigDataCorp sob demanda: o resultado entra no dossiê."""
+    from holmes import bigdatacorp
+    from holmes.entity import EntityType
+
+    if dossier.entity.type not in (EntityType.CPF, EntityType.CNPJ) or not bigdatacorp.configurado():
+        return
+    feitos = {r.connector_id for r in dossier.results}
+    botoes = [("processos", "⚖️ Processos (BigDataCorp)",
+               "Lista dos processos judiciais com número, tribunal, situação e data."),
+              ("completa", "📊 Pesquisa completa (BigDataCorp)",
+               "Parentes, veículos, débitos com o governo, perfil dos processos, KYC dos sócios e mais.")]
+    pendentes = [b for b in botoes if f"bigdatacorp_{b[0]}" not in feitos]
+    if not pendentes:
+        return
+    st.caption("Consultas extras da BigDataCorp. Cada uma é cobrada; o resultado entra neste dossiê.")
+    for col, (pacote, rotulo, ajuda) in zip(st.columns(len(pendentes)), pendentes):
+        if col.button(rotulo, key=f"bdc_{pacote}", use_container_width=True, help=ajuda):
+            with st.spinner("Consultando a BigDataCorp…"):
+                resultado = bigdatacorp.buscar(dossier.entity, pacote)
+            if not resultado.ok:
+                # Falha não entra no dossiê: o botão continua para tentar de novo.
+                st.warning(f"A BigDataCorp não respondeu: {resultado.error}")
+            else:
+                dossier.add_results([resultado])
+                dossier.consolidate()
+                st.rerun()
+
+
 def _render_dossier(dossier) -> None:
     s = dossier.stats
 
@@ -368,6 +397,8 @@ def _render_dossier(dossier) -> None:
     c2.metric("Fatos consolidados", s["fatos_consolidados"])
     c3.metric("Pivôs automáticos", s["pivos"])
     c4.metric("Tempo", f"{s['tempo_total_ms'] / 1000:.1f}s")
+
+    _render_bigdatacorp(dossier)
 
     if dossier.summary:
         st.markdown("### Leitura do caso")

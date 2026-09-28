@@ -53,6 +53,8 @@ _KEY_ALIASES = {
     "brightdata": ("BRIGHTDATA_API_KEY", "BRIGHT_DATA_API_KEY", "BRD_API_KEY"),
     "github": ("HOLMES_GITHUB_TOKEN",),
     "cnpj_trust": ("CNPJ_TRUST_KEY",),
+    "bigdatacorp_token": ("BIGDATACORP_ACCESS_TOKEN",),
+    "bigdatacorp_tokenid": ("BIGDATACORP_TOKEN_ID",),
 }
 
 # Chaves coladas na UI nesta sessão (não persistem em disco).

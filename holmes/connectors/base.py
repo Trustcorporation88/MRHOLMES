@@ -38,7 +38,8 @@ class Connector:
     requires_binary: str | None = None    # binário externo (holehe, maigret…)
     timeout: int = 25
     cost: str = "gratis"                  # gratis | chave | pago
-    run: Callable[[Entity], Iterable[Finding]] | None = None
+    on_pivots: bool = True                # False: só roda no alvo informado (fonte cara)
+    run:Callable[[Entity], Iterable[Finding]] | None = None
     deeplink: Callable[[Entity], str | None] | None = None
     tags: tuple[str, ...] = field(default_factory=tuple)
 
