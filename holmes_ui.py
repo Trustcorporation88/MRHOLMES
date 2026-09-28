@@ -870,6 +870,36 @@ def _render_foto() -> None:
         st.markdown(f"- [{rotulo}]({url})")
 
 
+def _render_alerta(secoes: list[dict]) -> None:
+    """Lista o que um alerta de monitoramento encontrou, seção a seção."""
+    nomes = [f"{s['secao']} ({len(s['novos'])})" for s in secoes]
+    for aba, s in zip(st.tabs(nomes), secoes):
+        with aba:
+            for f in s["novos"]:
+                linha = f"🟢 <b>{_html_escape(f['valor'])}</b>"
+                if f["detalhe"]:
+                    linha += f"  \n<span class='mh-soft'>{_html_escape(f['detalhe'][:300])}</span>"
+                extras = []
+                if f["fontes"]:
+                    extras.append("fonte: " + ", ".join(f["fontes"][:3]))
+                if f["confianca"]:
+                    extras.append(f["confianca"])
+                if extras:
+                    linha += f"  \n<span class='mh-soft'>{_html_escape(' · '.join(extras))}</span>"
+                st.markdown(linha, unsafe_allow_html=True)
+                for u in f["links"]:
+                    if u.startswith(("http://", "https://")):
+                        st.markdown(f"&nbsp;&nbsp;&nbsp;🔗 [{_html_escape(u[:80])}]({u.replace(')', '%29')})")
+            if s["sumidos"]:
+                st.caption("Sumiu desde a verificação anterior: " + "; ".join(s["sumidos"][:30]))
+
+
+def _html_escape(texto: str) -> str:
+    import html as _h
+
+    return _h.escape(str(texto))
+
+
 def display_monitoramento() -> None:
     """Página de monitoramento: watchlist de alvos e alertas de novidade."""
     from holmes import monitor
@@ -896,16 +926,26 @@ def display_monitoramento() -> None:
     # ── alertas ───────────────────────────────────────────────────────────────
     alertas = monitor.alerts()
     if alertas:
-        with st.expander(f"🔔 Alertas ({len(alertas)})", expanded=bool(nao_lidos)):
-            if st.button("Marcar todos como lidos", key="mon_read"):
+        # Título em vez de expander: cada alerta é um expander, e o Streamlit
+        # não aceita expander dentro de expander.
+        st.markdown(f"#### 🔔 Alertas ({len(alertas)})")
+        st.caption("Clique num alerta para ver o que apareceu de novo, com a fonte e o link.")
+        with st.container():
+            if nao_lidos and st.button("Marcar todos como lidos", key="mon_read"):
                 monitor.marcar_lidos()
                 st.rerun()
+            import datetime as _dt
+
             for a in alertas[:50]:
-                import datetime as _dt
                 quando = _dt.datetime.fromtimestamp(a.get("quando", 0)).strftime("%d/%m %H:%M")
                 icone = "🟢" if a.get("tipo") == "novidade" else "⚠️"
-                marca = "" if a.get("lido") else " **(novo)**"
-                st.markdown(f"{icone} `{quando}` — **{a.get('alvo')}**: {a.get('texto')}{marca}")
+                marca = "" if a.get("lido") else " (novo)"
+                secoes = monitor.detalhes_alerta(a) if a.get("tipo") == "novidade" else []
+                if not secoes:
+                    st.markdown(f"{icone} `{quando}` · **{a.get('alvo')}**: {a.get('texto')}{marca}")
+                    continue
+                with st.expander(f"{icone} {quando} · {a.get('alvo')}: {a.get('texto')}{marca}"):
+                    _render_alerta(secoes)
 
     st.markdown("---")
 

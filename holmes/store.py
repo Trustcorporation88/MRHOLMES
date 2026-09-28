@@ -150,8 +150,10 @@ create table if not exists holmes_alertas (
     tipo text,
     texto text,
     detalhe jsonb,
-    lido boolean default false
+    lido boolean default false,
+    dossie_id text
 );
+alter table holmes_alertas add column if not exists dossie_id text;
 create index if not exists holmes_alertas_quando_idx on holmes_alertas (quando desc);
 
 create table if not exists holmes_limpanome (
