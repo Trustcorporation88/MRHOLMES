@@ -673,7 +673,7 @@ EXTERNAL_SERVICES = {
                 "url": "https://github.com/apurvsinghgautam/robin",
                 "icon": "🕵️",
                 "description": "OSINT de dark web com LLM: query, filtro, scrape e relatório",
-                "use_for": "Ferramenta embutida em OSINT Premium",
+                "use_for": "Ferramenta embutida no menu Dark web",
                 "source": "github",
             },
             {
