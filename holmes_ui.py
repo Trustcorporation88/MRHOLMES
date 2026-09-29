@@ -358,13 +358,40 @@ def _render_timeline(dossier) -> None:
         st.markdown("".join(linhas), unsafe_allow_html=True)
 
 
+def _render_documento(dossier) -> None:
+    """Bloco do topo do dossiê de CPF ou CNPJ: documentos e consultas extras.
+
+    CNPJ: comprovante da Receita e relatório completo (CNPJ Trust).
+    CPF e CNPJ: processos e pesquisa completa da BigDataCorp, sob demanda.
+    Cada botão só aparece se a fonte dele estiver configurada.
+    """
+    from holmes import bigdatacorp, cnpj_trust
+    from holmes.entity import EntityType
+
+    tipo = dossier.entity.type
+    if tipo not in (EntityType.CPF, EntityType.CNPJ):
+        return
+    tem_cnpj = tipo is EntityType.CNPJ and cnpj_trust.configurado()
+    tem_bdc = bigdatacorp.configurado()
+    if not (tem_cnpj or tem_bdc):
+        return
+    with st.container(border=True):
+        st.markdown("**📎 Documentos e consultas extras**")
+        if tem_cnpj:
+            try:
+                from limpanome_ui import botoes_cnpj
+
+                botoes_cnpj(dossier.entity.value, "hx")
+            except Exception:
+                pass
+        if tem_bdc:
+            _render_bigdatacorp(dossier)
+
+
 def _render_bigdatacorp(dossier) -> None:
     """Consultas pagas da BigDataCorp sob demanda: o resultado entra no dossiê."""
     from holmes import bigdatacorp
-    from holmes.entity import EntityType
 
-    if dossier.entity.type not in (EntityType.CPF, EntityType.CNPJ) or not bigdatacorp.configurado():
-        return
     feitos = {r.connector_id for r in dossier.results}
     botoes = [("processos", "⚖️ Processos (BigDataCorp)",
                "Lista dos processos judiciais com número, tribunal, situação e data."),
@@ -398,7 +425,7 @@ def _render_dossier(dossier) -> None:
     c3.metric("Pivôs automáticos", s["pivos"])
     c4.metric("Tempo", f"{s['tempo_total_ms'] / 1000:.1f}s")
 
-    _render_bigdatacorp(dossier)
+    _render_documento(dossier)
 
     if dossier.summary:
         st.markdown("### Leitura do caso")
@@ -485,15 +512,6 @@ def _render_export(dossier) -> None:
             "🧾 JSON", dossier.to_json(), file_name=f"dossie_{alvo}.json",
             mime="application/json", use_container_width=True,
         )
-
-    # CNPJ: comprovante da Receita e relatório completo do CNPJ Trust.
-    if dossier.entity.type.value == "cnpj":
-        try:
-            from limpanome_ui import botoes_cnpj
-
-            botoes_cnpj(dossier.entity.value, "hx")
-        except Exception:
-            pass
 
     # PDF caprichado (reportlab).
     try:
