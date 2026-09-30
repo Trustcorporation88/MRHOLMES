@@ -7,8 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import streamlit as st
 from external_services_ui import display_external_services, display_services_for_page
 from osint_premium import apply_pending_navigation, queue_navigation
-from osint_premium_ui import display_osint_premium
-from robin_workspace import sync_llm_keys_from_session
+from robin_workspace import display_robin_workspace, sync_llm_keys_from_session
 from holmes_ui import display_investigar, display_historico, display_monitoramento
 from limpanome_ui import display_limpar_nome
 
@@ -614,13 +613,13 @@ NAV_OPTIONS = [
     "Investigar",
     "Limpar Nome",
     "Monitoramento",
-    "OSINT Premium",
     "Telefone",
     "Email",
     "Domínio",
     "Dorks",
     "OSINT Avançado",
     "Leaks",
+    "Dark web",
     "Rede",
     "Gráfico",
     "Ferramentas",
@@ -633,13 +632,13 @@ NAV_LABEL = {
     "Investigar": "🔎 INVESTIGAR — caixa única",
     "Limpar Nome": "🧹 Limpar Nome",
     "Monitoramento": "🔔 Monitoramento",
-    "OSINT Premium": "★ OSINT Premium",
     "Telefone": "1 · Telefone",
     "Email": "2 · Email",
     "Domínio": "3 · Domínio",
     "Dorks": "4 · Dorks Google",
     "OSINT Avançado": "5 · Username / Social",
     "Leaks": "6 · Leaks",
+    "Dark web": "6b · Dark web (Robin)",
     "Rede": "7 · Rede / IP",
     "Gráfico": "8 · Grafo",
     "Ferramentas": "9 · Catálogo (GitHub)",
@@ -656,7 +655,7 @@ def _nav_label(page_id: str) -> str:
 
 # Navegação por botões (menu de verdade, sem bolinha de rádio), agrupada.
 NAV_ICON = {
-    "Investigar": "🔎", "Limpar Nome": "🧹", "Monitoramento": "🔔", "OSINT Premium": "★",
+    "Investigar": "🔎", "Limpar Nome": "🧹", "Monitoramento": "🔔", "Dark web": "🧅",
     "Telefone": "📱", "Email": "✉️", "Domínio": "🌐", "Dorks": "🧩",
     "OSINT Avançado": "👤", "Leaks": "🩸", "Rede": "📡", "Gráfico": "🕸️",
     "Ferramentas": "🧰", "Serviços Externos": "🔗", "Aprenda": "🎓",
@@ -664,16 +663,16 @@ NAV_ICON = {
 }
 NAV_SHORT = {
     "Investigar": "Investigar", "Limpar Nome": "Limpar Nome", "Monitoramento": "Monitoramento",
-    "OSINT Premium": "OSINT Premium", "Telefone": "Telefone", "Email": "Email",
+    "Dark web": "Dark web (Robin)", "Telefone": "Telefone", "Email": "Email",
     "Domínio": "Domínio", "Dorks": "Dorks Google", "OSINT Avançado": "Username / Social",
     "Leaks": "Leaks", "Rede": "Rede / IP", "Gráfico": "Grafo",
     "Ferramentas": "Catálogo (GitHub)", "Serviços Externos": "Links web",
     "Aprenda": "Aprenda", "Histórico": "Histórico", "Sobre": "Sobre",
 }
 NAV_GROUPS = [
-    ("Principal", ["Investigar", "Limpar Nome", "Monitoramento", "OSINT Premium"]),
+    ("Principal", ["Investigar", "Limpar Nome", "Monitoramento"]),
     ("Ferramentas manuais", ["Telefone", "Email", "Domínio", "Dorks",
-                             "OSINT Avançado", "Leaks", "Rede", "Gráfico",
+                             "OSINT Avançado", "Leaks", "Dark web", "Rede", "Gráfico",
                              "Ferramentas", "Serviços Externos"]),
     ("Sistema", ["Aprenda", "Histórico", "Sobre"]),
 ]
@@ -728,7 +727,7 @@ with st.sidebar:
         "LLM · "
         f"OpenAI {'●' if _prov.get('openai') else '○'} · "
         f"Claude {'●' if _prov.get('anthropic') else '○'} · "
-        "cole a chave OpenAI na aba Investigar"
+        "chaves pelo Railway ou na página Dark web"
     )
     def _salvar_tema() -> None:
         if st.session_state.get("tema_escuro"):
@@ -759,15 +758,14 @@ elif page == "Monitoramento":
     display_monitoramento()
 
 
-# ── OSINT Premium ────────────────────────────────────────────────────────────
-elif page == "OSINT Premium":
+# ── Dark web (Robin) ─────────────────────────────────────────────────────────
+elif page == "Dark web":
     page_header(
-        "Hub",
-        "OSINT Premium",
-        "Digite o nome na aba Investigar. A OpenAI busca na web e o Holmes consulta as fontes locais. "
-        "Educacional · alvos autorizados.",
+        "Ferramenta",
+        "Dark web (Robin)",
+        "Busca na rede Tor e monta um relatório com IA. Só para alvos autorizados.",
     )
-    display_osint_premium()
+    display_robin_workspace()
 
 
 # ── Telefone ─────────────────────────────────────────────────────────────────
@@ -1750,7 +1748,7 @@ elif page == "Ferramentas":
             "name": "Robin",
             "desc": "Briefing de dark web com LLM (repo oficial). Roda no Docker dele, não no Holmes.",
             "url": "https://github.com/apurvsinghgautam/robin",
-            "hint": "OSINT Premium",
+            "hint": "Dark web",
             "cat": "frameworks",
         },
         {
@@ -1795,7 +1793,7 @@ elif page == "Ferramentas":
             "name": "Flowsint",
             "desc": "Grafo OSINT + enrichers (Docker oficial Apache-2.0). No Holmes o fluxo abre os módulos nativos.",
             "url": "https://github.com/reconurge/flowsint",
-            "hint": "OSINT Premium · Investigar",
+            "hint": "Investigar",
             "cat": "frameworks",
         },
         {
@@ -1803,7 +1801,7 @@ elif page == "Ferramentas":
             "name": "Awesome OSINT Arsenal",
             "desc": "Índice 753+ tools. Neste site só a fatia OSINT — sem redteam.sh / phishing.",
             "url": "https://github.com/rawfilejson/awesome-osint-arsenal",
-            "hint": "OSINT Premium · Investigar",
+            "hint": "Investigar",
             "cat": "frameworks",
         },
         {
@@ -2463,7 +2461,7 @@ elif page == "Sobre":
 análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Módulos**
-- **OSINT Premium** — Robin embutido (busca + relatório) e atalhos para as suites nativas
+- **Dark web (Robin)** — busca na rede Tor com relatório por IA, em Ferramentas manuais
 - Telefone, email, domínio
 - **Dorks Workbench** — catálogo curado (WebDorks MIT + listas Holmes), tokens, filtros, abrir busca
 - Suite OSINT (Holehe, WhatsMyName, Maigret, theHarvester, dnstwist, httpx…)
@@ -2474,7 +2472,7 @@ análise de relacionamentos e integrações com ferramentas OSINT conhecidas.
 
 **Mr.Holmes vs Robin**
 - **Holmes:** clear web — pessoa, telefone, domínio, dorks, grafo.
-- **Robin** (MIT © [Apurv Singh Gautam](https://github.com/apurvsinghgautam/robin)): agora **roda no menu OSINT Premium** — query, busca (Tor + Ahmia), scrape e dossiê.
+- **Robin** (MIT © [Apurv Singh Gautam](https://github.com/apurvsinghgautam/robin)): roda na página **Dark web** (Ferramentas manuais) — query, busca (Tor + Ahmia), scrape e dossiê.
 - **Chaves:** cole OpenAI/Claude na sidebar **Chaves LLM**, ou use `.env` / variáveis Railway (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). Sem chave a busca ainda roda.
 
 **Mr.Holmes vs WebDorks**
