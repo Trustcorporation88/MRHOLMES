@@ -166,3 +166,20 @@ def test_comprovante_pdf(monkeypatch):
                         pedidos.append((url, params, headers)) or _R())
     assert ct.comprovante_pdf(CNPJ).startswith(b"%PDF")
     assert pedidos[0][0].endswith("/api/comprovante-rf") and pedidos[0][2]["x-access-key"] == "k"
+
+
+def test_falha_do_site_aparece_com_o_motivo_em_vez_de_vazio():
+    from unittest import mock
+
+    import pytest
+
+    from holmes.entity import detect
+
+    with mock.patch.object(ct, "consultar", return_value=None), \
+         mock.patch.object(ct, "motivo_da_falha", return_value="CNPJá: Chave do CNPJá inválida"):
+        with pytest.raises(RuntimeError, match="Chave do CNPJá inválida"):
+            list(ct.findings(detect("11.222.333/0001-81")))
+    # sem motivo (CNPJ que o site simplesmente não tem), continua vazio
+    with mock.patch.object(ct, "consultar", return_value=None), \
+         mock.patch.object(ct, "motivo_da_falha", return_value=None):
+        assert list(ct.findings(detect("11.222.333/0001-81"))) == []

@@ -149,10 +149,41 @@ def normalizar_receita(d: dict) -> dict:
     }
 
 
+def motivo_da_falha(cnpj: str) -> str | None:
+    """Por que o site não devolveu o CNPJ: a mensagem de erro dele, sem cache.
+
+    O site responde HTTP 500 com o motivo (chave do CNPJá inválida, SintegraWS
+    sem crédito). Sem isto a consulta voltava vazia e parecia "nada encontrado".
+    """
+    chave = net.get_key("cnpj_trust")
+    digitos = only_digits(cnpj)
+    if not chave or len(digitos) != 14:
+        return None
+    motivos = []
+    for nome, caminho in (("CNPJá", "/api/cnpja/office"), ("SintegraWS", "/api/sws/rf")):
+        try:
+            r = requests.get(f"{base_url()}{caminho}", params={"cnpj": digitos},
+                             headers={"x-access-key": chave, "Accept": "application/json"}, timeout=30)
+            if r.status_code < 400:
+                continue
+            try:
+                erro = (r.json() or {}).get("error")
+            except ValueError:
+                erro = None
+            motivos.append(f"{nome}: {erro or f'HTTP {r.status_code}'}")
+        except requests.RequestException as exc:
+            motivos.append(f"{nome}: {type(exc).__name__}")
+    return " | ".join(motivos)[:300] or None
+
+
 def findings(entity: Entity) -> Iterable[Finding]:
     """Conector da investigação: o que o CNPJ Trust sabe do CNPJ."""
     d = consultar(entity.value)
     if not d:
+        # Falha tem que aparecer em "fontes que não responderam", com o motivo.
+        motivo = motivo_da_falha(entity.value)
+        if motivo:
+            raise RuntimeError(f"cnpj.trustcorp.com.br não devolveu o CNPJ ({motivo})")
         return []
     fonte, rotulo = "cnpj_trust", f"CNPJ Trust ({d['provedor']})"
     url = base_url()
