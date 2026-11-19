@@ -22,9 +22,12 @@ Uso:
 O banco final tem de 3 a 4 GB. No Railway, aponte HOLMES_SOCIOS_DIR para o
 Volume persistente e agende a atualização mensal num Cron.
 
-Endereço da Receita (muda de tempos em tempos, por isso é configurável):
-    HOLMES_RFB_CNPJ_BASE  padrão: https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/
-    HOLMES_RFB_CNPJ_MES   opcional, ex.: 2026-09 (sem isso, pega o mais recente)
+Endereço da Receita (muda de tempos em tempos, por isso é configurável).
+Desde 2026 os arquivos ficam numa pasta compartilhada (Nextcloud), lida por
+WebDAV com o código do compartilhamento como usuário e senha vazia:
+    HOLMES_RFB_CNPJ_BASE   padrão: .../public.php/webdav/Dados/Cadastros/CNPJ/
+    HOLMES_RFB_CNPJ_TOKEN  código do compartilhamento (o trecho depois de /s/ no link público)
+    HOLMES_RFB_CNPJ_MES    opcional, ex.: 2026-09 (sem isso, pega o mais recente completo)
 """
 
 from __future__ import annotations
@@ -45,8 +48,10 @@ from .entity import only_digits, strip_accents
 
 BASE_URL = os.environ.get(
     "HOLMES_RFB_CNPJ_BASE",
-    "https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/",
+    "https://arquivos.receitafederal.gov.br/public.php/webdav/Dados/Cadastros/CNPJ/",
 ).rstrip("/") + "/"
+# Link público: https://arquivos.receitafederal.gov.br/index.php/s/gn672Ad4CF8N6TK
+TOKEN = os.environ.get("HOLMES_RFB_CNPJ_TOKEN", "gn672Ad4CF8N6TK").strip()
 DATA_DIR = Path(os.environ.get("HOLMES_SOCIOS_DIR", os.environ.get("HOLMES_DATA_DIR", ".holmes_data")))
 DB_PATH = DATA_DIR / "socios_rfb.sqlite"
 ARQUIVOS = [f"Socios{i}.zip" for i in range(10)]
@@ -215,20 +220,60 @@ def build_from_dir(pasta: Path, db_path: Path | None = None) -> int:
     return build_from_rows(_todas(), db_path, mes=Path(pasta).name)
 
 
+def _webdav() -> bool:
+    return "/webdav" in BASE_URL
+
+
+def _auth() -> tuple[str, str] | None:
+    """Pasta compartilhada: o código do compartilhamento é o usuário, sem senha."""
+    return (TOKEN, "") if _webdav() and TOKEN else None
+
+
+def nomes_da_listagem(texto: str) -> list[str]:
+    """Nomes de pastas e arquivos de uma listagem (WebDAV ou página de índice)."""
+    if "<d:href>" in texto or "<D:href>" in texto:
+        hrefs = re.findall(r"<[dD]:href>([^<]+)</[dD]:href>", texto)
+    else:
+        hrefs = re.findall(r'href="([^"?]+)"', texto)
+    return [h.rstrip("/").rsplit("/", 1)[-1] for h in hrefs if h.rstrip("/")]
+
+
+def _listar(pasta: str = "") -> list[str]:
+    from . import net
+
+    url = f"{BASE_URL}{pasta}"
+    sessao = net.build_session(retries=3)
+    if _webdav():
+        resp = sessao.request("PROPFIND", url, auth=_auth(), headers={"Depth": "1"}, timeout=60)
+    else:
+        resp = sessao.get(url, timeout=60)
+    resp.raise_for_status()
+    return nomes_da_listagem(resp.text)
+
+
 def mes_mais_recente() -> str:
+    """Mês mais novo que já tem os dez arquivos de sócios.
+
+    A Receita sobe os arquivos aos poucos: a pasta do mês aparece antes de
+    estar completa, então um mês pela metade é pulado.
+    """
     fixo = os.environ.get("HOLMES_RFB_CNPJ_MES", "").strip()
     if fixo:
         return fixo
-    from . import net
-
-    html = net.get_text(BASE_URL, ttl=3600) or ""
-    meses = sorted(set(re.findall(r'href="(\d{4}-\d{2})/?"', html)))
-    if not meses:
+    try:
+        meses = sorted({n for n in _listar() if re.fullmatch(r"\d{4}-\d{2}", n)}, reverse=True)
+    except Exception as exc:  # noqa: BLE001
         raise RuntimeError(
-            f"não achei pastas de mês em {BASE_URL}. A Receita pode ter mudado o endereço: "
-            "ajuste HOLMES_RFB_CNPJ_BASE ou baixe os Socios*.zip e use --from-dir."
-        )
-    return meses[-1]
+            f"a Receita não respondeu em {BASE_URL} ({exc}). Ajuste HOLMES_RFB_CNPJ_BASE e "
+            "HOLMES_RFB_CNPJ_TOKEN, ou baixe os Socios*.zip e use --from-dir."
+        ) from exc
+    for mes in meses[:3]:
+        if set(ARQUIVOS) <= set(_listar(f"{mes}/")):
+            return mes
+    raise RuntimeError(
+        f"não achei mês completo em {BASE_URL}. A Receita pode ter mudado o endereço: "
+        "ajuste HOLMES_RFB_CNPJ_BASE ou baixe os Socios*.zip e use --from-dir."
+    )
 
 
 def update(progress=None) -> dict:
@@ -243,7 +288,7 @@ def update(progress=None) -> dict:
         destino = pasta / nome
         if destino.exists() and destino.stat().st_size > 0:
             continue
-        with sessao.get(f"{BASE_URL}{mes}/{nome}", stream=True, timeout=180) as resp:
+        with sessao.get(f"{BASE_URL}{mes}/{nome}", stream=True, timeout=180, auth=_auth()) as resp:
             resp.raise_for_status()
             parcial = destino.with_suffix(".part")
             with open(parcial, "wb") as f:

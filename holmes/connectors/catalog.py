@@ -134,8 +134,6 @@ _CATALOG: list[tuple] = [
      'https://www.numlookup.com/?phone={digits}', "Consulta reversa gratuita"),
     ("whatsapp_dl", "WhatsApp", "telefone", (P,), Mode.DEEPLINK,
      'https://wa.me/{digits}', "Foto e nome de exibição, se a conta existir"),
-    ("quemperturba", "Quem Perturba", "telefone", (P,), Mode.DEEPLINK,
-     'https://www.quemperturba.com.br/numero/{digits}', "Base brasileira de denúncia de spam"),
 
     # ── E-mail ──────────────────────────────────────────────────────────────
     ("emailrep", "EmailRep", "email", (E,), Mode.DEEPLINK,

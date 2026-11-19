@@ -371,3 +371,161 @@ def findings(entity: Entity) -> Iterable[Finding]:
     if entity.type not in (EntityType.CPF, EntityType.CNPJ):
         return []
     return para_findings(consultar(entity.value, "principais"), entity.value, "principais")
+
+
+# ── localizador: telefone, e-mail ou nome → quem é ──────────────────────────
+#
+# A API aceita chaves além do documento: `phone{}`, `email{}` e `name{}`
+# devolvem as pessoas e empresas ligadas àquele dado. É a consulta que
+# transforma "o telefone é de São Paulo" em "o telefone é de Fulano, CPF tal".
+# A cobrança é por entidade devolvida, então o `Limit` é o teto de custo.
+
+LIMITE_CONTATO = 3   # telefone e e-mail: raramente mais de 2 ou 3 cadastros
+LIMITE_NOME = 5      # nome: homônimos; só a ficha básica de cada um
+DATASETS_LOCALIZAR = {
+    "pessoas": "basic_data,phones_extended,emails_extended,addresses_extended,business_relationships",
+    "empresas": "basic_data",
+}
+
+
+def _consultar_chave(tipo: str, q: str, datasets: str, limite: int) -> list[dict]:
+    """Consulta por chave alternativa. Devolve a lista de entidades (pode ser vazia)."""
+    resp = net.post_json(
+        f"{BASE_URL}/{tipo}",
+        payload={"Datasets": datasets, "q": q, "Limit": limite},
+        headers={"AccessToken": net.get_key("bigdatacorp_token") or "",
+                 "TokenId": net.get_key("bigdatacorp_tokenid") or "",
+                 "Content-Type": "application/json", "Accept": "application/json"},
+        timeout=60, ttl=CACHE_TTL,
+    ) or {}
+    bruto = resp.get("Result")
+    itens = bruto if isinstance(bruto, list) else [bruto] if isinstance(bruto, dict) else []
+    # Entidade sem dado básico é só o eco da chave (nada encontrado).
+    return [dict(r) for r in itens if isinstance(r, dict) and (r.get("BasicData") or {})]
+
+
+def _chave_e_dado(entity: Entity) -> tuple[list[str], str]:
+    """(consultas `q` a tentar em ordem, rótulo do dado) para o alvo."""
+    if entity.type is EntityType.PHONE:
+        digitos = entity.get("digits", "") or only_digits(entity.value)
+        nacional = digitos[2:] if digitos.startswith("55") and len(digitos) in (12, 13) else digitos
+        tentativas = [f"phone{{{nacional}}}"]
+        sem9 = entity.get("alt_no9")
+        if sem9:  # cadastro antigo, de antes do nono dígito
+            tentativas.append(f"phone{{{sem9[2:]}}}")
+        return tentativas, "telefone"
+    if entity.type is EntityType.EMAIL:
+        return [f"email{{{entity.value.lower()}}}"], "e-mail"
+    if entity.type is EntityType.NAME:
+        return [f"name{{{entity.value}}}"], "nome"
+    return [], ""
+
+
+def _ficha_pessoa(b: dict) -> str:
+    idade = f" ({b['Age']} anos)" if b.get("Age") else ""
+    return _juntar(
+        f"nascimento {_data(b.get('BirthDate'))}{idade}" if _data(b.get("BirthDate")) else "",
+        f"mãe {b['MotherName']}" if b.get("MotherName") else "",
+        f"CPF {b['TaxIdStatus']}" if b.get("TaxIdStatus") else "",
+        f"região fiscal {b['TaxIdFiscalRegion']}" if b.get("TaxIdFiscalRegion") else "",
+        "⚠️ indicação de óbito" if b.get("HasObitIndication") else "")
+
+
+def localizar_findings(pessoas: list[dict], empresas: list[dict], dado: str,
+                       detalhar: bool = True) -> list[Finding]:
+    """Converte as entidades achadas pela chave em achados. Testável sem rede.
+
+    Cada pessoa vira um achado de documento (o CPF é o que separa homônimos)
+    e um de nome. Com `detalhar`, os contatos, endereços e empresas de cada
+    uma entram também, marcados com o nome do dono.
+    """
+    rotulo = f"{ROTULO} (localizador por {dado})"
+    out: list[Finding] = []
+
+    def add(kind, value, detail="", conf=Confidence.LIKELY, raw=None):
+        if value and str(value).strip():
+            out.append(Finding(kind=kind, value=str(value).strip(), source=FONTE, source_label=rotulo,
+                               url="", confidence=conf, detail=detail, raw=raw or {}))
+
+    for i, r in enumerate(pessoas):
+        b = r.get("BasicData") or {}
+        nome, cpf = b.get("Name"), only_digits(str(b.get("TaxIdNumber") or ""))
+        if not nome:
+            continue
+        vinculo = f"Cadastro ligado a este {dado}" if dado != "nome" else "Pessoa com este nome"
+        bruto = {"candidato": True, "documento": cpf, "nome": nome, "tipo": "cpf"}
+        if len(cpf) == 11:
+            add(FindingKind.DOCUMENT, format_cpf(cpf), _juntar(f"{vinculo}: {nome}", _ficha_pessoa(b)),
+                raw=bruto)
+        if dado != "nome":  # no alvo "nome" o valor repetiria o próprio alvo
+            add(FindingKind.NAME, nome, _juntar(vinculo, f"CPF {format_cpf(cpf)}" if len(cpf) == 11 else "",
+                                                 _ficha_pessoa(b)), raw=bruto)
+        homonimos = b.get("NumberOfFullNameNamesakes")
+        if dado == "nome" and i == 0 and isinstance(homonimos, int) and homonimos > 1:
+            add(FindingKind.NOTE, f"{homonimos} pessoas têm este nome exato no Brasil",
+                "Confira nascimento e nome da mãe antes de atribuir qualquer fato", Confidence.CONFIRMED)
+        if detalhar:
+            for f in para_findings({**r, "KycData": None, "FinancialRisk": None}, cpf, "principais"):
+                if f.kind is FindingKind.NAME and (f.raw or {}).get("titular"):
+                    continue  # já entrou acima, com o vínculo certo
+                if f.kind is FindingKind.NAME:
+                    # Pai, mãe e apelido de um candidato não viram alvo novo.
+                    f.confidence = Confidence.LIKELY
+                f.source_label = rotulo
+                f.detail = _juntar(f.detail, f"de {nome}")
+                out.append(f)
+
+    for r in empresas:
+        b = r.get("BasicData") or {}
+        nome, cnpj = b.get("OfficialName"), only_digits(str(b.get("TaxIdNumber") or ""))
+        if not nome:
+            continue
+        vinculo = f"Empresa com este {dado} no cadastro" if dado != "nome" else "Empresa com este nome"
+        bruto = {"candidato": True, "documento": cnpj, "nome": nome, "tipo": "cnpj"}
+        add(FindingKind.COMPANY, nome, _juntar(
+            vinculo, f"CNPJ {format_cnpj(cnpj)}" if len(cnpj) == 14 else "",
+            f"fantasia {b['TradeName']}" if b.get("TradeName") and b["TradeName"] != nome else "",
+            f"situação {b['TaxIdStatus']}" if b.get("TaxIdStatus") else "",
+            f"sede em {b['HeadquarterState']}" if b.get("HeadquarterState") else ""), raw=bruto)
+        if len(cnpj) == 14:
+            # Confirmado de propósito: o CNPJ vira pivô e a Receita traz os sócios.
+            add(FindingKind.DOCUMENT, format_cnpj(cnpj), f"{vinculo}: {nome}", Confidence.CONFIRMED,
+                raw=bruto)
+    return out
+
+
+def localizar(entity: Entity) -> Iterable[Finding]:
+    """Conector automático: telefone, e-mail ou nome → pessoas e empresas ligadas."""
+    from .serp import is_company_name
+
+    tentativas, dado = _chave_e_dado(entity)
+    if not tentativas:
+        return []
+    por_nome = entity.type is EntityType.NAME
+    e_empresa = por_nome and is_company_name(entity.value)
+    limite = LIMITE_NOME if por_nome else LIMITE_CONTATO
+
+    pessoas: list[dict] = []
+    empresas: list[dict] = []
+    for q in tentativas:
+        if not e_empresa:
+            pessoas = _consultar_chave(
+                "pessoas", q, "basic_data" if por_nome else DATASETS_LOCALIZAR["pessoas"], limite)
+        # Empresa: sempre para telefone e e-mail; para nome, só se for razão
+        # social ou se nenhuma pessoa apareceu (nome fantasia, por exemplo).
+        if not por_nome or e_empresa or not pessoas:
+            empresas = _consultar_chave("empresas", q, DATASETS_LOCALIZAR["empresas"], limite)
+        if pessoas or empresas:
+            break
+
+    # Nome com um único titular: não há homônimo a separar, então a ficha
+    # completa entra direto, sem precisar de um segundo clique.
+    if por_nome and len(pessoas) == 1:
+        cpf = only_digits(str((pessoas[0].get("BasicData") or {}).get("TaxIdNumber") or ""))
+        if len(cpf) == 11:
+            try:
+                pessoas = [{**consultar(cpf, "principais"), "BasicData": pessoas[0]["BasicData"]}]
+            except (requests.RequestException, ValueError, RuntimeError):
+                pass
+            return localizar_findings(pessoas, empresas, dado, detalhar=True)
+    return localizar_findings(pessoas, empresas, dado, detalhar=not por_nome)
