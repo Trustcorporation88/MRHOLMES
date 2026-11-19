@@ -1,3 +1,46 @@
+# Reforma de novembro de 2026
+
+Queixa: "coloco um telefone e só diz de que estado é; coloco um nome e o
+Google traz mais".
+
+## O que a medição mostrou
+
+| Alvo | Fontes que executavam | Resultado |
+|---|---|---|
+| Telefone | 3 (busca, libphonenumber, tabela de DDD) e 20 links soltos | DDD, operadora de origem e fuso |
+| Nome | busca, Wikipédia, Congresso, diários | Nada que separasse homônimo; nenhum CPF |
+
+A BigDataCorp já estava contratada e configurada, mas só era consultada por
+CPF e CNPJ. Testada com as chaves de produção, a mesma API respondeu por
+`phone{}`, `email{}` e `name{}`, para pessoa e para empresa.
+
+## O que mudou
+
+* **Localizador** (`holmes/bigdatacorp.py`, `localizar`): telefone, e-mail ou
+  nome devolvem as pessoas e empresas ligadas, com CPF ou CNPJ, nascimento,
+  mãe, contatos, endereços e empresas. O dossiê ganhou o bloco "Quem é", com
+  botão para abrir o dossiê de cada documento. No mesmo telefone de teste, o
+  dossiê passou de 5 achados para 76 fatos e 4 cadastros.
+* **Código removido**: 413 dos 516 arquivos. Saíram o CLI e a interface PHP
+  herdados do Mr.Holmes original, 11 páginas manuais do menu (Telefone, Email,
+  Domínio, Dorks, Username, Leaks, Rede, Grafo, Catálogo, Links web, Aprenda)
+  e os catálogos de links que abriam a página inicial de cada serviço.
+* **Diretório de fontes** (`holmes/diretorio.py`): 116 fontes em 13
+  categorias, cada uma com o que entrega e o custo. Só entra fonte aprovada
+  pelo `scripts/verificar_diretorio.py`, que testa cada endereço ao vivo.
+* O dossiê deixou de incluir links de busca manual por padrão: traz só fato.
+
+## Pendências achadas no caminho
+
+* O endereço padrão dos dados abertos do CNPJ (`HOLMES_RFB_CNPJ_BASE` em
+  `holmes/socios_rfb.py`) devolve 404: a Receita mudou os arquivos de lugar.
+  O índice local de sócios não atualiza até o endereço ser corrigido.
+* A consulta de veículo por placa na BigDataCorp respondeu "dataset não
+  habilitado". Para ligar, é preciso pedir a liberação no BDC Center.
+* `MOTOR.md` ainda cita números de fontes anteriores a esta reforma.
+
+---
+
 # Auditoria do motor de investigação (setembro de 2026)
 
 Foco: por que CPF e CNPJ trazem pouco, o que fazer com a Bright Data e quais

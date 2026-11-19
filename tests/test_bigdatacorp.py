@@ -127,3 +127,94 @@ def test_conector_so_roda_no_alvo_e_nao_nos_pivos():
     ent = detect("529.982.247-25")
     with mock.patch.object(orchestrator, "connectors_for", return_value=[c]):
         assert orchestrator._run_batch(ent, set(), orchestrator.InvestigationConfig(), None, 0, 0, True) == []
+
+
+# ── localizador: telefone, e-mail ou nome → quem é ──────────────────────────
+
+def _basico(nome, cpf, **extra):
+    return {"BasicData": {"Name": nome, "TaxIdNumber": cpf, "BirthDate": "1980-05-02T00:00:00Z",
+                          "Age": 46, "MotherName": "MARIA DE TAL", "TaxIdStatus": "REGULAR", **extra}}
+
+
+def test_telefone_devolve_o_dono_com_cpf_e_contatos():
+    pessoa = {**PESSOA, **_basico("FULANO DE TAL", "52998224725")}
+    fs = bdc.localizar_findings([pessoa], [], "telefone")
+    doc = next(f for f in fs if f.kind is FindingKind.DOCUMENT and f.value == "529.982.247-25")
+    assert "FULANO DE TAL" in doc.detail and "mãe MARIA DE TAL" in doc.detail
+    assert doc.raw["candidato"] and doc.raw["documento"] == "52998224725"
+    dono = next(f for f in fs if f.kind is FindingKind.NAME and f.value == "FULANO DE TAL")
+    assert "Cadastro ligado a este telefone" in dono.detail
+    # os outros contatos e o endereço do dono entram junto, com o nome dele
+    assert "fulano@exemplo.com" in _valores(fs, FindingKind.EMAIL)
+    endereco = next(f for f in fs if f.kind is FindingKind.ADDRESS)
+    assert endereco.detail.endswith("de FULANO DE TAL")
+    # a mãe aparece, mas não como confirmada (não vira pivô)
+    mae = next(f for f in fs if f.value == "MARIA DE TAL")
+    assert mae.confidence.value == "provavel"
+
+
+def test_nome_com_homonimos_separa_por_cpf_e_nao_detalha():
+    a = _basico("JOSE DA SILVA", "52998224725", NumberOfFullNameNamesakes=1200)
+    b = _basico("JOSE DA SILVA", "11144477735", NumberOfFullNameNamesakes=1200)
+    fs = bdc.localizar_findings([a, b], [], "nome", detalhar=False)
+    assert _valores(fs, FindingKind.DOCUMENT) == ["529.982.247-25", "111.444.777-35"]
+    assert _valores(fs, FindingKind.NAME) == []  # o valor repetiria o próprio alvo
+    assert "1200 pessoas têm este nome exato no Brasil" in _valores(fs, FindingKind.NOTE)
+    assert len(_valores(fs, FindingKind.NOTE)) == 1
+
+
+def test_empresa_achada_pelo_telefone_vira_pivo_de_cnpj():
+    empresa = {"BasicData": {"OfficialName": "ACME LTDA", "TradeName": "Acme", "TaxIdNumber": "11222333000181",
+                             "TaxIdStatus": "ATIVA", "HeadquarterState": "SP"}}
+    fs = bdc.localizar_findings([], [empresa], "telefone")
+    razao = next(f for f in fs if f.kind is FindingKind.COMPANY)
+    assert razao.value == "ACME LTDA" and "CNPJ 11.222.333/0001-81" in razao.detail
+    cnpj = next(f for f in fs if f.kind is FindingKind.DOCUMENT)
+    assert cnpj.value == "11.222.333/0001-81" and cnpj.confidence.value == "confirmada"
+
+
+def test_chaves_da_consulta_por_tipo_de_alvo():
+    assert bdc._chave_e_dado(detect("(11) 98765-4321")) == (
+        ["phone{11987654321}", "phone{1187654321}"], "telefone")
+    assert bdc._chave_e_dado(detect("Fulano@Exemplo.com")) == (["email{fulano@exemplo.com}"], "e-mail")
+    assert bdc._chave_e_dado(detect("Fulano de Tal"))[1] == "nome"
+    assert bdc._chave_e_dado(detect("529.982.247-25")) == ([], "")
+
+
+def test_localizar_consulta_pessoas_e_empresas_e_tenta_sem_o_nono_digito():
+    chamadas = []
+
+    def falso(tipo, q, datasets, limite):
+        chamadas.append((tipo, q, limite))
+        if q == "phone{1187654321}" and tipo == "pessoas":
+            return [_basico("FULANO DE TAL", "52998224725")]
+        return []
+
+    with mock.patch.object(bdc, "_consultar_chave", side_effect=falso):
+        fs = list(bdc.localizar(detect("11 98765-4321")))
+    assert [c[:2] for c in chamadas] == [
+        ("pessoas", "phone{11987654321}"), ("empresas", "phone{11987654321}"),
+        ("pessoas", "phone{1187654321}"), ("empresas", "phone{1187654321}")]
+    assert all(c[2] == bdc.LIMITE_CONTATO for c in chamadas)
+    assert "FULANO DE TAL" in _valores(fs, FindingKind.NAME)
+
+
+def test_nome_unico_ja_traz_a_ficha_completa():
+    with mock.patch.object(bdc, "_consultar_chave", return_value=[_basico("FULANO DE TAL", "52998224725")]), \
+         mock.patch.object(bdc, "consultar", return_value=dict(PESSOA)) as completa:
+        fs = list(bdc.localizar(detect("Fulano de Tal")))
+    completa.assert_called_once_with("52998224725", "principais")
+    assert "529.982.247-25" in _valores(fs, FindingKind.DOCUMENT)
+    assert "fulano@exemplo.com" in _valores(fs, FindingKind.EMAIL)
+
+
+def test_conector_do_localizador_aceita_telefone_email_e_nome():
+    from holmes.connectors import ensure_registered
+    from holmes.connectors.base import get_connector
+
+    ensure_registered()
+    c = get_connector("bigdatacorp_localizar")
+    assert c and not c.on_pivots and c.cost == "pago"
+    for alvo in ("11 98765-4321", "a@b.com", "Fulano de Tal"):
+        assert c.handles(detect(alvo))
+    assert not c.handles(detect("529.982.247-25"))

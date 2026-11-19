@@ -388,6 +388,44 @@ def _render_documento(dossier) -> None:
             _render_bigdatacorp(dossier)
 
 
+def _abrir_dossie(documento: str) -> None:
+    st.session_state["holmes_target"] = documento
+    st.session_state["holmes_autorun"] = True
+
+
+def _render_candidatos(dossier) -> None:
+    """Quem está por trás do telefone, do e-mail ou do nome investigado.
+
+    Cada pessoa ou empresa que o localizador devolveu vira uma linha com o
+    documento e um botão que abre o dossiê completo dela.
+    """
+    from holmes.entity import format_cnpj, format_cpf
+
+    vistos: dict[str, dict] = {}
+    for r in dossier.results:
+        for f in r.findings:
+            bruto = f.raw or {}
+            doc = bruto.get("documento")
+            if bruto.get("candidato") and doc and doc not in vistos:
+                vistos[doc] = {**bruto, "detalhe": f.detail}
+    if not vistos:
+        return
+    with st.container(border=True):
+        st.markdown(f"**🎯 Quem é: {len(vistos)} cadastro(s) ligado(s) a este {dossier.entity.label.lower()}**")
+        st.caption("Dado de birô: pode estar desatualizado. Abrir o dossiê de um documento é uma nova "
+                   "consulta paga.")
+        for doc, c in list(vistos.items())[:8]:
+            e_cpf = c.get("tipo") == "cpf"
+            formatado = format_cpf(doc) if e_cpf else format_cnpj(doc)
+            col_txt, col_btn = st.columns([4, 1.3])
+            with col_txt:
+                st.markdown(f"{'👤' if e_cpf else '🏢'} **{c.get('nome')}**  ·  `{formatado}`")
+                st.caption(c.get("detalhe") or "")
+            with col_btn:
+                st.button("Abrir dossiê", key=f"cand_{doc}", use_container_width=True,
+                          on_click=_abrir_dossie, args=(formatado,))
+
+
 def _render_bigdatacorp(dossier) -> None:
     """Consultas pagas da BigDataCorp sob demanda: o resultado entra no dossiê."""
     from holmes import bigdatacorp
@@ -426,6 +464,7 @@ def _render_dossier(dossier) -> None:
     c4.metric("Tempo", f"{s['tempo_total_ms'] / 1000:.1f}s")
 
     _render_documento(dossier)
+    _render_candidatos(dossier)
 
     if dossier.summary:
         st.markdown("### Leitura do caso")
@@ -668,19 +707,15 @@ def _chips_rapidos() -> None:
 
 # Atalhos do painel inicial: as ferramentas manuais mais usadas.
 _ATALHOS = [
-    ("📱", "Telefone", "Telefone"),
-    ("✉️", "E-mail", "Email"),
-    ("🌐", "Domínio", "Domínio"),
-    ("👤", "Username", "OSINT Avançado"),
-    ("🧩", "Dorks", "Dorks"),
-    ("🩸", "Leaks", "Leaks"),
-    ("📡", "Rede / IP", "Rede"),
-    ("🕸️", "Grafo", "Gráfico"),
+    ("🧭", "Diretório de fontes", "Diretório"),
+    ("🧹", "Limpar Nome", "Limpar Nome"),
+    ("🔔", "Monitoramento", "Monitoramento"),
+    ("🧅", "Dark web", "Dark web"),
 ]
 
 
 def _ir_para(page_id: str) -> None:
-    from osint_premium import queue_navigation
+    from nav import queue_navigation
 
     queue_navigation(st.session_state, page_id)
 
@@ -718,7 +753,7 @@ def _painel_inicial() -> None:
                   use_container_width=True, type="primary" if novos else "secondary",
                   on_click=_ir_para, args=("Monitoramento",))
 
-    st.markdown('<div class="mh-section">Ferramentas rápidas</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mh-section">Atalhos</div>', unsafe_allow_html=True)
     with st.container(key="mh_tiles"):
         for inicio in range(0, len(_ATALHOS), 4):
             cols = st.columns(4)
@@ -739,9 +774,10 @@ def display_investigar() -> None:
 
     stats = registry_stats()
 
-    _total = stats["total"]
+    from holmes import diretorio as _dir
+
     _auto = stats["por_modo"].get("auto", 0)
-    _deep = stats["por_modo"].get("deeplink", 0)
+    _fontes = _dir.resumo()["total"]
     st.markdown(
         f"""<div class="mh-hero">
           <div class="mh-hero-eyebrow">🔎 Investigar</div>
@@ -749,10 +785,9 @@ def display_investigar() -> None:
           <p class="mh-hero-sub">Cole qualquer dado: o tipo é detectado sozinho e todas as
           fontes rodam juntas num dossiê único.</p>
           <div class="mh-hero-stats">
-            <span><strong>{_total}</strong> fontes</span>
-            <span><strong>{_auto}</strong> automáticas</span>
-            <span><strong>{_deep}</strong> já pesquisadas</span>
-            <span class="mh-hero-badge">Educacional · alvos autorizados</span>
+            <span><strong>{_auto}</strong> consultas automáticas</span>
+            <span><strong>{_fontes}</strong> fontes no diretório</span>
+            <span class="mh-hero-badge">Finalidade legítima · LGPD</span>
           </div>
         </div>""",
         unsafe_allow_html=True,
@@ -808,7 +843,9 @@ def display_investigar() -> None:
                 timeout = st.slider("Tempo máximo (s)", 60, 600, 300, step=30)
                 usar_llm = st.checkbox("Analisar com IA", value=True)
             with c3:
-                incluir_links = st.checkbox("Incluir deeplinks", value=True)
+                incluir_links = st.checkbox(
+                    "Incluir links de busca manual", value=False,
+                    help="Desligado, o dossiê traz só fato. Os links ficam no Diretório de fontes.")
 
         with st.expander("🔧 Avançado — rastrear site e chaves de API"):
             _crawler_controls(alvo)
@@ -823,6 +860,9 @@ def display_investigar() -> None:
             indisponiveis = [k for k, v in env.items() if not v]
             if indisponiveis:
                 st.caption("Não instalado neste ambiente: " + ", ".join(indisponiveis))
+
+        # Botão "abrir dossiê" de um candidato ou do Diretório: roda sem novo clique.
+        rodar = rodar or bool(st.session_state.pop("holmes_autorun", False))
 
         if rodar and alvo.strip():
             cfg = InvestigationConfig(
@@ -843,18 +883,6 @@ def display_investigar() -> None:
             barra.empty()
             status.empty()
             st.session_state["holmes_dossier"] = dossier
-
-            try:
-                from Core.Support.History import save_search
-
-                save_search(
-                    search_type=dossier.entity.type.value,
-                    query=dossier.entity.value,
-                    results=f"{dossier.stats['fatos_consolidados']} fatos de "
-                            f"{dossier.stats['fontes_consultadas']} fontes",
-                )
-            except Exception:
-                pass
 
             # Histórico do motor: salva o dossiê inteiro para comparar depois.
             try:

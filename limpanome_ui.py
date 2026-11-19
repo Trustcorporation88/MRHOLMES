@@ -47,7 +47,7 @@ def _novo() -> None:
 
 def _investigar_credor(nome: str) -> None:
     """Manda o credor para a caixa única: quem é essa empresa, CNPJ, sócios, processos."""
-    from osint_premium import queue_navigation
+    from nav import queue_navigation
 
     st.session_state["holmes_target"] = nome
     queue_navigation(st.session_state, "Investigar")

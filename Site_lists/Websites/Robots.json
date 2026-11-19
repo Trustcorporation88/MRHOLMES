@@ -1,8 +1,0 @@
-[
-    {
-        "Robots":{
-            "url":  "https://{}/robots.txt",
-            "description": "None"
-        }
-    }
-] 

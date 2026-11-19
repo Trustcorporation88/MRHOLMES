@@ -840,6 +840,15 @@ def register_auto_connectors() -> None:
         homepage="https://plataforma.bigdatacorp.com.br",
     ))
 
+    register(_BigDataCorpConnector(
+        id="bigdatacorp_localizar", label="BigDataCorp (quem é o dono)", mode=Mode.AUTO,
+        accepts=(EntityType.PHONE, EntityType.EMAIL, EntityType.NAME), category="brasil",
+        run=bigdatacorp.localizar, cost="pago", on_pivots=False, timeout=75,
+        description="Telefone, e-mail ou nome → pessoas e empresas ligadas, com CPF/CNPJ, "
+                    "nascimento, mãe, outros contatos, endereços e empresas. Só no alvo informado",
+        homepage="https://plataforma.bigdatacorp.com.br",
+    ))
+
     # ── Sanções/PEP no mundo todo + Wikipédia/Wikidata ──────────────────────
     from .. import sanctions, wiki
 
