@@ -32,9 +32,11 @@ CPF e CNPJ. Testada com as chaves de produção, a mesma API respondeu por
 
 ## Pendências achadas no caminho
 
-* O endereço padrão dos dados abertos do CNPJ (`HOLMES_RFB_CNPJ_BASE` em
-  `holmes/socios_rfb.py`) devolve 404: a Receita mudou os arquivos de lugar.
-  O índice local de sócios não atualiza até o endereço ser corrigido.
+* Corrigido: o endereço dos dados abertos do CNPJ dava 404, porque a Receita
+  passou os arquivos para uma pasta compartilhada. O índice de sócios agora lê
+  essa pasta por WebDAV, o mesmo caminho que o cnpj.trustcorp.com.br usa, e
+  pula o mês que ainda não tem os dez arquivos. Falta rodar a atualização em
+  produção (botão em Investigar → Avançado, com `HOLMES_SOCIOS_DIR` num Volume).
 * A consulta de veículo por placa na BigDataCorp respondeu "dataset não
   habilitado". Para ligar, é preciso pedir a liberação no BDC Center.
 * `MOTOR.md` ainda cita números de fontes anteriores a esta reforma.
