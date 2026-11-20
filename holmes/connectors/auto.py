@@ -849,6 +849,15 @@ def register_auto_connectors() -> None:
         homepage="https://plataforma.bigdatacorp.com.br",
     ))
 
+    register(_BigDataCorpConnector(
+        id="bigdatacorp_placa", label="BigDataCorp (placa do veículo)", mode=Mode.AUTO,
+        accepts=(EntityType.PLACA,), category="brasil", run=bigdatacorp.findings_placa,
+        cost="pago", on_pivots=False, timeout=60,
+        description="Marca, modelo, ano, combustível, município de registro, cor, restrições e "
+                    "número de proprietários. O nome do dono não é devolvido (só o primeiro nome, mascarado)",
+        homepage="https://plataforma.bigdatacorp.com.br",
+    ))
+
     # ── Sanções/PEP no mundo todo + Wikipédia/Wikidata ──────────────────────
     from .. import sanctions, wiki
 
