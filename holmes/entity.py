@@ -353,8 +353,9 @@ def _norm_plate(raw: str) -> Entity:
     }
     ent = Entity(raw=raw, type=EntityType.PLACA, value=placa, variants=variants)
     ent.notes.append(
-        "Placa de veículo. O nome do proprietário NÃO é público no Brasil; as "
-        "fontes gratuitas trazem marca, modelo, ano, cor e município/UF de registro."
+        "Placa de veículo. O nome completo do proprietário não é público no Brasil: a "
+        "BigDataCorp traz marca, modelo, ano, cor, município de registro, restrições e só o "
+        "primeiro nome do dono, mascarado."
     )
     return ent
 

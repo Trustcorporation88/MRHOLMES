@@ -529,3 +529,94 @@ def localizar(entity: Entity) -> Iterable[Finding]:
                 pass
             return localizar_findings(pessoas, empresas, dado, detalhar=True)
     return localizar_findings(pessoas, empresas, dado, detalhar=not por_nome)
+
+
+# ── placa: veículo, local de registro, restrições ───────────────────────────
+#
+# Dataset `license_plates` da API /veiculos (R$ 0,06 por consulta). A API não
+# devolve o nome do proprietário: só o primeiro nome, parcialmente mascarado.
+# O dado cadastral costuma parar em meados de 2021.
+
+def consultar_placa(placa: str) -> dict:
+    """LicensePlateData da BigDataCorp. Levanta erro se a conta não tem o dataset."""
+    placa = (placa or "").strip().upper().replace("-", "")
+    if len(placa) != 7 or not placa.isalnum():
+        raise ValueError("placa inválida")
+    if not configurado():
+        raise RuntimeError("BIGDATACORP_ACCESS_TOKEN e BIGDATACORP_TOKEN_ID não configurados")
+    resp = net.post_json(
+        f"{BASE_URL}/veiculos",
+        payload={"Datasets": "license_plates", "q": f"licenseplate{{{placa}}}", "Limit": 1},
+        headers={"AccessToken": net.get_key("bigdatacorp_token") or "",
+                 "TokenId": net.get_key("bigdatacorp_tokenid") or "",
+                 "Content-Type": "application/json", "Accept": "application/json"},
+        timeout=60, ttl=CACHE_TTL,
+    ) or {}
+    for info in (resp.get("Status") or {}).get("license_plates") or []:
+        if isinstance(info, dict) and info.get("Code") not in (0, None):
+            raise RuntimeError(f"license_plates: {info.get('Message') or info.get('Code')}")
+    bruto = resp.get("Result")
+    r = (bruto[0] if isinstance(bruto, list) and bruto else bruto) or {}
+    return dict(r.get("LicensePlateData") or {})
+
+
+def placa_findings(dados: dict, placa: str) -> list[Finding]:
+    """Converte a resposta em achados do dossiê. Testável sem rede."""
+    rotulo = f"{ROTULO} (placa)"
+    out: list[Finding] = []
+
+    def add(kind, value, detail="", conf=Confidence.LIKELY, raw=None):
+        if value and str(value).strip():
+            out.append(Finding(kind=kind, value=str(value).strip(), source=FONTE, source_label=rotulo,
+                               url="", confidence=conf, detail=detail, raw=raw or {}))
+
+    if not dados:
+        add(FindingKind.NOTE, f"Placa {placa} sem registro na BigDataCorp",
+            "A base cobre mal veículos emplacados depois de meados de 2021", Confidence.CONFIRMED)
+        return out
+
+    veiculos = [v for v in (dados.get("VehicleInfo") or []) if isinstance(v, dict)]
+    v = veiculos[-1] if veiculos else {}
+    historico = [h for h in (dados.get("VehicleHistory") or []) if isinstance(h, dict)]
+
+    if v:
+        ano_fab, ano_mod = v.get("FabricationYear"), v.get("ModelYear")
+        anos = f"{ano_fab}/{ano_mod}" if ano_fab and ano_mod and ano_fab != ano_mod else (ano_fab or ano_mod or "")
+        add(FindingKind.NOTE,
+            "Veículo: " + " ".join(x for x in (v.get("Brand"), v.get("Model"), v.get("Version")) if x),
+            _juntar(f"ano {anos}" if anos else "", (v.get("Type") or "").lower(),
+                    f"combustível {v['Fuel']}" if v.get("Fuel") else "",
+                    f"{v['CylinderCapacity']} cm³" if v.get("CylinderCapacity") else "",
+                    f"chassi {v['Chassi']}" if v.get("Chassi") else "",
+                    f"licenciado até {v['LicenseLastYear']}" if v.get("LicenseLastYear") else ""),
+            Confidence.CONFIRMED)
+
+    # o registro mais recente que tem local e cor
+    ultimo = next((h for h in reversed(historico) if h.get("Location") or h.get("Color")), {})
+    if ultimo.get("Location"):
+        add(FindingKind.ADDRESS, f"{ultimo['Location']}/{ultimo.get('State') or ''}".strip("/"),
+            _juntar("Município de registro do veículo", f"cor {ultimo['Color']}" if ultimo.get("Color") else ""))
+    primeiro_nome = next((h["OwnerFirstName"] for h in reversed(historico) if h.get("OwnerFirstName")), "")
+    if primeiro_nome:
+        # NOTE de propósito: nome parcial não pode virar pivô.
+        add(FindingKind.NOTE, f"Primeiro nome do proprietário: {primeiro_nome}",
+            "Parcial e mascarado pela fonte; não identifica a pessoa sozinho")
+    if isinstance(dados.get("TotalOwnersInLifetime"), int) and dados["TotalOwnersInLifetime"]:
+        add(FindingKind.NOTE, f"{dados['TotalOwnersInLifetime']} proprietário(s) ao longo da vida do veículo", "",
+            Confidence.CONFIRMED)
+
+    if dados.get("CurrentlyHasRestrictions"):
+        add(FindingKind.LEGAL, "Veículo com restrição ativa", "Informado pela BigDataCorp", Confidence.LIKELY)
+    elif dados.get("PreviouslyHadRestrictions"):
+        add(FindingKind.LEGAL, "Veículo já teve restrição", "Hoje sem restrição ativa", Confidence.LIKELY)
+    else:
+        add(FindingKind.NOTE, "Sem restrição registrada", "Dado cadastral, não substitui consulta ao Detran",
+            Confidence.LIKELY)
+    return out
+
+
+def findings_placa(entity: Entity) -> Iterable[Finding]:
+    """Conector automático: placa → veículo, local de registro e restrições."""
+    if entity.type is not EntityType.PLACA:
+        return []
+    return placa_findings(consultar_placa(entity.value), entity.value)

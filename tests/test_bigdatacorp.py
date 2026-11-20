@@ -218,3 +218,72 @@ def test_conector_do_localizador_aceita_telefone_email_e_nome():
     for alvo in ("11 98765-4321", "a@b.com", "Fulano de Tal"):
         assert c.handles(detect(alvo))
     assert not c.handles(detect("529.982.247-25"))
+
+
+# ── placa ───────────────────────────────────────────────────────────────────
+
+PLACA = {
+    "TotalOwnersInLifetime": 2, "CurrentlyHasRestrictions": False, "PreviouslyHadRestrictions": True,
+    "VehicleInfo": [{"Brand": "GM", "Model": "CLASSIC", "Version": "SPIRIT", "FabricationYear": "2005",
+                     "ModelYear": "2006", "Type": "PASSAGEIRO", "Fuel": "GASOL/GNV", "CylinderCapacity": "1000",
+                     "Chassi": "*****41594", "LicenseLastYear": "2020"}],
+    "VehicleHistory": [
+        {"Color": "PRATA", "Location": "SAO JOAO DE MERITI", "State": "RJ", "OwnerFirstName": "PA*LO"},
+        {"Color": "Prata", "Location": "SAO JOAO DE MERITI", "State": "RJ", "OwnerFirstName": ""},
+    ],
+}
+
+
+def test_placa_vira_veiculo_local_e_nome_parcial_sem_pivo():
+    fs = bdc.placa_findings(PLACA, "ABC1D23")
+    veiculo = next(f for f in fs if f.value.startswith("Veículo:"))
+    assert veiculo.value == "Veículo: GM CLASSIC SPIRIT"
+    assert "2005/2006" in veiculo.detail and "chassi *****41594" in veiculo.detail
+    assert _valores(fs, FindingKind.ADDRESS) == ["SAO JOAO DE MERITI/RJ"]
+    # o primeiro nome do dono é NOTE: um NAME viraria pivô e investigaria um nome pela metade
+    assert "Primeiro nome do proprietário: PA*LO" in _valores(fs, FindingKind.NOTE)
+    assert FindingKind.NAME not in {f.kind for f in fs}
+    assert "2 proprietário(s) ao longo da vida do veículo" in _valores(fs, FindingKind.NOTE)
+    assert "Veículo já teve restrição" in _valores(fs, FindingKind.LEGAL)
+
+
+def test_placa_sem_registro_e_restricao_ativa():
+    vazio = bdc.placa_findings({}, "ABC1D23")
+    assert len(vazio) == 1 and "sem registro" in vazio[0].value
+    ativa = bdc.placa_findings({**PLACA, "CurrentlyHasRestrictions": True}, "ABC1D23")
+    assert "Veículo com restrição ativa" in _valores(ativa, FindingKind.LEGAL)
+
+
+def test_consulta_de_placa_usa_o_dataset_license_plates():
+    import pytest
+
+    visto = {}
+
+    def falso(url, payload=None, **kw):
+        visto.update(url=url, payload=payload)
+        return {"Result": [{"LicensePlateData": PLACA}], "Status": {"license_plates": [{"Code": 0}]}}
+
+    with mock.patch.object(bdc, "configurado", return_value=True), \
+         mock.patch.object(bdc.net, "get_key", return_value="x"), \
+         mock.patch.object(bdc.net, "post_json", side_effect=falso):
+        assert bdc.consultar_placa("abc-1d23")["TotalOwnersInLifetime"] == 2
+    assert visto["url"].endswith("/veiculos")
+    assert visto["payload"] == {"Datasets": "license_plates", "q": "licenseplate{ABC1D23}", "Limit": 1}
+    with pytest.raises(ValueError):
+        bdc.consultar_placa("123")
+    erro = {"Result": [], "Status": {"license_plates": [{"Code": -109, "Message": "DATASET NOT AVAILABLE"}]}}
+    with mock.patch.object(bdc, "configurado", return_value=True), \
+         mock.patch.object(bdc.net, "get_key", return_value="x"), \
+         mock.patch.object(bdc.net, "post_json", return_value=erro):
+        with pytest.raises(RuntimeError, match="DATASET NOT AVAILABLE"):
+            bdc.consultar_placa("ABC1D23")
+
+
+def test_conector_de_placa_aceita_so_placa():
+    from holmes.connectors import ensure_registered
+    from holmes.connectors.base import get_connector
+
+    ensure_registered()
+    c = get_connector("bigdatacorp_placa")
+    assert c and not c.on_pivots and c.cost == "pago"
+    assert c.handles(detect("ABC1D23")) and not c.handles(detect("529.982.247-25"))
