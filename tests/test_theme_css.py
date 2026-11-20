@@ -1,18 +1,34 @@
-import unittest
+"""O tema precisa chegar ao navegador: sem "<" no CSS e com as classes usadas."""
+
+import re
 from pathlib import Path
 
+import tema
 
-class ThemeCssTests(unittest.TestCase):
-    def setUp(self):
-        self.css = Path("web_app.py").read_text(encoding="utf-8")
-
-    def test_body_font_rule_does_not_target_span(self):
-        self.assertNotIn("p, label, span, .stMarkdown", self.css)
-
-    def test_expander_icon_font_is_restored(self):
-        self.assertIn('[data-testid="stIconMaterial"]', self.css)
-        self.assertIn("Material Symbols Rounded", self.css)
+RAIZ = Path(__file__).resolve().parent.parent
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_css_nao_tem_nada_com_cara_de_tag():
+    # O sanitizador do st.html descarta o estilo inteiro se achar "<".
+    assert tema.css_valido()
+    assert not tema.css_valido("a{} /* um <p> no comentario */")
+
+
+def test_web_app_aplica_o_tema_e_nao_carrega_css_proprio():
+    src = (RAIZ / "web_app.py").read_text(encoding="utf-8")
+    assert "tema.aplicar()" in src
+    assert "<style>" not in src
+
+
+def test_fonte_dos_icones_do_streamlit_esta_preservada():
+    assert "Material Symbols Rounded" in tema.CSS
+
+
+def test_toda_classe_usada_na_interface_existe_no_tema():
+    usadas = set()
+    for nome in ("web_app.py", "holmes_ui.py", "diretorio_ui.py", "limpanome_ui.py"):
+        texto = (RAIZ / nome).read_text(encoding="utf-8")
+        for bloco in re.findall(r"class=[\'\"]([^\'\"{}]+)[\'\"]", texto):
+            usadas.update(c for c in bloco.split() if c.startswith("mh-"))
+    faltando = sorted(c for c in usadas if f".{c}" not in tema.CSS)
+    assert not faltando, faltando
