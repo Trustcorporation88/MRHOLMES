@@ -17,12 +17,7 @@ from holmes.connectors import ensure_registered, registry_stats
 from holmes.entity import detect, mascarar
 from holmes.findings import FindingKind
 
-_BADGE_COLOR = {
-    "alta": "#0f9d58",
-    "media": "#d98e00",
-    "baixa": "#db4437",
-    "indicio": "#9aa5b1",
-}
+from tema import COR_CONFIANCA as _BADGE_COLOR  # noqa: E402
 
 _ICON = {
     "Nomes": "🪪", "Contas e perfis": "👤", "E-mails": "✉️", "Telefones": "📱",
@@ -241,7 +236,7 @@ def _crawler_controls(alvo: str) -> None:
 def _render_fact(fact) -> None:
     import html as _html
 
-    color = _BADGE_COLOR.get(fact.label, "#9aa5b1")
+    color = _BADGE_COLOR.get(fact.label, "#64708a")
     url = fact.urls[0] if fact.urls else ""
     # Escapa tudo: valor/detalhe podem conter HTML (ex.: fragmento vazado de
     # raspagem). Sem isso, uma tag solta quebra o layout do card.
@@ -293,8 +288,7 @@ def _render_identity_card(dossier) -> None:
         if not valor:
             return ""
         return (
-            f"<div class='mh-idcard-row'><span>{rotulo}</span>"
-            f"<div>{_html.escape(valor)}</div></div>"
+f"<div class='mh-idcard-row'><b>{rotulo}:</b> {_html.escape(valor)}</div>"
         )
 
     if card["foto"]:
@@ -414,13 +408,19 @@ def _render_candidatos(dossier) -> None:
         st.markdown(f"**🎯 Quem é: {len(vistos)} cadastro(s) ligado(s) a este {dossier.entity.label.lower()}**")
         st.caption("Dado de birô: pode estar desatualizado. Abrir o dossiê de um documento é uma nova "
                    "consulta paga.")
+        import html as _html
+
         for doc, c in list(vistos.items())[:8]:
             e_cpf = c.get("tipo") == "cpf"
             formatado = format_cpf(doc) if e_cpf else format_cnpj(doc)
-            col_txt, col_btn = st.columns([4, 1.3])
+            col_txt, col_btn = st.columns([5, 1.2], vertical_alignment="center")
             with col_txt:
-                st.markdown(f"{'👤' if e_cpf else '🏢'} **{c.get('nome')}**  ·  `{formatado}`")
-                st.caption(c.get("detalhe") or "")
+                st.markdown(
+                    f"<div class='mh-cand'><div class='mh-cand-ico'>{'👤' if e_cpf else '🏢'}</div><div>"
+                    f"<span class='mh-cand-nome'>{_html.escape(str(c.get('nome') or ''))}</span>"
+                    f"<span class='mh-cand-doc'>{formatado}</span>"
+                    f"<div class='mh-cand-det'>{_html.escape(c.get('detalhe') or '')}</div></div></div>",
+                    unsafe_allow_html=True)
             with col_btn:
                 st.button("Abrir dossiê", key=f"cand_{doc}", use_container_width=True,
                           on_click=_abrir_dossie, args=(formatado,))
@@ -654,16 +654,37 @@ def display_historico() -> None:
                 )
 
 
-# Um exemplo por tipo de alvo: um clique preenche a caixa e mostra o que o
-# motor aceita, sem precisar ler instrução.
-_EXEMPLOS = [
-    ("👤 Nome", "Maria da Silva"),
-    ("✉️ E-mail", "contato@exemplo.com.br"),
-    ("📱 Telefone", "+55 11 99999-9999"),
-    ("@ Usuário", "@usuario"),
-    ("🏢 CNPJ", "00.000.000/0001-91"),
-    ("🌐 Domínio", "exemplo.com.br"),
+# Tipos de consulta: o cartão escolhido só muda a dica da caixa. O motor
+# detecta o tipo sozinho de qualquer jeito; o cartão mostra o que ele aceita.
+_TIPOS = [
+    ("cpf", "🪪", "CPF", "000.000.000-00"),
+    ("cnpj", "🏢", "CNPJ", "00.000.000/0001-00"),
+    ("nome", "👤", "Nome", "Nome completo da pessoa ou razão social"),
+    ("telefone", "📱", "Telefone", "(11) 99999-9999"),
+    ("email", "✉️", "E-mail", "pessoa@exemplo.com.br"),
+    ("placa", "🚗", "Placa", "ABC1D23"),
+    ("processo", "⚖️", "Processo", "0000000-00.0000.0.00.0000"),
+    ("usuario", "@", "Usuário", "@usuario ou link do perfil"),
+    ("dominio", "🌐", "Domínio", "exemplo.com.br ou um IP"),
 ]
+_DICA_PADRAO = "Cole um CPF, CNPJ, nome, telefone, e-mail, placa, processo, @usuário ou domínio"
+
+
+def _escolher_tipo(tipo: str) -> None:
+    atual = st.session_state.get("holmes_tipo")
+    st.session_state["holmes_tipo"] = None if atual == tipo else tipo
+
+
+def _cartoes_de_tipo() -> str:
+    """Fileira de cartões de tipo. Devolve a dica para a caixa de busca."""
+    escolhido = st.session_state.get("holmes_tipo")
+    with st.container(key="mh_tipos"):
+        cols = st.columns(len(_TIPOS), gap="small")
+        for col, (tid, icone, rotulo, _) in zip(cols, _TIPOS):
+            col.button(f"{icone}  \n{rotulo}", key=f"tipo_{tid}", use_container_width=True,
+                       type="primary" if escolhido == tid else "secondary",
+                       on_click=_escolher_tipo, args=(tid,))
+    return next((dica for tid, _, _, dica in _TIPOS if tid == escolhido), _DICA_PADRAO)
 
 
 def _preencher_alvo(valor: str) -> None:
@@ -697,12 +718,6 @@ def _chips_rapidos() -> None:
                 rotulo = rotulo if len(rotulo) <= 28 else rotulo[:27] + "…"
                 cols[i].button(f"🕘 {rotulo}", key=f"chip_rec_{i}",
                                on_click=_preencher_alvo, args=(alvo,))
-        else:
-            st.markdown('<div class="mh-hint-label">Experimente</div>', unsafe_allow_html=True)
-            cols = st.columns(len(_EXEMPLOS))
-            for i, (rotulo, valor) in enumerate(_EXEMPLOS):
-                cols[i].button(rotulo, key=f"chip_ex_{i}", help=valor,
-                               on_click=_preencher_alvo, args=(valor,))
 
 
 # Atalhos do painel inicial: as ferramentas manuais mais usadas.
@@ -780,10 +795,10 @@ def display_investigar() -> None:
     _fontes = _dir.resumo()["total"]
     st.markdown(
         f"""<div class="mh-hero">
-          <div class="mh-hero-eyebrow">🔎 Investigar</div>
-          <h1 class="mh-hero-title">Quem ou o que vamos investigar hoje?</h1>
-          <p class="mh-hero-sub">Cole qualquer dado: o tipo é detectado sozinho e todas as
-          fontes rodam juntas num dossiê único.</p>
+          <div class="mh-hero-eyebrow">Nova consulta</div>
+          <h1 class="mh-hero-title">Um dado entra. O dossiê sai.</h1>
+          <p class="mh-hero-sub">Escolha o tipo ou só cole o dado: as consultas rodam juntas e cada
+          fato sai com a fonte e o nível de confiança.</p>
           <div class="mh-hero-stats">
             <span><strong>{_auto}</strong> consultas automáticas</span>
             <span><strong>{_fontes}</strong> fontes no diretório</span>
@@ -793,9 +808,7 @@ def display_investigar() -> None:
         unsafe_allow_html=True,
     )
 
-    # Duas ferramentas separadas em abas: buscar por um dado, ou analisar uma
-    # foto. Antes tudo ficava empilhado abaixo da caixa e confundia.
-    aba_busca, aba_foto = st.tabs(["🔎 Investigar", "📷 Analisar foto"])
+    aba_busca, aba_foto = st.tabs(["🔎 Consultar um dado", "📷 Analisar uma foto"])
 
     with aba_foto:
         _render_foto()
@@ -807,16 +820,17 @@ def display_investigar() -> None:
         elif health["provider"] == "duckduckgo":
             st.warning(health["message"], icon="⚠️")
 
+        dica = _cartoes_de_tipo()
+
         # Formulário para o Enter já disparar a investigação, sem precisar do clique.
-        with st.form("holmes_form", border=False):
-            col_in, col_btn = st.columns([4, 1])
-            with col_in:
-                alvo = st.text_input(
-                    "Alvo", key="holmes_target", label_visibility="collapsed",
-                    placeholder="Digite um nome, e-mail, telefone, @usuário, CPF/CNPJ, placa, domínio ou link…",
-                )
-            with col_btn:
-                rodar = st.form_submit_button("🔎 Investigar", type="primary", use_container_width=True)
+        with st.container(key="mh_busca"):
+            with st.form("holmes_form", border=False):
+                col_in, col_btn = st.columns([5, 1], vertical_alignment="center")
+                with col_in:
+                    alvo = st.text_input("Alvo", key="holmes_target", label_visibility="collapsed",
+                                         placeholder=dica)
+                with col_btn:
+                    rodar = st.form_submit_button("Investigar", type="primary", use_container_width=True)
 
         _chips_rapidos()
 

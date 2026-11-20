@@ -8,7 +8,7 @@ import streamlit as st
 
 from holmes import diretorio
 
-_CUSTO = {"gratis": ("grátis", "#10b27c"), "login": ("cadastro grátis", "#1f9bdc"), "pago": ("pago", "#f2703f")}
+_CUSTO = {"gratis": "grátis", "login": "cadastro grátis", "pago": "pago"}
 _ACESSO = {
     "auto": "já roda no Investigar",
     "busca": "abre pesquisado",
@@ -28,7 +28,7 @@ def _investigar(dado: str) -> None:
 
 
 def _cartao(fonte: diretorio.Fonte, dado: str) -> str:
-    rotulo, cor = _CUSTO.get(fonte.custo, (fonte.custo, "#8a90a8"))
+    rotulo = _CUSTO.get(fonte.custo, fonte.custo)
     pronto = bool(dado) and fonte.aceita_dado and fonte.acesso != "auto"
     acesso = "abre já com o seu dado" if pronto else _ACESSO.get(fonte.acesso, fonte.acesso)
     url = _html.escape(fonte.link(dado), quote=True)
@@ -36,26 +36,12 @@ def _cartao(fonte: diretorio.Fonte, dado: str) -> str:
         f'<a class="mh-dir" href="{url}" target="_blank" rel="noopener noreferrer">'
         f'<span class="mh-dir-nome">{_html.escape(fonte.nome)}</span>'
         f'<span class="mh-dir-txt">{_html.escape(fonte.entrega)}</span>'
-        f'<span class="mh-dir-tags"><span style="color:{cor}">● {rotulo}</span>'
+        f'<span class="mh-dir-tags"><span class="{fonte.custo}">● {rotulo}</span>'
         f'<span>{_html.escape(acesso)}</span></span></a>'
     )
 
 
-_CSS = """
-.mh-dir-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
-.mh-dir { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px;
-  border: 1px solid var(--line, #e3e6ef); background: var(--panel, #fff); text-decoration: none !important;
-  transition: border-color .12s, box-shadow .12s; }
-.mh-dir:hover { border-color: var(--accent, #5b5bf0); box-shadow: 0 4px 14px rgba(91, 91, 240, .12); }
-.mh-dir-nome { font-weight: 700; color: var(--ink, #1d2239); font-size: .93rem; }
-.mh-dir-txt { color: var(--ink-soft, #5d6480); font-size: .82rem; line-height: 1.35; }
-.mh-dir-tags { display: flex; gap: 10px; flex-wrap: wrap; font-size: .72rem; color: var(--ink-faint, #8a90a8);
-  margin-top: 2px; }
-"""
-
-
 def display_diretorio() -> None:
-    st.html(f"<style>{_CSS}</style>")
     r = diretorio.resumo()
 
     c1, c2, c3 = st.columns([3, 2, 1.4])
