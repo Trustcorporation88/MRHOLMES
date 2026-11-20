@@ -29,6 +29,11 @@ import tema
 
 tema.aplicar()
 
+from pathlib import Path
+
+_ASSETS = Path(__file__).parent / "assets"
+st.logo(str(_ASSETS / "logo.png"), icon_image=str(_ASSETS / "icone.png"), size="large")
+
 
 def page_header(eyebrow: str, title: str, desc: str = ""):
     # Mesmo formato da faixa do Investigar, em versão suave: ícone da página,
@@ -59,17 +64,6 @@ NAV_GROUPS = [
 
 
 with st.sidebar:
-    st.html(
-        """
-        <div class="mh-brand">
-          <div class="mh-brand-badge">🔎</div>
-          <div>
-            <div class="name">Mr.Holmes</div>
-            <div class="tag">Painel de investigação</div>
-          </div>
-        </div>
-        """
-    )
     apply_pending_navigation(st.session_state, NAV_OPTIONS, default="Investigar")
     page = st.session_state.get("nav_page", "Investigar")
 
@@ -91,7 +85,7 @@ with st.sidebar:
     except Exception:
         _prov = {}
     st.html(
-        '<div class="mh-side-foot" style="margin-top:22px">'
+        '<div class="mh-side-foot">'
         f'<span class="mh-dot {"on" if _prov.get("openai") else ""}"></span>OpenAI &nbsp; '
         f'<span class="mh-dot {"on" if _prov.get("anthropic") else ""}"></span>Claude'
         '<br>Uso profissional, com finalidade legítima (LGPD).</div>'

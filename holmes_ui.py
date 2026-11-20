@@ -233,37 +233,38 @@ def _crawler_controls(alvo: str) -> None:
             )
 
 
-def _render_fact(fact) -> None:
+def _fact_html(fact) -> str:
+    """Um fato como cartão. HTML numa linha só: linha indentada vira bloco de
+    código no Streamlit e a tag final aparece como texto."""
     import html as _html
 
-    color = _BADGE_COLOR.get(fact.label, "#64708a")
+    cor = _BADGE_COLOR.get(fact.label, "#66728c")
     url = fact.urls[0] if fact.urls else ""
-    # Escapa tudo: valor/detalhe podem conter HTML (ex.: fragmento vazado de
-    # raspagem). Sem isso, uma tag solta quebra o layout do card.
-    valor = _html.escape(fact.value or "")
-    detalhe = _html.escape(fact.detail or "")
-    fontes = _html.escape(", ".join(fact.sources[:6]))
-    url_attr = _html.escape(url, quote=True)
-    url_txt = _html.escape(url)
+    # Escapa tudo: valor e detalhe podem conter HTML (fragmento vazado de raspagem).
+    detalhe = f"<div class='mh-fact-detail'>{_html.escape(fact.detail or '')}</div>" if fact.detail else ""
+    link = (
+        f"<div class='mh-fact-link'><a href='{_html.escape(url, quote=True)}' target='_blank' "
+        f"rel='noopener noreferrer'>{_html.escape(url)}</a></div>" if url else ""
+    )
+    return (
+        f'<div class="mh-fact" style="--c:{cor}">'
+        f'<div class="mh-fact-top"><span class="mh-fact-tag">{_html.escape(fact.label)}</span></div>'
+        f'<div class="mh-fact-val">{_html.escape(fact.value or "")}</div>'
+        f'{detalhe}'
+        f'<div class="mh-fact-src">{_html.escape(", ".join(fact.sources[:6]))}</div>'
+        f'{link}</div>'
+    )
 
-    link_html = (
-        f"<div class='mh-fact-link'><a href='{url_attr}' target='_blank' "
-        f"rel='noopener noreferrer'>{url_txt}</a></div>"
-        if url else ""
-    )
-    detail_html = f"<div class='mh-fact-detail'>{detalhe}</div>" if detalhe else ""
-    # HTML numa linha só: linha indentada vira "bloco de código" no Streamlit
-    # e faz a tag final aparecer como texto (o bug do </div>).
-    bloco = (
-        f'<div class="mh-fact" style="--c:{color}">'
-        f'<span class="mh-fact-tag">{_html.escape(fact.label)}</span>'
-        f'<span class="mh-fact-val">{valor}</span>'
-        f'{detail_html}'
-        f'<div class="mh-fact-src">fontes: {fontes}</div>'
-        f'{link_html}'
-        f'</div>'
-    )
-    st.markdown(bloco, unsafe_allow_html=True)
+
+def _render_fact(fact) -> None:
+    st.markdown(_fact_html(fact), unsafe_allow_html=True)
+
+
+def _render_facts_grid(facts) -> None:
+    """Fatos em grade de duas ou três colunas, num bloco só (mais rápido que um por um)."""
+    if facts:
+        st.markdown('<div class="mh-grid">' + "".join(_fact_html(f) for f in facts) + "</div>",
+                    unsafe_allow_html=True)
 
 
 def _render_links(facts) -> None:
@@ -475,9 +476,8 @@ def _render_dossier(dossier) -> None:
 
     destaque = dossier.high_confidence(0.55)
     if destaque:
-        with st.expander(f"⭐ O que está bem sustentado ({len(destaque)})", expanded=True):
-            for fact in destaque[:25]:
-                _render_fact(fact)
+        st.markdown(f'<div class="mh-section">Bem sustentado · {len(destaque)}</div>', unsafe_allow_html=True)
+        _render_facts_grid(destaque[:24])
 
     _render_timeline(dossier)
 
@@ -498,12 +498,12 @@ def _render_dossier(dossier) -> None:
     link_section = [(l, i) for l, i in sections if l == "Fontes para abrir"]
     other = [(l, i) for l, i in sections if l != "Fontes para abrir"]
 
-    for label, items in other:
-        icon = _ICON.get(label, "•")
-        with st.expander(f"{icon} {label} ({len(items)})", expanded=label in
-                         ("Nomes", "Contas e perfis", "E-mails", "Telefones", "Vazamentos")):
-            for fact in items[:80]:
-                _render_fact(fact)
+    if other:
+        st.markdown('<div class="mh-section">Tudo que foi encontrado</div>', unsafe_allow_html=True)
+        rotulos = [f"{_ICON.get(l, '•')} {l} · {len(i)}" for l, i in other]
+        for aba, (label, items) in zip(st.tabs(rotulos), other):
+            with aba:
+                _render_facts_grid(items[:90])
 
     for label, items in link_section:
         with st.expander(f"🔗 {label} ({len(items)}) — todos já abrem pesquisados no alvo", expanded=False):
@@ -667,24 +667,23 @@ _TIPOS = [
     ("usuario", "@", "Usuário", "@usuario ou link do perfil"),
     ("dominio", "🌐", "Domínio", "exemplo.com.br ou um IP"),
 ]
-_DICA_PADRAO = "Cole um CPF, CNPJ, nome, telefone, e-mail, placa, processo, @usuário ou domínio"
+_DICA_PADRAO = "Cole um CPF, CNPJ, nome, telefone, e-mail, placa…"
 
 
-def _escolher_tipo(tipo: str) -> None:
-    atual = st.session_state.get("holmes_tipo")
-    st.session_state["holmes_tipo"] = None if atual == tipo else tipo
-
-
-def _cartoes_de_tipo() -> str:
-    """Fileira de cartões de tipo. Devolve a dica para a caixa de busca."""
+def _dica_do_tipo() -> str:
+    """Dica da caixa conforme a pílula escolhida (lida do estado, sem atraso de um clique)."""
     escolhido = st.session_state.get("holmes_tipo")
-    with st.container(key="mh_tipos"):
-        cols = st.columns(len(_TIPOS), gap="small")
-        for col, (tid, icone, rotulo, _) in zip(cols, _TIPOS):
-            col.button(f"{icone}  \n{rotulo}", key=f"tipo_{tid}", use_container_width=True,
-                       type="primary" if escolhido == tid else "secondary",
-                       on_click=_escolher_tipo, args=(tid,))
-    return next((dica for tid, _, _, dica in _TIPOS if tid == escolhido), _DICA_PADRAO)
+    for (_, icone, rotulo, dica) in _TIPOS:
+        if escolhido == f"{icone} {rotulo}":
+            return dica
+    return _DICA_PADRAO
+
+
+def _seletor_de_tipo() -> None:
+    """Pílulas de tipo. Só mudam a dica da caixa; o motor detecta o tipo sozinho."""
+    rotulos = [f"{icone} {rotulo}" for _, icone, rotulo, _ in _TIPOS]
+    st.pills("Tipo de consulta", rotulos, selection_mode="single", key="holmes_tipo",
+             label_visibility="collapsed")
 
 
 def _preencher_alvo(valor: str) -> None:
@@ -789,26 +788,33 @@ def display_investigar() -> None:
 
     stats = registry_stats()
 
+    from pathlib import Path
+
     from holmes import diretorio as _dir
 
     _auto = stats["por_modo"].get("auto", 0)
     _fontes = _dir.resumo()["total"]
-    st.markdown(
-        f"""<div class="mh-hero">
-          <div class="mh-hero-eyebrow">Nova consulta</div>
-          <h1 class="mh-hero-title">Um dado entra. O dossiê sai.</h1>
-          <p class="mh-hero-sub">Escolha o tipo ou só cole o dado: as consultas rodam juntas e cada
-          fato sai com a fonte e o nível de confiança.</p>
-          <div class="mh-hero-stats">
-            <span><strong>{_auto}</strong> consultas automáticas</span>
-            <span><strong>{_fontes}</strong> fontes no diretório</span>
-            <span class="mh-hero-badge">Finalidade legítima · LGPD</span>
-          </div>
-        </div>""",
-        unsafe_allow_html=True,
-    )
+    tem_dossie = bool(st.session_state.get("holmes_dossier"))
 
-    aba_busca, aba_foto = st.tabs(["🔎 Consultar um dado", "📷 Analisar uma foto"])
+    # Logotipo e chamada só enquanto não há dossiê na tela; ao investigar,
+    # `topo.empty()` libera o espaço para o resultado.
+    topo = st.empty()
+    if not tem_dossie:
+        with topo.container():
+            with st.container(key="mh_logo"):
+                st.image(str(Path(__file__).parent / "assets" / "logo.png"), width=470)
+            st.markdown(
+                f"""<div class="mh-land">
+                  <p class="mh-land-sub">Um dado entra, o dossiê sai. Cada fato com a fonte e o nível de confiança.</p>
+                  <div class="mh-land-meta">
+                    <span><b>{_auto}</b> consultas automáticas</span>
+                    <span><b>{_fontes}</b> fontes no diretório</span>
+                    <span>Finalidade legítima · LGPD</span>
+                  </div></div>""",
+                unsafe_allow_html=True,
+            )
+
+    aba_busca, aba_foto = st.tabs(["Consultar um dado", "Analisar uma foto"])
 
     with aba_foto:
         _render_foto()
@@ -820,32 +826,28 @@ def display_investigar() -> None:
         elif health["provider"] == "duckduckgo":
             st.warning(health["message"], icon="⚠️")
 
-        dica = _cartoes_de_tipo()
-
         # Formulário para o Enter já disparar a investigação, sem precisar do clique.
         with st.container(key="mh_busca"):
             with st.form("holmes_form", border=False):
-                col_in, col_btn = st.columns([5, 1], vertical_alignment="center")
+                col_in, col_btn = st.columns([5, 1.1], vertical_alignment="center")
                 with col_in:
                     alvo = st.text_input("Alvo", key="holmes_target", label_visibility="collapsed",
-                                         placeholder=dica)
+                                         placeholder=_dica_do_tipo())
                 with col_btn:
                     rodar = st.form_submit_button("Investigar", type="primary", use_container_width=True)
+        _seletor_de_tipo()
 
         _chips_rapidos()
 
-        linha1, linha2 = st.columns([3, 2])
-        with linha1:
-            if alvo.strip():
-                preview = detect(alvo)
-                st.caption(f"Detectado: **{preview.label}** → `{preview.value}`")
-        with linha2:
+        if alvo.strip():
+            preview = detect(alvo)
+            st.caption(f"Detectado: **{preview.label}** → `{preview.value}`")
+
+        with st.expander("⚙️ Opções da consulta"):
             modo_rapido = st.toggle(
                 "⚡ Modo rápido (só o alvo)", value=False, key="modo_rapido",
                 help="Sem pivôs, ótimo para uma primeira olhada. Desligue para a busca completa.",
             )
-
-        with st.expander("⚙️ Ajustes da busca"):
             c1, c2, c3 = st.columns(3)
             with c1:
                 depth = st.slider(
@@ -896,6 +898,7 @@ def display_investigar() -> None:
 
             barra.empty()
             status.empty()
+            topo.empty()
             st.session_state["holmes_dossier"] = dossier
 
             # Histórico do motor: salva o dossiê inteiro para comparar depois.
