@@ -1,16 +1,19 @@
 [theme]
 base = "dark"
-primaryColor = "#6c8cff"
-backgroundColor = "#0a0e17"
-secondaryBackgroundColor = "#111827"
-textColor = "#e6eaf2"
-borderColor = "#243049"
+primaryColor = "#6fb8ff"
+backgroundColor = "#0f121b"
+secondaryBackgroundColor = "#151a26"
+textColor = "#e9edf6"
+borderColor = "#262f44"
 baseRadius = "0.75rem"
-font = "sans-serif"
+baseFontSize = 15
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+headingFont = "Sora:https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&display=swap, Inter, sans-serif"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap, monospace"
 
 [theme.sidebar]
-backgroundColor = "#0d121d"
-secondaryBackgroundColor = "#172033"
+backgroundColor = "#0f121b"
+secondaryBackgroundColor = "#151a26"
 
 [server]
 headless = true
