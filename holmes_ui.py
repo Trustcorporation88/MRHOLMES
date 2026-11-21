@@ -929,7 +929,7 @@ def _render_foto() -> None:
         "Suba uma foto **original** (não baixada de rede social) para extrair "
         "GPS, câmera e data embutidos. Rede social apaga esses dados."
     )
-    arquivo = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "tiff", "webp"],
+    arquivo = st.file_uploader("Foto", type=["jpg", "jpeg", "png", "tiff", "webp", "heic", "heif"],
                                key="foto_up", label_visibility="collapsed")
     if not arquivo:
         return
@@ -949,6 +949,8 @@ def _render_foto() -> None:
             st.link_button("Abrir no Google Maps", g["maps"])
     if info.get("aviso"):
         st.info(info["aviso"])
+    if info.get("alerta"):
+        st.warning(info["alerta"], icon="⚠️")
 
     st.markdown("**Busca reversa (para achar o rosto em outros lugares):**")
     st.caption(
