@@ -71,6 +71,7 @@ INSTRUCAO = """Analise o cenário desta foto e devolva exatamente este JSON (por
 
 _PLACA = re.compile(r"\b[A-Z]{3}[- ]?\d[A-Z0-9]\d{2}\b")
 CONFIANCAS = ("alta", "media", "baixa", "nenhuma")
+MACRORREGIOES = {"norte", "nordeste", "sul", "sudeste", "centro-oeste", "centro oeste"}
 
 
 class ErroIA(Exception):
@@ -161,8 +162,11 @@ def link_do_mapa(local: dict) -> str | None:
     """Busca no Google Maps pelo que o modelo estimou. Sem cidade ou ponto, não há o que buscar."""
     if not (local.get("cidade") or local.get("ponto")) or local.get("confianca") == "nenhuma":
         return None
-    consulta = ", ".join(x for x in (local.get("ponto"), local.get("cidade"), local.get("regiao"),
-                                     local.get("pais")) if x)
+    # "Sudeste", "Sul"... são macrorregiões: atrapalham a busca no mapa. Estado (SP, RJ) ajuda.
+    regiao = local.get("regiao")
+    if regiao and regiao.lower() in MACRORREGIOES:
+        regiao = None
+    consulta = ", ".join(x for x in (local.get("ponto"), local.get("cidade"), regiao, local.get("pais")) if x)
     return f"https://www.google.com/maps/search/?api=1&query={quote_plus(consulta)}"
 
 

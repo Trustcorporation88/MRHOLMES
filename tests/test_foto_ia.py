@@ -119,6 +119,8 @@ def test_placas_e_link_do_mapa():
     local = {"cidade": "Campinas", "regiao": "SP", "pais": "Brasil", "ponto": None, "confianca": "media"}
     assert foto_ia.link_do_mapa(local).endswith("query=Campinas%2C+SP%2C+Brasil")
     assert foto_ia.link_do_mapa({**local, "confianca": "nenhuma"}) is None
+    macro = {"cidade": "São Paulo", "regiao": "Sudeste", "pais": "Brasil", "ponto": "Rua Augusta", "confianca": "alta"}
+    assert "Sudeste" not in foto_ia.link_do_mapa(macro) and "Rua+Augusta%2C+S%C3%A3o+Paulo%2C+Brasil" in foto_ia.link_do_mapa(macro)
     assert foto_ia.link_do_mapa({"cidade": None, "ponto": None, "confianca": "alta"}) is None
 
 
