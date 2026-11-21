@@ -9,3 +9,5 @@ reportlab>=4.0.0        # PDF do dossiê e do Limpa Nome
 python-dotenv>=1.0.0
 holehe>=1.61            # e-mail → contas (conector automático)
 maigret>=0.4.4          # usuário → perfis (conector automático)
+Pillow>=10.0
+pillow-heif>=0.18   # abre fotos HEIC do iPhone na análise de foto
