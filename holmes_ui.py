@@ -952,6 +952,8 @@ def _render_foto() -> None:
     if info.get("alerta"):
         st.warning(info["alerta"], icon="⚠️")
 
+    _render_cenario_ia(dados)
+
     st.markdown("**Busca reversa (para achar o rosto em outros lugares):**")
     st.caption(
         "Estes buscadores acham a mesma foto na web, mas exigem que você "
@@ -964,6 +966,71 @@ def _render_foto() -> None:
         ("PimEyes (rosto)", "https://pimeyes.com/en"),
     ]:
         st.markdown(f"- [{rotulo}]({url})")
+
+
+_COR_CONF = {"alta": "🟢", "media": "🟡", "baixa": "🟠", "nenhuma": "⚪"}
+
+
+def _render_cenario_ia(dados: bytes) -> None:
+    """Fundo, construções, textos e local provável, lidos por IA de visão."""
+    import hashlib
+
+    from holmes import foto_ia
+
+    st.markdown("**Cenário da foto (fundo, construções, textos):**")
+    if not foto_ia.disponivel():
+        st.caption("Para a IA ler o cenário, configure `ANTHROPIC_API_KEY` ou `OPENAI_API_KEY`.")
+        return
+    cache = st.session_state.setdefault("foto_ia", {})
+    chave = hashlib.sha1(dados).hexdigest()
+    if st.button("🧠 Analisar o cenário com IA", key="foto_ia_btn",
+                 help="Uma chamada ao modelo de visão (alguns centavos). Não identifica pessoas pelo rosto."):
+        with st.spinner("A IA está lendo o cenário…"):
+            analise, erro = foto_ia.analisar_cenario(dados)
+        if analise:
+            cache[chave] = analise
+        else:
+            st.warning(erro)
+    analise = cache.get(chave)
+    if not analise:
+        st.caption("Estimativa por IA, não prova. A foto vai ao provedor reduzida e sem metadados; a IA "
+                   "descreve o ambiente e não identifica pessoas.")
+        return
+
+    if analise["resumo"]:
+        st.info(analise["resumo"])
+    local = analise["local_provavel"]
+    partes = [local.get(k) for k in ("ponto", "cidade", "regiao", "pais") if local.get(k)]
+    icone = _COR_CONF.get(local["confianca"], "⚪")
+    if partes:
+        st.markdown(f"**📍 Local provável:** {', '.join(partes)}  \n"
+                    f"{icone} confiança **{local['confianca']}**. {local['motivo']}")
+        mapa = foto_ia.link_do_mapa(local)
+        if mapa:
+            st.link_button("Procurar no Google Maps", mapa)
+    else:
+        st.markdown(f"**📍 Local provável:** sem base para estimar. {local['motivo']}")
+
+    if analise["pistas"]:
+        with st.expander(f"🔎 Pistas ({len(analise['pistas'])})", expanded=True):
+            for p in analise["pistas"]:
+                st.markdown(f"{_COR_CONF.get(p['confianca'], '⚪')} **{p['tipo']}:** {p['observado']}  \n"
+                            f"<span class='mh-soft'>→ {p['indica']}</span>", unsafe_allow_html=True)
+    if analise["textos_visiveis"]:
+        with st.expander(f"🔤 Textos visíveis ({len(analise['textos_visiveis'])})", expanded=True):
+            for t in analise["textos_visiveis"]:
+                st.markdown(f"- {t}")
+            placas = foto_ia.placas_no_texto(analise["textos_visiveis"])
+            if placas:
+                st.caption("Placa de veículo na foto. Copie e cole na aba **Consultar um dado** para ver o veículo:")
+                for placa in placas:
+                    st.code(placa, language=None)
+    if analise["como_confirmar"]:
+        with st.expander("✅ Como confirmar"):
+            for x in analise["como_confirmar"]:
+                st.markdown(f"- {x}")
+    if analise["limites"]:
+        st.caption("Limites: " + " · ".join(analise["limites"]))
 
 
 def _render_alerta(secoes: list[dict]) -> None:
